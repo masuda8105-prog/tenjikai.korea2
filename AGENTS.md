@@ -114,3 +114,15 @@ Do not add preset product-number shortcut buttons under the keypad unless explic
 - Normalize Excel date-corrupted product codes at import time. Examples: `1月20日` => `20-1`, `Jan-40` => `40-1`, `1960/4/2` => `60-4-2`.
 - Never display Excel date strings as product codes in search results, cart, or receipt PDFs.
 
+
+
+## Pack quantity rule
+
+The `入数` column may contain Japanese unit strings such as `10本`, `25ヶ`, `3組`, `10ペア`, or length/count strings such as `1m×3本`. The UI must translate these labels per language where possible and must keep unknown strings unchanged. Do not fabricate pack quantities when source text is ambiguous.
+
+
+## v0.9 keypad UI rule
+
+- Do not place the numeric keypad inline under the search field. Keep it as a small floating panel opened by the テンキー button.
+- The keypad must remain draggable and closable.
+- Keep the product code input readonly and inputmode=none to avoid opening the mobile software keyboard during keypad operation.
