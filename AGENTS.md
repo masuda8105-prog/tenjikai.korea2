@@ -126,3 +126,7 @@ The `入数` column may contain Japanese unit strings such as `10本`, `25ヶ`, 
 - Do not place the numeric keypad inline under the search field. Keep it as a small floating panel opened by the テンキー button.
 - The keypad must remain draggable and closable.
 - Keep the product code input readonly and inputmode=none to avoid opening the mobile software keyboard during keypad operation.
+
+
+## v0.11 UI note
+テンキーは展示会現場で迷わず使えるよう、ドラッグ式ではなく右下固定を基本とする。検索欄・クリア・左右ボタンは大きくしすぎず、商品一覧の表示面積を優先する。
