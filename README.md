@@ -124,3 +124,33 @@ index.html
 product_master_multilingual.csv
 product-images/
 ```
+
+## v0.4 UI/Search Update
+
+- Header simplified to total amount only, with a compact language selector.
+- Removed visible product count from search area.
+- Keypad changed to a smaller 3-column phone-style layout.
+- Product search now prioritizes exact code matches, then prefix matches, partial code matches, and keyword matches.
+- Search results show match badges: 完全一致 / 前方一致 / 部分一致 / キーワード.
+
+
+## v0.6 更新内容
+
+- パーツ商品の「入数」表示に対応しました。
+- CSVに `入数` / `入り数` / `内容量` / `袋入数` / `包装入数` / `販売単位` / `注文単位` / `pack_qty` / `pieces_per_pack` などの列がある場合、自動で読み込みます。
+- 商品一覧、商品詳細、カート、QR控えPDF、履歴CSVに入数が表示されます。
+- `20` のように数字だけ入れた場合、表示言語に合わせて `20個入` / `20 pcs/pack` / `20개입` / `20个/包` と整形します。
+- `1袋20個` や `20 pcs` のように文字入りで入力した場合は、そのまま表示します。
+
+### 推奨CSV列
+
+```csv
+品番,商品名_JA,一言要約_JA,商品名_EN,一言要約_EN,商品名_ZH,一言要約_ZH,商品名_KO,一言要約_KO,卸価格,入数,画像ファイル名
+141-503,シリコン鼻パッド 最柔タイプ,やわらかく鼻あたりを軽減しやすいシリコンパッドです。,Extra soft silicone nose pads,Soft silicone nose pads that help reduce pressure on the nose.,超软硅胶鼻托,柔软的硅胶鼻托，有助于减轻鼻部压力。,초연질 실리콘 코패드,코 부담을 줄이는 부드러운 실리콘 코패드입니다.,6500,20,141-503_1.jpg
+```
+
+
+## v0.6 update
+
+- Removed the preset product-number shortcut buttons under the numeric keypad.
+- Kept the search area cleaner for exhibition use.

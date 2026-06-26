@@ -97,3 +97,12 @@ QR points to /receipt/<token>
 ↓
 Customer downloads PDF
 ```
+
+
+## v0.5 development note
+
+The app supports package quantity / pack size display for parts. Keep the `packQty` field through product cards, detail modal, cart, receipt data, receipt rendering, and history CSV export. Supported CSV headers include `入数`, `入り数`, `内容量`, `袋入数`, `包装入数`, `販売単位`, `注文単位`, `pack_qty`, `pack_quantity`, and `pieces_per_pack`.
+
+
+## v0.6 note
+Do not add preset product-number shortcut buttons under the keypad unless explicitly requested. Keep the keypad area compact.
