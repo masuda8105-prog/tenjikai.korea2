@@ -154,3 +154,14 @@ product-images/
 
 - Removed the preset product-number shortcut buttons under the numeric keypad.
 - Kept the search area cleaner for exhibition use.
+
+## v0.7 修正メモ
+
+- Excel由来で品番が `1月20日` / `Jan-40` / `1960/4/2` のように日付化されていたデータを、アプリ読み込み時に品番へ補正します。
+  - 例：`1月20日` → `20-1`
+  - 例：`Jan-40` → `40-1`
+  - 例：`1960/4/2` → `60-4-2`
+- 同梱の `product_master_multilingual.csv` も日付化コードを補正済みです。
+- 品番検索欄は `readonly` + `inputmode="none"` に変更し、スマホのソフトキーボードが基本的に出ないようにしました。
+- テンキー入力後に検索欄へフォーカスしないようにして、キーボードの表示を抑制しています。
+

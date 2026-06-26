@@ -106,3 +106,11 @@ The app supports package quantity / pack size display for parts. Keep the `packQ
 
 ## v0.6 note
 Do not add preset product-number shortcut buttons under the keypad unless explicitly requested. Keep the keypad area compact.
+
+## v0.7 UI / Data Rules
+
+- Do not focus the product search input after keypad taps. This prevents mobile soft keyboards from opening during booth operation.
+- Keep the product search input readonly unless a deliberate keyboard-input mode is added later.
+- Normalize Excel date-corrupted product codes at import time. Examples: `1月20日` => `20-1`, `Jan-40` => `40-1`, `1960/4/2` => `60-4-2`.
+- Never display Excel date strings as product codes in search results, cart, or receipt PDFs.
+
