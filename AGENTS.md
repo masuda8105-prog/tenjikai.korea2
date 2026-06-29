@@ -141,3 +141,23 @@ The `入数` column may contain Japanese unit strings such as `10本`, `25ヶ`, 
 ## v0.13 update
 - テンキーを固定位置のまま、少し大きくして押しやすく調整。
 - 下部固定・左右移動・明細/お客様情報エリアでの自動非表示は維持。
+
+
+## Description rules
+- 商品説明は、単なるカテゴリ名ではなく「何に使うか」「お客様・眼鏡店にとって何が良いか」がすぐ分かる表現を優先する。
+- CSVに接客説明_*、用途_*、メリット_* がある場合は、必ずアプリ表示に使う。
+
+## Product detail URL policy
+
+- Keep official website links inside the product detail modal, not in the compact product card.
+- Prefer exact product page URLs from `商品ページURL` when available.
+- If no exact URL is available, fall back to the San Nishimura website search URL using the product code.
+- Do not expose distributor-only price data on public official pages.
+
+## Catalog page number rule
+
+When filling or correcting `カタログ参照`, use the printed page number shown at the bottom left or bottom right of the catalog page. Do not use the PDF viewer page index if it differs from the printed catalog page number.
+
+## Hidden settings rule
+
+Do not reintroduce a visible “Settings / Import data” card in the main exhibition UI unless explicitly requested. The app should load `product_master_multilingual.csv` automatically and keep operation simple for booth staff.
