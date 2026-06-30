@@ -189,3 +189,23 @@ Do not reintroduce a visible “Settings / Import data” card in the main exhib
 - No.104 は公式HPで「平ヤットコ 先細・先曲がり」「主にクリングス調整用」「主な使用用途: クリングスの微調整」と確認できるため、ブリッジ角度調整の説明を使わない。
 - No.1053 / No.1054 は工具本体のため、旧CSVの入数「2本」は表示しない。No.1054 の「2本」は商品用途名の「2本ダキ足」であり入数ではない。
 - 単品工具の入数は、カタログや商品名に明確なセット・入り数表記がある場合のみ表示する。
+
+## v0.15 mobile receipt download rule
+
+スマホでは `a.download` と自動クリックだけに依存しない。
+
+- PC: 生成後に従来通り自動ダウンロードを試す。
+- スマホ: `navigator.share({ files })` を優先する。
+- 共有シートが使えない、またはキャンセルされた場合は、生成済みBlobへの「PDFを開く / 保存」「画像を開く / 保存」リンクを表示する。
+- LINE / Instagramなどのアプリ内ブラウザでは保存が不安定なため、Safari / Chromeで開く案内を表示する。
+- PDF印刷ボタンは最後の保険として残す。
+
+## v0.16 programming agent summary rebuild
+
+`.agents/programming_agent_rebuild_summaries.py` を一言要約の再構築エージェントとして追加。
+
+- 全商品を対象に、HP調査CSV・カタログ調査CSV・商品名ルールを使って用途カテゴリを再判定する。
+- 「眼鏡店の作業や店頭提案を補助する商品です」のような汎用要約は禁止。
+- No.104 / No.1053 / No.1054 は重要品番として個別上書きする。
+- No.1053 / No.1054 の工具本体には、誤抽出された入数「2本」を表示しない。
+- 結果は `.agents/one_line_summary_evidence_report.csv` と `.agents/programming_agent_summary_audit.csv` に出力する。
