@@ -161,3 +161,31 @@ When filling or correcting `カタログ参照`, use the printed page number sho
 ## Hidden settings rule
 
 Do not reintroduce a visible “Settings / Import data” card in the main exhibition UI unless explicitly requested. The app should load `product_master_multilingual.csv` automatically and keep operation simple for booth staff.
+
+## v0.14 One-line summary quality workflow
+
+一言要約は、推測ではなく次の3段階で作成・監査する。
+
+1. HP情報調査エージェント
+   - `商品ページURL` または品番検索結果から公式HPの該当商品ページを確認する。
+   - `hp_match_status` が `exact` の場合のみ、HP情報を強い根拠として採用する。
+   - `mismatch` や検索URLのみの場合は、公式HP未確定としてカタログ情報を優先する。
+
+2. カタログ情報調査エージェント
+   - PDFカタログ抽出メモ、既存カタログデータ、印刷ページ番号を確認する。
+   - ページ番号はPDFビューア番号ではなく、カタログ紙面の下部に印字されたページ番号を使う。
+   - 周辺商品の情報が混入している場合は `issue_flags` や `要約品質メモ` に残す。
+
+3. 一言要約エージェント
+   - HP情報とカタログ情報の一致部分を優先して、4言語の一言要約を作成する。
+   - 「何に使うか」「どんな特徴・メリットがあるか」を短く入れる。
+   - 根拠が弱い場合は汎用的に言い切らず、要確認として監査CSVに残す。
+
+監査出力は `.agents/one_line_summary_evidence_report.csv` に保存する。
+列は、品番、商品名、HPから確認した情報、カタログから確認した情報、日本語/英語/中国語/韓国語の一言要約、確認元URLまたはカタログ掲載ページを含める。
+
+## v0.14 critical fixes
+
+- No.104 は公式HPで「平ヤットコ 先細・先曲がり」「主にクリングス調整用」「主な使用用途: クリングスの微調整」と確認できるため、ブリッジ角度調整の説明を使わない。
+- No.1053 / No.1054 は工具本体のため、旧CSVの入数「2本」は表示しない。No.1054 の「2本」は商品用途名の「2本ダキ足」であり入数ではない。
+- 単品工具の入数は、カタログや商品名に明確なセット・入り数表記がある場合のみ表示する。

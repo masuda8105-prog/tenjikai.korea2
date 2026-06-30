@@ -108,8 +108,8 @@
     const LIB_FILES = { QRCode:'vendor/qrcode.min.js', XLSX:'vendor/xlsx.full.min.js', html2canvas:'vendor/html2canvas.min.js', jspdf:'vendor/jspdf.umd.min.js' };
     const libLoadCache = {};
     const sampleProducts = [
-      {code:'1053', names:{ja:'埋込・ワンタッチ兼用ヤットコ',en:'Pliers for rimless and push-in parts',ko:'무테 및 삽입식 부품용 플라이어',zh:'无框和插入式部件用钳'}, descriptions:{ja:'特殊な鼻パッドやリムレス部品を安全に保持して調整できます。',en:'Helps hold and adjust special nose pad or rimless parts safely.',ko:'특수 코패드와 무테 부품을 안전하게 잡고 조정할 수 있습니다.',zh:'可安全夹持并调整特殊鼻托和无框部件。'}, price:120000, currency:'KRW', packQty:'1', catalog:'', image:''},
-      {code:'1054', names:{ja:'二本抱き足専用ヤットコ',en:'Pliers for twin pad arms',ko:'이중 패드암 전용 플라이어',zh:'双脚鼻托臂专用钳'}, descriptions:{ja:'二本抱き足タイプのパッド足調整に便利です。',en:'Useful for adjusting twin pad-arm nose pad parts.',ko:'이중 패드암 타입의 코패드 조정에 유용합니다.',zh:'适合调整双脚鼻托臂部件。'}, price:98000, currency:'KRW', packQty:'1', catalog:'', image:''}
+      {code:'1053', names:{ja:'ヤットコ',en:'Push-lock pad adjustment pliers',ko:'푸시록 패드 조정 플라이어',zh:'推锁式鼻托调整钳'}, descriptions:{ja:'プッシュロックパッド専用の調整ヤットコです。金具を面で挟み、カラー剥げや傷を抑えながら狭い場所でも調整しやすくします。',en:'Dedicated pliers for push-lock pad adjustment. They hold the hardware by surface contact, helping reduce scratches and color loss in narrow spaces.',ko:'푸시록 패드 전용 조정 플라이어입니다. 금구를 면으로 잡아 좁은 공간에서도 흠집과 도장 벗겨짐을 줄이며 조정하기 쉽습니다.',zh:'推锁式鼻托专用调整钳。以面接触夹持金具，有助于在狭窄位置减少划伤和掉色。'}, price:120000, currency:'KRW', packQty:'', catalog:'', image:''},
+      {code:'1054', names:{ja:'ヤットコ',en:'Twin pad-arm adjustment pliers',ko:'두 갈래 패드 다리 조정 플라이어',zh:'双脚鼻托调整钳'}, descriptions:{ja:'2本ダキ足パッド専用の調整ヤットコです。取付金具とパッドを包み込んで保持し、抱き込み部分の緩みを防ぎながら作業できます。',en:'Dedicated pliers for twin pad-arm pads. They wrap and hold the mounting hardware and pad, helping prevent looseness during adjustment.',ko:'두 갈래 패드 다리 전용 조정 플라이어입니다. 장착 금구와 패드를 감싸 잡아 조정 중 풀림을 줄이며 작업할 수 있습니다.',zh:'双脚鼻托专用调整钳。可包住安装金具和鼻托进行保持，有助于调整时防止抱合部位松动。'}, price:98000, currency:'KRW', packQty:'', catalog:'', image:''}
     ];
     let products = [...sampleProducts], order = [], lastReceiptUrl = '', currentReceiptData = null, keypadInputMode = 'number';
     const $ = id => document.getElementById(id);
