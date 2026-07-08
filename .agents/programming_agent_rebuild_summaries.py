@@ -1,0 +1,1146 @@
+import csv
+import re
+from collections import Counter
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+MASTER_PATH = ROOT / "product_master_multilingual.csv"
+FALLBACK_MASTER_PATH = ROOT / "product_master_multilingual.rebuilt.csv"
+CATALOG_PATH = ROOT / ".agents" / "catalog_research_output.csv"
+HP_PATH = ROOT / ".agents" / "hp_research_output.csv"
+EVIDENCE_PATH = ROOT / ".agents" / "one_line_summary_evidence_report.csv"
+AUDIT_PATH = ROOT / ".agents" / "programming_agent_summary_audit.csv"
+CATALOG_PDF_PATH = Path(
+    r"C:\Users\AONUSR02\Desktop\売上データ\サンニシムラ総合カタログ2025-2027 (1).pdf"
+)
+
+
+LANG_COLS = {
+    "ja": {
+        "summary": "一言要約_JA",
+        "customer": "接客説明_JA",
+        "usage": "用途_JA",
+        "benefit": "メリット_JA",
+    },
+    "en": {
+        "summary": "一言要約_EN",
+        "customer": "接客説明_EN",
+        "usage": "用途_EN",
+        "benefit": "メリット_EN",
+    },
+    "zh": {
+        "summary": "一言要約_ZH",
+        "customer": "接客説明_ZH",
+        "usage": "用途_ZH",
+        "benefit": "メリット_ZH",
+    },
+    "ko": {
+        "summary": "一言要約_KO",
+        "customer": "接客説明_KO",
+        "usage": "用途_KO",
+        "benefit": "メリット_KO",
+    },
+}
+
+
+def t(ja, en, zh, ko):
+    return {"ja": ja, "en": en, "zh": zh, "ko": ko}
+
+
+def template(summary, usage, benefit):
+    return {"summary": summary, "usage": usage, "benefit": benefit}
+
+
+TEMPLATES = {
+    "nose_pad": template(
+        t(
+            "鼻パッドの交換・調整に使うパーツです。形状や素材を合わせて選ぶことで、鼻への当たりを整え、掛け心地を改善しやすくします。",
+            "A part for replacing or adjusting nose pads. Choosing the right shape and material helps improve nose contact and wearing comfort.",
+            "用于更换或调整鼻托的部件。按形状和材质选择，可改善鼻部接触感和佩戴舒适度。",
+            "코패드 교체와 조정에 사용하는 부품입니다. 형태와 소재를 맞춰 선택하면 코에 닿는 느낌과 착용감을 개선하기 쉽습니다.",
+        ),
+        t("鼻パッド交換・調整", "nose-pad replacement and adjustment", "鼻托更换与调整", "코패드 교체 및 조정"),
+        t("当たりと掛け心地を整えやすい", "helps improve fit and comfort", "有助于改善贴合和舒适度", "맞닿는 느낌과 착용감을 조정하기 쉬움"),
+    ),
+    "air_pad": template(
+        t(
+            "エアクッション入りの鼻パッドです。鼻への圧迫感をやわらげ、掛け心地をやさしく整えたい時に提案しやすい商品です。",
+            "An air-cushioned nose pad. It helps soften pressure on the nose and is easy to recommend when comfort is the priority.",
+            "带空气缓冲的鼻托。可减轻鼻部压迫感，适合向重视舒适度的顾客推荐。",
+            "에어 쿠션이 들어간 코패드입니다. 코 압박감을 줄여 착용감을 부드럽게 조정하고 싶을 때 제안하기 좋습니다.",
+        ),
+        t("鼻当たりの軽減", "reducing nose pressure", "减轻鼻部压迫", "코 압박 완화"),
+        t("やわらかい掛け心地を提案しやすい", "easy to recommend for softer comfort", "便于推荐更柔和的佩戴感", "부드러운 착용감을 제안하기 쉬움"),
+    ),
+    "antibacterial_pad": template(
+        t(
+            "抗菌仕様の鼻パッドです。交換時に清潔感を伝えやすく、店頭でのメンテナンス提案に使いやすいパーツです。",
+            "An antibacterial nose pad. It helps communicate a cleaner feel during replacement and supports in-store maintenance proposals.",
+            "抗菌规格鼻托。更换时容易传达清洁感，适合门店维护建议使用。",
+            "항균 사양 코패드입니다. 교체 시 위생적인 인상을 전달하기 쉬워 매장 관리 제안에 쓰기 좋습니다.",
+        ),
+        t("抗菌鼻パッド交換", "antibacterial nose-pad replacement", "抗菌鼻托更换", "항균 코패드 교체"),
+        t("清潔感を伝えやすい", "helps present a cleaner feel", "有助于传达清洁感", "위생적인 느낌을 전달하기 쉬움"),
+    ),
+    "adhesive_fit_pad": template(
+        t(
+            "貼り付けてズレや鼻当たりを調整するフィット補助パーツです。加工なしで提案しやすく、店頭で短時間に対応できます。",
+            "An adhesive fitting aid for reducing slipping or adjusting nose contact. It is easy to offer without frame processing and can be applied quickly in store.",
+            "用于粘贴调整防滑或鼻部接触的贴附型配件。无需加工，门店可快速处理并推荐。",
+            "붙여서 흘러내림이나 코 닿는 부분을 조정하는 피팅 보조 부품입니다. 가공 없이 매장에서 빠르게 제안하기 쉽습니다.",
+        ),
+        t("貼るフィット調整", "adhesive fit adjustment", "贴附式贴合调整", "부착식 피팅 조정"),
+        t("加工なしでズレや当たりを調整しやすい", "helps adjust slipping or contact without processing", "无需加工即可调整防滑和接触感", "가공 없이 흘러내림과 닿는 느낌을 조정하기 쉬움"),
+    ),
+    "nose_pad_build": template(
+        t(
+            "プラスチックフレームなどの鼻盛りに使うパーツです。高さや当たりを補正し、低い鼻当てでも掛け位置を整えやすくします。",
+            "A part for building up the nose area on plastic frames. It helps adjust height and contact so the glasses sit more comfortably.",
+            "用于塑料镜架等鼻托加高的部件。可补正高度和接触位置，使佩戴位置更容易调整。",
+            "플라스틱 프레임 등의 코받침 높이를 보정하는 부품입니다. 높이와 닿는 위치를 조정해 착용 위치를 맞추기 쉽습니다.",
+        ),
+        t("鼻盛り・掛け位置調整", "nose build-up and fit position adjustment", "鼻托加高与佩戴位置调整", "코받침 보정 및 착용 위치 조정"),
+        t("低い鼻当てでも掛け位置を整えやすい", "helps improve fit position on low nose areas", "低鼻托也便于调整佩戴位置", "낮은 코받침도 착용 위치를 맞추기 쉬움"),
+    ),
+    "pad_arm": template(
+        t(
+            "パッド足やアームまわりの交換・補修に使う小部品です。破損や紛失時に必要な形状だけを選んで修理対応しやすくします。",
+            "A small part for replacing or repairing pad arms and related hardware. It helps stores handle breakage or loss by selecting the needed shape.",
+            "用于更换或修理鼻托臂及相关金具的小部件。破损或遗失时，可按需要选择形状进行维修。",
+            "코패드 암과 주변 금구의 교체·수리에 사용하는 소부품입니다. 파손이나 분실 시 필요한 형태만 골라 대응하기 쉽습니다.",
+        ),
+        t("パッド足交換・補修", "pad-arm replacement and repair", "鼻托臂更换与修理", "코패드 암 교체 및 수리"),
+        t("必要な形状だけを選んで補修しやすい", "helps repair only the needed shape", "便于只更换需要的形状", "필요한 형태만 골라 보수하기 쉬움"),
+    ),
+    "temple_tip": template(
+        t(
+            "モダン・先セルの交換に使うパーツです。傷みや汚れを交換し、耳まわりの掛け心地と見た目を整えやすくします。",
+            "A replacement part for temple tips. It helps refresh worn or dirty tips and improve comfort and appearance around the ears.",
+            "用于更换脚套/镜腿末端的部件。可替换磨损或污损部位，改善耳周佩戴感和外观。",
+            "모던과 팁 교체에 사용하는 부품입니다. 낡거나 오염된 부분을 교체해 귀 주변 착용감과 외관을 정돈하기 쉽습니다.",
+        ),
+        t("モダン交換", "temple-tip replacement", "脚套更换", "모던 교체"),
+        t("耳まわりの掛け心地と見た目を整えやすい", "helps refresh comfort and appearance around the ears", "便于改善耳部佩戴感和外观", "귀 주변 착용감과 외관을 정돈하기 쉬움"),
+    ),
+    "shrink_tube": template(
+        t(
+            "熱で収縮してテンプルや小部品に密着するチューブです。保護・補修・滑り止め加工を短時間で行いやすくします。",
+            "A heat-shrink tube that fits closely around temples or small parts. It helps with protection, repair, and anti-slip finishing.",
+            "加热后收缩并贴合镜腿或小部件的套管。便于进行保护、修补和防滑加工。",
+            "열로 수축해 템플이나 작은 부품에 밀착되는 튜브입니다. 보호, 보수, 미끄럼 방지 가공을 빠르게 하기 쉽습니다.",
+        ),
+        t("保護・補修・滑り止め加工", "protection, repair, and anti-slip work", "保护、修补与防滑加工", "보호·보수·미끄럼 방지 가공"),
+        t("熱で密着し、必要部位を保護しやすい", "heat-shrinks to protect the needed area", "加热贴合，便于保护所需部位", "열로 밀착되어 필요한 부위를 보호하기 쉬움"),
+    ),
+    "screw": template(
+        t(
+            "眼鏡フレームの固定や修理に使うネジです。サイズを合わせて交換することで、ゆるみや紛失時の対応をスムーズにします。",
+            "A screw for fastening and repairing eyewear frames. Matching the size helps handle loosened or missing screws smoothly.",
+            "用于眼镜架固定和维修的螺丝。按尺寸更换，可顺利处理松动或遗失问题。",
+            "안경 프레임 고정과 수리에 사용하는 나사입니다. 사이즈를 맞춰 교체하면 풀림이나 분실 시 대응하기 쉽습니다.",
+        ),
+        t("ネジ交換・固定", "screw replacement and fastening", "螺丝更换与固定", "나사 교체 및 고정"),
+        t("ゆるみや紛失時に対応しやすい", "helps handle loosened or missing screws", "便于处理松动或遗失", "풀림이나 분실에 대응하기 쉬움"),
+    ),
+    "screw_bolt": template(
+        t(
+            "ツーポイントやフレーム部品の固定に使うネジ・ボルトです。寸法を合わせて交換し、ゆるみや外れを補修しやすくします。",
+            "A screw or bolt for rimless frames and frame parts. Matching the dimensions helps repair loose or detached areas.",
+            "用于无框架和镜架部件固定的螺丝/螺栓。按尺寸更换，便于修理松动或脱落。",
+            "무테 프레임과 프레임 부품 고정에 쓰는 나사·볼트입니다. 치수를 맞춰 교체하면 풀림이나 이탈을 보수하기 쉽습니다.",
+        ),
+        t("ツーポイント固定・補修", "rimless-frame fastening and repair", "无框架固定与修理", "무테 프레임 고정 및 보수"),
+        t("寸法を合わせて外れを補修しやすい", "helps repair loose or detached parts by size", "按尺寸修理脱落部位更方便", "치수를 맞춰 이탈 부위를 보수하기 쉬움"),
+    ),
+    "nut": template(
+        t(
+            "ツーポイントや小部品の固定に使うナットです。サイズを合わせて交換することで、ガタつきを抑えて仕上がりを安定させやすくします。",
+            "A nut for rimless frames and small parts. Selecting the right size helps reduce looseness and stabilize the finish.",
+            "用于无框架和小部件固定的螺母。按尺寸更换，可减少松动并稳定完成度。",
+            "무테 프레임과 작은 부품 고정에 사용하는 너트입니다. 사이즈를 맞춰 교체하면 흔들림을 줄이고 마감을 안정시키기 쉽습니다.",
+        ),
+        t("ナット固定・交換", "nut fastening and replacement", "螺母固定与更换", "너트 고정 및 교체"),
+        t("ガタつきを抑えて仕上がりを安定させやすい", "helps reduce looseness and stabilize the finish", "有助于减少松动并稳定成品", "흔들림을 줄이고 마감을 안정시키기 쉬움"),
+    ),
+    "washer": template(
+        t(
+            "ネジまわりや小部品の固定を補助するワッシャです。部品の当たりやガタつきを抑え、フレームの仕上がりを安定させやすくします。",
+            "A washer that supports screws and small parts. It helps reduce contact damage and looseness for a more stable frame finish.",
+            "辅助螺丝和小部件固定的垫圈。可减少接触损伤和松动，使镜架完成度更稳定。",
+            "나사 주변과 작은 부품 고정을 보조하는 와셔입니다. 접촉 손상과 흔들림을 줄여 프레임 마감을 안정시키기 쉽습니다.",
+        ),
+        t("固定補助", "fastening support", "固定辅助", "고정 보조"),
+        t("当たりやガタつきを抑えやすい", "helps reduce contact damage and looseness", "有助于减少接触和松动", "닿는 손상과 흔들림을 줄이기 쉬움"),
+    ),
+    "nylon_rail": template(
+        t(
+            "ナイロールや溝まわりの交換・調整に使う部材です。太さや形状を合わせることで、レンズ保持を安定させやすくします。",
+            "A material for nylor or groove-related replacement and adjustment. Matching thickness and shape helps stabilize lens holding.",
+            "用于半框线槽周边更换和调整的材料。按粗细和形状选择，可稳定镜片固定。",
+            "나일론 림과 홈 주변 교체·조정에 쓰는 부재입니다. 굵기와 형태를 맞추면 렌즈 고정을 안정시키기 쉽습니다.",
+        ),
+        t("ナイロール・溝まわり調整", "nylor and groove adjustment", "半框线槽调整", "나일론 림·홈 주변 조정"),
+        t("レンズ保持を安定させやすい", "helps stabilize lens holding", "便于稳定镜片固定", "렌즈 고정을 안정시키기 쉬움"),
+    ),
+    "screwdriver": template(
+        t(
+            "眼鏡修理用のドライバーです。丁番・パッド・リムレス部品などのネジ調整を、店頭作業でスムーズに行いやすくします。",
+            "A screwdriver for eyewear repair. It helps handle screws around hinges, pads, and rimless parts smoothly at the counter.",
+            "眼镜维修用螺丝刀。便于门店处理铰链、鼻托和无框部件等螺丝调整。",
+            "안경 수리용 드라이버입니다. 힌지, 코패드, 무테 부품의 나사 조정을 매장에서 부드럽게 처리하기 쉽습니다.",
+        ),
+        t("ネジ調整", "screw adjustment", "螺丝调整", "나사 조정"),
+        t("日常修理をスムーズにしやすい", "helps make daily repairs smoother", "便于顺利进行日常维修", "일상 수리를 원활하게 하기 쉬움"),
+    ),
+    "screwdriver_handle": template(
+        t(
+            "交換式ドライバー先に使う柄・関連部品です。作業内容に合わせて先端を替え、修理工具を無駄なく使いやすくします。",
+            "A handle or related part for interchangeable screwdriver tips. It helps switch tips by task and use repair tools efficiently.",
+            "用于可更换螺丝刀头的手柄或相关部件。可按作业更换刀头，提高维修工具使用效率。",
+            "교체식 드라이버 팁에 쓰는 손잡이와 관련 부품입니다. 작업에 맞게 팁을 바꿔 수리 공구를 효율적으로 쓰기 쉽습니다.",
+        ),
+        t("交換式ドライバー部品", "interchangeable screwdriver parts", "可更换螺丝刀部件", "교체식 드라이버 부품"),
+        t("作業に合わせて先端を替えやすい", "makes it easy to switch tips by task", "便于按作业更换刀头", "작업에 맞춰 팁을 바꾸기 쉬움"),
+    ),
+    "drill": template(
+        t(
+            "眼鏡加工時の穴あけや穴調整に使う工具です。穴径や位置を整え、ツーポイントや部品取付の精度を高めやすくします。",
+            "A tool for drilling or adjusting holes in eyewear work. It helps refine hole size and position for rimless frames and part installation.",
+            "用于眼镜加工中钻孔或修孔的工具。可调整孔径和位置，提高无框和部件安装精度。",
+            "안경 가공 시 구멍을 뚫거나 조정하는 공구입니다. 구멍 크기와 위치를 맞춰 무테와 부품 장착 정밀도를 높이기 쉽습니다.",
+        ),
+        t("穴あけ・穴調整", "hole drilling and adjustment", "钻孔与修孔", "구멍 가공 및 조정"),
+        t("穴径や位置を整えやすい", "helps refine hole size and position", "便于调整孔径和位置", "구멍 크기와 위치를 맞추기 쉬움"),
+    ),
+    "reamer": template(
+        t(
+            "穴の面取りや微調整に使うリーマーです。ツーポイントやモダン穴などを整え、部品を合わせやすくします。",
+            "A reamer for chamfering and fine hole adjustment. It helps prepare rimless and temple-tip holes for better part fitting.",
+            "用于孔口倒角和微调的铰刀。可整理无框孔或脚套孔，使部件更易配合。",
+            "구멍 면취와 미세 조정에 쓰는 리머입니다. 무테와 모던 구멍을 정돈해 부품을 맞추기 쉽습니다.",
+        ),
+        t("穴の面取り・微調整", "hole chamfering and fine adjustment", "孔口倒角与微调", "구멍 면취 및 미세 조정"),
+        t("部品を合わせやすい穴に整えられる", "helps prepare holes for part fitting", "可把孔整理到便于装配", "부품에 맞는 구멍으로 정돈하기 쉬움"),
+    ),
+    "file_grinding": template(
+        t(
+            "フレームや部品の削り・仕上げに使うヤスリ類です。細かな形状調整や面取りを行い、修理後の仕上がりを整えやすくします。",
+            "A file or grinding tool for frames and parts. It supports fine shaping and chamfering to improve the repair finish.",
+            "用于镜架和部件削磨、收尾的锉刀类工具。可进行细部修形和倒角，使维修后效果更整洁。",
+            "프레임과 부품을 깎고 마감하는 줄·연마 공구입니다. 세부 형상 조정과 면취로 수리 후 마감을 정돈하기 쉽습니다.",
+        ),
+        t("削り・仕上げ加工", "filing and finishing", "削磨与收尾加工", "절삭 및 마감 가공"),
+        t("細かな形状調整と面取りをしやすい", "helps with fine shaping and chamfering", "便于细部修形和倒角", "세밀한 형상 조정과 면취가 쉬움"),
+    ),
+    "polish": template(
+        t(
+            "フレームやパーツの研磨・艶出しに使う用品です。細かなキズやくすみを整え、きれいな仕上がりに近づけます。",
+            "A polishing supply for frames and parts. It helps reduce small scratches and dullness for a cleaner finish.",
+            "用于镜架和部件研磨、抛光的用品。可处理细小划痕和暗淡，使完成效果更干净。",
+            "프레임과 부품의 연마·광택 작업에 쓰는 용품입니다. 작은 흠집과 칙칙함을 정돈해 깔끔한 마감에 가깝게 합니다.",
+        ),
+        t("研磨・艶出し", "polishing and gloss finishing", "研磨与抛光", "연마 및 광택 마감"),
+        t("キズやくすみを整えやすい", "helps reduce scratches and dullness", "有助于处理划痕和暗淡", "흠집과 칙칙함을 정돈하기 쉬움"),
+    ),
+    "cleaner": template(
+        t(
+            "眼鏡や作業まわりの清掃に使う商品です。汚れを落として見た目を整え、お渡し前の最終仕上げにも使いやすい商品です。",
+            "A product for cleaning eyewear or the work area. It helps remove dirt and present glasses neatly before handover.",
+            "用于清洁眼镜或作业区域的商品。可去除污渍，让交付前的外观更整洁。",
+            "안경이나 작업 주변 청소에 사용하는 상품입니다. 오염을 제거해 고객 전달 전 외관을 깔끔하게 정돈하기 쉽습니다.",
+        ),
+        t("清掃・仕上げ", "cleaning and final finishing", "清洁与最终整理", "청소 및 최종 마감"),
+        t("お渡し前の見た目を整えやすい", "helps present glasses neatly before handover", "便于交付前整理外观", "전달 전 외관을 정돈하기 쉬움"),
+    ),
+    "tape": template(
+        t(
+            "レンズやフレームを保護しながら作業するためのテープです。加工・調整時のキズや汚れを防ぎ、作業品質を安定させやすくします。",
+            "A tape for protecting lenses or frames during work. It helps prevent scratches and dirt during processing or adjustment.",
+            "用于作业时保护镜片或镜架的胶带。可防止加工和调整时产生划伤或污渍。",
+            "작업 중 렌즈와 프레임을 보호하는 테이프입니다. 가공·조정 중 흠집과 오염을 막아 작업 품질을 안정시키기 쉽습니다.",
+        ),
+        t("作業時の保護", "work protection", "作业保护", "작업 중 보호"),
+        t("キズや汚れを防ぎやすい", "helps prevent scratches and dirt", "有助于防止划伤和污渍", "흠집과 오염을 막기 쉬움"),
+    ),
+    "adhesive": template(
+        t(
+            "眼鏡部品の接着やネジゆるみ止めに使う液剤です。用途に合わせて使うことで、補修後の固定を安定させやすくします。",
+            "A liquid for bonding eyewear parts or preventing screw loosening. Using the right type helps stabilize repaired areas.",
+            "用于眼镜部件粘接或螺丝防松的液剂。按用途使用，可使修理后的固定更稳定。",
+            "안경 부품 접착이나 나사 풀림 방지에 쓰는 액제입니다. 용도에 맞게 사용하면 보수 후 고정을 안정시키기 쉽습니다.",
+        ),
+        t("接着・ゆるみ止め", "bonding and thread locking", "粘接与防松", "접착 및 풀림 방지"),
+        t("補修後の固定を安定させやすい", "helps stabilize repaired areas", "便于稳定修理后的固定", "보수 후 고정을 안정시키기 쉬움"),
+    ),
+    "soldering": template(
+        t(
+            "ロウ付けや加熱補修に使う工具・材料です。メタルフレームや小部品の修理で、必要な箇所を固定・補修しやすくします。",
+            "A tool or material for soldering and heat repair. It helps fix or repair metal frames and small parts at the needed point.",
+            "用于焊接和加热修理的工具或材料。便于在金属镜架和小部件维修中固定、修补需要部位。",
+            "납땜과 가열 보수에 쓰는 공구·재료입니다. 메탈 프레임과 작은 부품 수리에서 필요한 부위를 고정·보수하기 쉽습니다.",
+        ),
+        t("ロウ付け・加熱補修", "soldering and heat repair", "焊接与加热修理", "납땜 및 가열 보수"),
+        t("必要箇所を固定・補修しやすい", "helps repair or fix the needed point", "便于固定或修补所需部位", "필요한 부위를 고정·보수하기 쉬움"),
+    ),
+    "pliers_generic": template(
+        t(
+            "眼鏡フレームの調整や小部品の保持に使うヤットコです。先端形状に合わせて使い分け、狙った部分を安定してつかめます。",
+            "Pliers for adjusting eyewear frames or holding small parts. Different tip shapes help grip the target area steadily.",
+            "用于眼镜架调整和小部件夹持的钳子。可按前端形状区分使用，稳定夹住目标部位。",
+            "안경 프레임 조정과 작은 부품 고정에 사용하는 플라이어입니다. 팁 형태에 맞춰 사용하면 원하는 부분을 안정적으로 잡기 쉽습니다.",
+        ),
+        t("フレーム調整・部品保持", "frame adjustment and part holding", "镜架调整与部件夹持", "프레임 조정 및 부품 고정"),
+        t("狙った部分を安定してつかみやすい", "helps grip the target area steadily", "便于稳定夹住目标部位", "원하는 부분을 안정적으로 잡기 쉬움"),
+    ),
+    "pliers_klings_adjustment": template(
+        t(
+            "クリングスの微調整に使うヤットコです。小さなパット足を正確につかみ、鼻パッド位置を細かく整えやすくします。",
+            "Pliers for fine klings pad-arm adjustment. They help grip small pad arms accurately and refine nose-pad position.",
+            "用于鼻托臂微调的钳子。可准确夹住小型鼻托臂，细致调整鼻托位置。",
+            "클링스 코패드 암 미세 조정용 플라이어입니다. 작은 패드 암을 정확히 잡아 코패드 위치를 세밀하게 맞추기 쉽습니다.",
+        ),
+        t("クリングス微調整", "fine klings adjustment", "鼻托臂微调", "클링스 미세 조정"),
+        t("小さなパット足を正確につかみやすい", "helps grip small pad arms accurately", "便于准确夹住小型鼻托臂", "작은 패드 암을 정확히 잡기 쉬움"),
+    ),
+    "pliers_pad_adjustment": template(
+        t(
+            "鼻パッドまわりの角度調整に使うヤットコです。箱蝶や取付金具を安定してつかみ、フィッティング時の細かな調整をしやすくします。",
+            "Pliers for adjusting the angle around nose pads. They hold pad boxes or mounting hardware steadily for fine fitting work.",
+            "用于鼻托周边角度调整的钳子。可稳定夹持鼻托盒或安装金具，便于验配时微调。",
+            "코패드 주변 각도 조정에 쓰는 플라이어입니다. 박스나 장착 금구를 안정적으로 잡아 피팅 시 세밀한 조정이 쉽습니다.",
+        ),
+        t("鼻パッド角度調整", "nose-pad angle adjustment", "鼻托角度调整", "코패드 각도 조정"),
+        t("取付金具を安定してつかみやすい", "helps hold mounting hardware steadily", "便于稳定夹持安装金具", "장착 금구를 안정적으로 잡기 쉬움"),
+    ),
+    "pliers_temple_opening": template(
+        t(
+            "テンプル開きの調整に使うヤットコです。左右の開き具合を整え、掛け心地とフレームの安定感を合わせやすくします。",
+            "Pliers for temple opening adjustment. They help balance left and right temple spread and stabilize the frame fit.",
+            "用于调整镜腿开合的钳子。可平衡左右开度，帮助稳定佩戴感和镜架状态。",
+            "템플 벌어짐 조정용 플라이어입니다. 좌우 벌어짐을 맞춰 착용감과 프레임 안정감을 조정하기 쉽습니다.",
+        ),
+        t("テンプル開き調整", "temple opening adjustment", "镜腿开合调整", "템플 벌어짐 조정"),
+        t("左右の開きと掛け心地を整えやすい", "helps balance temple spread and fit", "便于平衡左右开度和佩戴感", "좌우 벌어짐과 착용감을 맞추기 쉬움"),
+    ),
+    "pliers_temple_angle": template(
+        t(
+            "テンプル角度や前傾角の調整に使うヤットコです。掛け位置や視線のバランスを見ながら、フィッティングを細かく整えられます。",
+            "Pliers for temple angle or pantoscopic tilt adjustment. They help refine fit position and visual balance during fitting.",
+            "用于调整镜腿角度和前倾角的钳子。可结合佩戴位置和视线平衡进行细致验配。",
+            "템플 각도와 전경각 조정용 플라이어입니다. 착용 위치와 시선 균형을 보며 피팅을 세밀하게 맞추기 쉽습니다.",
+        ),
+        t("テンプル角度・前傾角調整", "temple angle and pantoscopic tilt adjustment", "镜腿角度/前倾角调整", "템플 각도·전경각 조정"),
+        t("掛け位置と視線バランスを整えやすい", "helps refine fit position and visual balance", "便于调整佩戴位置和视线平衡", "착용 위치와 시선 균형을 맞추기 쉬움"),
+    ),
+    "pliers_bridge_angle": template(
+        t(
+            "ブリッジ角度やフロントバランスの調整に使うヤットコです。左右レンズ位置や前面の傾きを整え、掛け心地を合わせやすくします。",
+            "Pliers for bridge angle and front balance adjustment. They help align lens position and front tilt for a better fit.",
+            "用于调整鼻梁角度和前框平衡的钳子。可整理左右镜片位置和前框倾斜，改善佩戴感。",
+            "브리지 각도와 프런트 밸런스 조정용 플라이어입니다. 좌우 렌즈 위치와 전면 기울기를 맞춰 착용감을 조정하기 쉽습니다.",
+        ),
+        t("ブリッジ角度調整", "bridge angle adjustment", "鼻梁角度调整", "브리지 각도 조정"),
+        t("前面バランスを整えやすい", "helps align front balance", "便于整理前框平衡", "전면 밸런스를 맞추기 쉬움"),
+    ),
+    "pliers_modern_bending": template(
+        t(
+            "モダン曲げや先セル調整に使うヤットコです。手では曲げにくい部分へ力をかけ、耳まわりのフィットを整えやすくします。",
+            "Pliers for bending temple tips. They help apply force to areas that are hard to bend by hand and refine comfort around the ears.",
+            "用于弯曲脚套和调整镜腿末端的钳子。可对手难以弯曲的部位施力，改善耳周贴合。",
+            "모던 굽힘과 팁 조정에 쓰는 플라이어입니다. 손으로 굽히기 어려운 부위에 힘을 전달해 귀 주변 피팅을 맞추기 쉽습니다.",
+        ),
+        t("モダン曲げ調整", "temple-tip bending", "脚套弯曲调整", "모던 굽힘 조정"),
+        t("耳まわりのフィットを整えやすい", "helps refine fit around the ears", "便于改善耳周贴合", "귀 주변 피팅을 맞추기 쉬움"),
+    ),
+    "pliers_rim_shape": template(
+        t(
+            "リム形状やナイロールまわりの調整に使うヤットコです。レンズ保持部の形を整え、レンズ合わせを安定させやすくします。",
+            "Pliers for rim shape and nylor-area adjustment. They help refine the lens-holding area for a more stable lens fit.",
+            "用于调整镜圈形状和半框线槽周边的钳子。可整理镜片固定部位，提高配片稳定性。",
+            "림 형상과 나일론 림 주변 조정용 플라이어입니다. 렌즈 고정 부위를 정돈해 렌즈 맞춤을 안정시키기 쉽습니다.",
+        ),
+        t("リム形状調整", "rim-shape adjustment", "镜圈形状调整", "림 형상 조정"),
+        t("レンズ合わせを安定させやすい", "helps stabilize lens fitting", "有助于稳定配片", "렌즈 맞춤을 안정시키기 쉬움"),
+    ),
+    "pliers_rimless_screw_cutter": template(
+        t(
+            "ツーポイント用ネジの長さ調整に使うヤットコです。必要な長さに切りそろえ、ネジ先を処理しやすくします。",
+            "Pliers for trimming rimless-frame screws. They help cut screws to the needed length and finish the screw end.",
+            "用于调整无框螺丝长度的钳子。可按需要裁切长度，并便于处理螺丝端部。",
+            "무테용 나사 길이 조정 플라이어입니다. 필요한 길이로 자르고 나사 끝을 처리하기 쉽습니다.",
+        ),
+        t("ツーポネジ長さ調整", "rimless screw length adjustment", "无框螺丝长度调整", "무테 나사 길이 조정"),
+        t("必要な長さに切りそろえやすい", "helps trim screws to the needed length", "便于裁切到所需长度", "필요한 길이로 자르기 쉬움"),
+    ),
+    "pliers_cutting": template(
+        t(
+            "テンプル・ネジ・小部品のカットに使うニッパー類です。狙った位置を切りやすく、修理や加工の仕上げを進めやすくします。",
+            "Cutters or nippers for temples, screws, and small parts. They help cut at the target point and support repair or finishing work.",
+            "用于剪切镜腿、螺丝和小部件的剪钳类工具。便于在目标位置切断，推进维修和加工收尾。",
+            "템플, 나사, 작은 부품 절단에 쓰는 니퍼류입니다. 원하는 위치를 자르기 쉬워 수리와 가공 마감을 돕습니다.",
+        ),
+        t("カット加工", "cutting work", "剪切加工", "절단 가공"),
+        t("狙った位置を切りやすい", "helps cut at the target point", "便于在目标位置切断", "원하는 위치를 자르기 쉬움"),
+    ),
+    "pliers_replacement_tip": template(
+        t(
+            "ヤットコ先端の交換・保護に使う部品です。接触面を整え、フレームや部品へのキズを抑えながら調整しやすくします。",
+            "A replacement or protective part for plier tips. It helps keep the contact surface suitable and reduce scratches during adjustment.",
+            "用于钳子前端更换或保护的部件。可整理接触面，减少调整时对镜架和部件的划伤。",
+            "플라이어 팁 교체·보호용 부품입니다. 접촉면을 정돈해 조정 중 프레임과 부품의 흠집을 줄이기 쉽습니다.",
+        ),
+        t("ヤットコ先端交換・保護", "plier-tip replacement and protection", "钳尖更换与保护", "플라이어 팁 교체 및 보호"),
+        t("調整時のキズを抑えやすい", "helps reduce scratches during adjustment", "有助于减少调整时划伤", "조정 중 흠집을 줄이기 쉬움"),
+    ),
+    "pliers_protective_cover": template(
+        t(
+            "ヤットコや工具の接触面を保護する用品です。滑り止めやキズ防止を追加し、フレーム調整をより安定して行いやすくします。",
+            "A supply for protecting the contact surface of pliers or tools. It adds grip or scratch protection for more stable frame adjustment.",
+            "用于保护钳子或工具接触面的用品。可增加防滑和防划保护，使镜架调整更稳定。",
+            "플라이어와 공구의 접촉면을 보호하는 용품입니다. 미끄럼 방지와 흠집 방지를 더해 프레임 조정을 안정적으로 하기 쉽습니다.",
+        ),
+        t("工具接触面の保護", "tool contact-surface protection", "工具接触面保护", "공구 접촉면 보호"),
+        t("滑り止めやキズ防止を追加しやすい", "adds grip and scratch protection", "便于增加防滑和防划保护", "미끄럼 방지와 흠집 방지를 더하기 쉬움"),
+    ),
+    "pliers_lens_size_check": template(
+        t(
+            "レンズサイズ確認に使うヤットコです。歪度計使用時にリム止めネジの代わりに挟み、レンズ合わせと検品を効率化しやすくします。",
+            "Pliers for checking lens size. They clamp in place of a rim screw when using a lensmeter or strain tester, helping lens fitting and inspection.",
+            "用于确认镜片尺寸的钳子。使用应力仪等时可代替镜圈固定螺丝夹持，提高配片和检查效率。",
+            "렌즈 사이즈 확인용 플라이어입니다. 왜곡계 사용 시 림 고정 나사 대신 끼워 렌즈 맞춤과 검품을 효율화하기 쉽습니다.",
+        ),
+        t("レンズサイズ確認", "lens size checking", "镜片尺寸确认", "렌즈 사이즈 확인"),
+        t("レンズ合わせと検品を効率化しやすい", "helps make lens fitting and inspection efficient", "有助于提高配片和检查效率", "렌즈 맞춤과 검품을 효율화하기 쉬움"),
+    ),
+    "pliers_pad_remover": template(
+        t(
+            "ワンタッチパッドの取り外しや関連作業に使うヤットコです。細かなパッド部品を扱いやすく、交換作業を進めやすくします。",
+            "Pliers for removing one-touch pads and related work. They help handle small pad parts and make replacement work smoother.",
+            "用于拆卸一触式鼻托及相关作业的钳子。便于处理细小鼻托部件，推进更换作业。",
+            "원터치 패드 분리와 관련 작업에 쓰는 플라이어입니다. 작은 패드 부품을 다루기 쉬워 교체 작업을 원활하게 합니다.",
+        ),
+        t("パッド取り外し・交換", "pad removal and replacement", "鼻托拆卸与更换", "패드 분리 및 교체"),
+        t("細かなパッド部品を扱いやすい", "helps handle small pad parts", "便于处理细小鼻托部件", "작은 패드 부품을 다루기 쉬움"),
+    ),
+    "pliers_screw_grip": template(
+        t(
+            "ネジつかみや丁番まわりの補修に使うヤットコです。小さなネジやコマを安定して保持し、修理作業を進めやすくします。",
+            "Pliers for gripping screws and repairing hinge areas. They help hold tiny screws or hinge pieces steadily during repair.",
+            "用于夹持螺丝和修理铰链周边的钳子。可稳定保持小螺丝或铰链块，便于维修。",
+            "나사 잡기와 힌지 주변 보수에 쓰는 플라이어입니다. 작은 나사나 힌지 부품을 안정적으로 잡아 수리를 진행하기 쉽습니다.",
+        ),
+        t("ネジつかみ・丁番補修", "screw gripping and hinge repair", "螺丝夹持与铰链修理", "나사 잡기 및 힌지 보수"),
+        t("小さなネジを安定して保持しやすい", "helps hold tiny screws steadily", "便于稳定夹持小螺丝", "작은 나사를 안정적으로 잡기 쉬움"),
+    ),
+    "pliers_joint_hold": template(
+        t(
+            "智や丁番まわりを固定して調整を支えるヤットコです。テンプル調整時にフレームを安定させ、狙った角度に合わせやすくします。",
+            "Pliers that hold the lug or hinge area during adjustment. They stabilize the frame when adjusting temples and angles.",
+            "用于固定桩头或铰链周边以辅助调整的钳子。调整镜腿时可稳定镜架，更容易对准目标角度。",
+            "엔드피스나 힌지 주변을 고정해 조정을 돕는 플라이어입니다. 템플 조정 시 프레임을 안정시켜 원하는 각도에 맞추기 쉽습니다.",
+        ),
+        t("智固定・調整補助", "lug holding and adjustment support", "桩头固定与调整辅助", "엔드피스 고정 및 조정 보조"),
+        t("フレームを安定させて角度調整しやすい", "stabilizes the frame for angle adjustment", "稳定镜架，便于角度调整", "프레임을 안정시켜 각도 조정이 쉬움"),
+    ),
+    "toolset": template(
+        t(
+            "眼鏡店の作業に必要な工具や部品をまとめたセットです。新店準備、スタッフ教育、工具入れ替え時に導入しやすい構成です。",
+            "A set of tools or parts needed for eyewear work. It is useful for new-store setup, staff training, or tool replacement.",
+            "汇集眼镜店作业所需工具或部件的套装。适合新店准备、员工培训或工具更新时导入。",
+            "안경 작업에 필요한 공구나 부품을 모은 세트입니다. 신규 매장 준비, 직원 교육, 공구 교체 시 도입하기 쉽습니다.",
+        ),
+        t("工具・部品の一括準備", "tool and part setup", "工具/部件集中准备", "공구·부품 일괄 준비"),
+        t("必要なものをまとめて揃えやすい", "helps prepare essentials at once", "便于一次性准备所需物品", "필요한 것을 한 번에 갖추기 쉬움"),
+    ),
+    "tool_storage": template(
+        t(
+            "工具を見やすく整理して置くためのスタンド・収納用品です。作業台まわりを整え、必要な工具を取り出しやすくします。",
+            "A stand or storage item for organizing tools visibly. It keeps the workbench tidy and makes tools easier to pick up.",
+            "用于清楚整理工具的支架或收纳用品。可整理工作台周边，便于取用需要的工具。",
+            "공구를 보기 좋게 정리해 두는 스탠드·수납용품입니다. 작업대 주변을 정돈하고 필요한 공구를 꺼내기 쉽게 합니다.",
+        ),
+        t("工具整理・収納", "tool organization and storage", "工具整理与收纳", "공구 정리 및 수납"),
+        t("必要な工具を取り出しやすい", "makes needed tools easier to access", "便于取用所需工具", "필요한 공구를 꺼내기 쉬움"),
+    ),
+    "measuring_device": template(
+        t(
+            "眼鏡店の検査・測定に使う器具です。フレームやレンズの状態を数値や目視で確認し、接客や加工判断をしやすくします。",
+            "An instrument for inspection or measurement in optical shops. It helps check frames or lenses visually or by numbers for service and processing decisions.",
+            "眼镜店检查和测量用器具。可通过数值或目视确认镜架、镜片状态，便于接客和加工判断。",
+            "안경점의 검사·측정에 사용하는 기기입니다. 프레임과 렌즈 상태를 수치나 눈으로 확인해 상담과 가공 판단을 돕습니다.",
+        ),
+        t("検査・測定", "inspection and measurement", "检查与测量", "검사 및 측정"),
+        t("状態確認と加工判断をしやすい", "helps with condition checks and processing decisions", "便于状态确认和加工判断", "상태 확인과 가공 판단이 쉬움"),
+    ),
+    "test_lens": template(
+        t(
+            "検眼時に試験枠へ入れて使うテストレンズです。必要な度数や種類を選び、見え方の確認を行いやすくします。",
+            "A trial lens used in a trial frame during refraction. It helps check vision by selecting the needed power or type.",
+            "验光时放入试镜架使用的测试镜片。可按需要选择度数和类型，便于确认视力效果。",
+            "검안 시 시험테에 넣어 사용하는 테스트 렌즈입니다. 필요한 도수와 종류를 선택해 보이는 상태를 확인하기 쉽습니다.",
+        ),
+        t("検眼・見え方確認", "refraction and vision checking", "验光与视力确认", "검안 및 시야 확인"),
+        t("必要な度数を選んで確認しやすい", "helps check vision with the needed power", "便于选择所需度数进行确认", "필요한 도수를 골라 확인하기 쉬움"),
+    ),
+    "trial_frame": template(
+        t(
+            "検眼でテストレンズを装用するための試験枠です。PDや装用位置を合わせながら、見え方を確認しやすくします。",
+            "A trial frame for wearing trial lenses during refraction. It helps check vision while adjusting PD and wearing position.",
+            "验光时佩戴测试镜片用的试镜架。可调整PD和佩戴位置，便于确认视力效果。",
+            "검안에서 테스트 렌즈를 착용하기 위한 시험테입니다. PD와 착용 위치를 맞추며 보이는 상태를 확인하기 쉽습니다.",
+        ),
+        t("試験枠での検眼", "trial-frame refraction", "试镜架验光", "시험테 검안"),
+        t("装用位置を合わせて確認しやすい", "helps check vision with adjusted wearing position", "便于调整佩戴位置后确认", "착용 위치를 맞춰 확인하기 쉬움"),
+    ),
+    "magnifier": template(
+        t(
+            "細かな文字や部品を拡大して確認するためのルーペです。検品・修理・読書などで細部を見やすくします。",
+            "A magnifier for viewing small text or parts. It makes details easier to see for inspection, repair, or reading.",
+            "用于放大查看细小文字或部件的放大镜。适合检查、维修和阅读时看清细节。",
+            "작은 글자나 부품을 확대해 확인하는 확대경입니다. 검품, 수리, 독서 등에서 세부를 보기 쉽게 합니다.",
+        ),
+        t("拡大確認", "magnified viewing", "放大确认", "확대 확인"),
+        t("細部を見やすくする", "makes details easier to see", "让细节更容易看清", "세부를 보기 쉽게 함"),
+    ),
+    "checker": template(
+        t(
+            "レンズや表示内容の確認に使うチェッカー・ライト類です。性能説明や店頭デモで、お客様に状態を見せやすくします。",
+            "A checker or light for confirming lens or display conditions. It helps show the condition to customers during demonstrations.",
+            "用于确认镜片或显示内容的检测器/灯具。便于在门店演示中向顾客展示状态。",
+            "렌즈나 표시 상태를 확인하는 체커·라이트류입니다. 매장 데모에서 고객에게 상태를 보여주기 쉽습니다.",
+        ),
+        t("レンズ・状態確認", "lens and condition checking", "镜片/状态确认", "렌즈·상태 확인"),
+        t("店頭デモで説明しやすい", "easy to use in customer demonstrations", "便于门店演示说明", "매장 데모에서 설명하기 쉬움"),
+    ),
+    "reading_glasses": template(
+        t(
+            "手元の文字や細かな作業を見やすくする近用関連商品です。度数や用途に合わせて、店頭で提案しやすい商品です。",
+            "A near-vision product for reading or close work. It is easy to recommend in store by power or use case.",
+            "用于看清近距离文字或细小作业的近用相关商品。可按度数和用途在门店推荐。",
+            "손元 글자나 세밀한 작업을 보기 쉽게 하는 근거리용 관련 상품입니다. 도수와 용도에 맞춰 매장에서 제안하기 쉽습니다.",
+        ),
+        t("近用・手元作業", "near vision and close work", "近用与手边作业", "근거리 시야 및 손작업"),
+        t("度数や用途に合わせて提案しやすい", "easy to recommend by power or use", "便于按度数和用途推荐", "도수와 용도에 맞춰 제안하기 쉬움"),
+    ),
+    "clip_on": template(
+        t(
+            "普段のメガネに取り付けて使うクリップオングラスです。必要な時だけ装着でき、日差しやまぶしさ対策に使いやすい商品です。",
+            "Clip-on glasses that attach to regular eyewear. They can be used only when needed for sunlight or glare control.",
+            "可安装在常用眼镜上的夹片眼镜。需要时再装上，适合遮阳和防眩使用。",
+            "평소 안경에 장착해 사용하는 클립온 글라스입니다. 필요할 때만 붙여 햇빛이나 눈부심 대책으로 쓰기 좋습니다.",
+        ),
+        t("まぶしさ対策", "glare control", "防眩光", "눈부심 대책"),
+        t("必要な時だけ装着しやすい", "easy to attach only when needed", "需要时即可装卸", "필요할 때만 장착하기 쉬움"),
+    ),
+    "sunglasses": template(
+        t(
+            "日差しやまぶしさを抑えるサングラスです。屋外用や店頭販売用として、用途や濃度を説明しやすい商品です。",
+            "Sunglasses for reducing sunlight and glare. They are easy to explain by outdoor use, lens color, or density.",
+            "用于减少阳光和眩光的太阳镜。适合户外和门店销售，可按用途和颜色浓度说明。",
+            "햇빛과 눈부심을 줄이는 선글라스입니다. 야외용이나 매장 판매용으로 용도와 농도를 설명하기 쉽습니다.",
+        ),
+        t("日差し・まぶしさ対策", "sunlight and glare control", "遮阳与防眩", "햇빛·눈부심 대책"),
+        t("用途や濃度を説明しやすい", "easy to explain by use or tint density", "便于按用途和浓度说明", "용도와 농도를 설명하기 쉬움"),
+    ),
+    "sports_band": template(
+        t(
+            "スポーツ時や動きの多い場面でメガネを固定するバンドです。ズレ落ちを防ぎやすく、店頭販売にも説明しやすい商品です。",
+            "A band for keeping glasses in place during sports or active use. It helps prevent slipping and is easy to explain as an add-on item.",
+            "用于运动或活动场景固定眼镜的绑带。可帮助防止滑落，作为门店配件也容易说明。",
+            "운동이나 활동이 많은 상황에서 안경을 고정하는 밴드입니다. 흘러내림을 줄여 매장 판매용으로도 설명하기 쉽습니다.",
+        ),
+        t("眼鏡固定", "eyewear retention", "眼镜固定", "안경 고정"),
+        t("動いてもズレ落ちを防ぎやすい", "helps prevent slipping during movement", "活动时有助于防止滑落", "움직일 때 흘러내림을 줄이기 쉬움"),
+    ),
+    "glass_code_chain": template(
+        t(
+            "メガネを首から下げて携帯するためのコード・チェーンです。外した時の置き忘れや落下を防ぎやすくします。",
+            "A cord or chain for wearing glasses around the neck. It helps prevent misplacement or drops when glasses are removed.",
+            "用于将眼镜挂在颈部携带的眼镜绳/链。摘下时有助于防止遗忘或掉落。",
+            "안경을 목에 걸어 휴대하는 코드·체인입니다. 벗었을 때 두고 가거나 떨어뜨리는 것을 줄이기 쉽습니다.",
+        ),
+        t("携帯・落下防止", "carrying and drop prevention", "携带与防掉落", "휴대 및 낙하 방지"),
+        t("置き忘れや落下を防ぎやすい", "helps prevent misplacement and drops", "有助于防止遗忘和掉落", "두고 가거나 떨어뜨리는 일을 줄이기 쉬움"),
+    ),
+    "case": template(
+        t(
+            "眼鏡や小物の収納・保護に使うケース関連商品です。持ち帰り、保管、ディスプレイ時にも扱いやすい商品です。",
+            "A case-related product for storing and protecting eyewear or small items. It is useful for carryout, storage, or display.",
+            "用于收纳和保护眼镜或小物的盒类商品。适合携带、保管和陈列使用。",
+            "안경이나 작은 물품의 수납·보호에 쓰는 케이스 관련 상품입니다. 휴대, 보관, 진열 시 다루기 쉽습니다.",
+        ),
+        t("収納・保護", "storage and protection", "收纳与保护", "수납 및 보호"),
+        t("持ち帰りや保管に使いやすい", "useful for carryout and storage", "便于携带和保管", "휴대와 보관에 쓰기 쉬움"),
+    ),
+    "pop_display": template(
+        t(
+            "店頭での商品展示や販売促進に使う用品です。商品やサービスを見やすく示し、接客時の提案をしやすくします。",
+            "A display or promotion item for the store. It helps present products or services clearly and supports customer proposals.",
+            "用于门店展示和促销的用品。可清楚展示商品或服务，便于接客推荐。",
+            "매장 상품 진열과 판매 촉진에 쓰는 용품입니다. 상품과 서비스를 보기 좋게 보여 상담 제안을 돕습니다.",
+        ),
+        t("展示・販売促進", "display and promotion", "展示与促销", "진열 및 판매 촉진"),
+        t("商品やサービスを見せやすい", "helps present products or services clearly", "便于展示商品或服务", "상품과 서비스를 보여주기 쉬움"),
+    ),
+    "book_training": template(
+        t(
+            "眼鏡の知識や技術を学ぶための書籍・教材です。スタッフ教育や接客前の確認に使いやすい商品です。",
+            "A book or training material for eyewear knowledge and techniques. It is useful for staff education or pre-service review.",
+            "用于学习眼镜知识和技术的书籍/教材。适合员工培训或接客前复习使用。",
+            "안경 지식과 기술을 배우기 위한 서적·교재입니다. 직원 교육이나 상담 전 확인용으로 쓰기 좋습니다.",
+        ),
+        t("教育・技術確認", "training and technical review", "培训与技术确认", "교육 및 기술 확인"),
+        t("スタッフ教育に使いやすい", "useful for staff training", "适合员工培训", "직원 교육에 쓰기 좋음"),
+    ),
+    "machine_part": template(
+        t(
+            "機械や専用器具の交換・補修に使う部品です。消耗や破損時に必要箇所を交換し、機器を使い続けやすくします。",
+            "A replacement or repair part for machines or dedicated devices. It helps keep equipment usable when parts wear or break.",
+            "用于机器或专用器具更换、维修的部件。磨损或破损时可更换所需部位，延长设备使用。",
+            "기계나 전용 기기의 교체·보수에 사용하는 부품입니다. 소모나 파손 시 필요한 부분을 교체해 장비를 계속 쓰기 쉽습니다.",
+        ),
+        t("機器部品交換・補修", "equipment part replacement and repair", "设备部件更换与维修", "장비 부품 교체 및 보수"),
+        t("機器を使い続けやすい", "helps keep equipment in use", "有助于继续使用设备", "장비를 계속 사용하기 쉬움"),
+    ),
+    "work_supply": template(
+        t(
+            "加工・修理作業を補助する消耗品や関連用品です。用途に合わせて備えておくことで、店頭作業を進めやすくします。",
+            "A consumable or related supply that supports processing and repair work. Keeping it on hand helps store work proceed smoothly.",
+            "辅助加工和维修作业的消耗品或相关用品。按用途准备，可让门店作业更顺利。",
+            "가공·수리 작업을 보조하는 소모품과 관련 용품입니다. 용도에 맞춰 준비해 두면 매장 작업을 진행하기 쉽습니다.",
+        ),
+        t("作業補助・消耗品", "work support and consumables", "作业辅助与耗材", "작업 보조 및 소모품"),
+        t("店頭作業を進めやすい", "helps store work proceed smoothly", "便于推进门店作业", "매장 작업을 진행하기 쉬움"),
+    ),
+    "battery": template(
+        t(
+            "測定器やライトなどに使う電池・電源関連品です。必要な機器をすぐ使える状態に保ち、店頭作業を止めにくくします。",
+            "A battery or power-related item for instruments and lights. It helps keep needed devices ready for store work.",
+            "用于测量器和灯具等的电池/电源相关商品。可保持设备随时可用，减少门店作业中断。",
+            "측정기나 라이트 등에 쓰는 배터리·전원 관련 상품입니다. 필요한 기기를 바로 쓸 수 있게 유지해 매장 작업 중단을 줄입니다.",
+        ),
+        t("電源・電池交換", "power and battery replacement", "电源与电池更换", "전원 및 배터리 교체"),
+        t("機器をすぐ使える状態にしやすい", "helps keep devices ready", "便于保持设备可用", "기기를 바로 쓸 수 있게 하기 쉬움"),
+    ),
+    "decorative_part": template(
+        t(
+            "フレーム装飾やカスタマイズに使う小部品です。色や形を選び、修理だけでなく店頭提案の幅を広げやすくします。",
+            "A small part for frame decoration or customization. Choosing color or shape helps expand proposals beyond repair.",
+            "用于镜架装饰和定制的小部件。可选择颜色和形状，拓展维修以外的门店提案。",
+            "프레임 장식과 커스터마이징에 쓰는 소부품입니다. 색상과 형태를 골라 수리 외의 매장 제안 폭을 넓히기 쉽습니다.",
+        ),
+        t("装飾・カスタマイズ", "decoration and customization", "装饰与定制", "장식 및 커스터마이징"),
+        t("店頭提案の幅を広げやすい", "helps expand in-store proposals", "有助于拓展门店提案", "매장 제안 폭을 넓히기 쉬움"),
+    ),
+    "color_repair": template(
+        t(
+            "フレームや部品の色補修に使う用品です。小さな色剥げやキズを目立ちにくくし、修理後の見た目を整えやすくします。",
+            "A supply for color repair on frames or parts. It helps make small color loss or scratches less noticeable after repair.",
+            "用于镜架或部件颜色修补的用品。可让小面积掉色或划伤不明显，整理维修后的外观。",
+            "프레임과 부품의 색 보수에 쓰는 용품입니다. 작은 도장 벗겨짐이나 흠집을 덜 눈에 띄게 해 수리 후 외관을 정돈합니다.",
+        ),
+        t("色補修", "color repair", "颜色修补", "색상 보수"),
+        t("色剥げやキズを目立ちにくくしやすい", "helps reduce the appearance of color loss and scratches", "有助于减轻掉色和划伤的可见性", "도장 벗겨짐과 흠집을 덜 눈에 띄게 하기 쉬움"),
+    ),
+    "ink_marker": template(
+        t(
+            "印点・マーキング・表示に使うインクや関連用品です。レンズ加工や値札作成などで、必要な印を見やすく入れられます。",
+            "Ink or related supplies for dots, marking, and labels. They help add clear marks for lens processing or price labels.",
+            "用于印点、标记和显示的油墨及相关用品。适合镜片加工和价签制作时清楚标记。",
+            "인점, 마킹, 표시용 잉크와 관련 용품입니다. 렌즈 가공이나 가격표 작성 시 필요한 표시를 보기 좋게 넣기 쉽습니다.",
+        ),
+        t("印点・マーキング", "dotting and marking", "印点与标记", "인점 및 마킹"),
+        t("必要な印を見やすく入れやすい", "helps make needed marks visible", "便于清楚标记", "필요한 표시를 보기 좋게 넣기 쉬움"),
+    ),
+    "brush": template(
+        t(
+            "研磨や清掃の仕上げに使うブラシです。細かな汚れや研磨あとを整え、作業後の見た目を仕上げやすくします。",
+            "A brush for polishing or cleaning finish work. It helps tidy fine dirt or polishing marks after work.",
+            "用于研磨或清洁收尾的刷子。可整理细小污渍或研磨痕迹，使作业后外观更干净。",
+            "연마나 청소 마감에 쓰는 브러시입니다. 작은 오염과 연마 자국을 정돈해 작업 후 외관을 마감하기 쉽습니다.",
+        ),
+        t("清掃・研磨仕上げ", "cleaning and polishing finish", "清洁与研磨收尾", "청소 및 연마 마감"),
+        t("作業後の見た目を整えやすい", "helps tidy the finish after work", "便于整理作业后的外观", "작업 후 외관을 정돈하기 쉬움"),
+    ),
+    "parts": template(
+        t(
+            "眼鏡フレームや関連器具の交換・補修に使うパーツです。対応部位やサイズを合わせ、必要な部分だけを補修しやすくします。",
+            "A part for replacing or repairing eyewear frames or related devices. Matching the location and size helps repair only the needed area.",
+            "用于眼镜架或相关器具更换、维修的部件。按对应部位和尺寸选择，便于只修补所需位置。",
+            "안경 프레임과 관련 기기의 교체·보수에 쓰는 부품입니다. 대응 부위와 사이즈를 맞춰 필요한 부분만 보수하기 쉽습니다.",
+        ),
+        t("交換・補修", "replacement and repair", "更换与维修", "교체 및 보수"),
+        t("必要な部分だけを補修しやすい", "helps repair only the needed area", "便于只修补所需部位", "필요한 부분만 보수하기 쉬움"),
+    ),
+    "temple_tip_bending_support": template(
+        t(
+            "モダン曲げを補助する専用ツールです。フィッティング時の指を保護しながら、狙った位置でモダンを曲げやすくします。",
+            "A support tool for bending temple tips. It helps protect fingers during fitting and makes it easier to bend at the target point.",
+            "用于辅助脚套弯曲的专用工具。验配时可保护手指，并便于在目标位置弯曲脚套。",
+            "모던 굽힘을 보조하는 전용 도구입니다. 피팅 중 손가락을 보호하면서 원하는 위치에서 모던을 굽히기 쉽습니다.",
+        ),
+        t("モダン曲げ補助", "temple-tip bending support", "脚套弯曲辅助", "모던 굽힘 보조"),
+        t("指を保護しながら曲げやすい", "helps bend while protecting fingers", "保护手指并便于弯曲", "손가락을 보호하면서 굽히기 쉬움"),
+    ),
+    "special_104": template(
+        t(
+            "クリングスの微調整に使う、先細・先曲がりの平ヤットコです。狭い隙間でも小さな部位を正確につかみ、細かく調整できます。",
+            "Flat pliers with slim, curved tips for fine klings adjustment. They grip small parts accurately even in narrow spaces.",
+            "用于鼻托臂微调的先细弯头平口钳。即使在狭窄间隙中，也能准确夹住小部位并进行细调。",
+            "클링스 미세 조정에 쓰는 가늘고 굽은 평 플라이어입니다. 좁은 틈에서도 작은 부위를 정확히 잡아 세밀하게 조정할 수 있습니다.",
+        ),
+        t("クリングスの微調整", "fine klings adjustment", "鼻托臂微调", "클링스 미세 조정"),
+        t("狭い隙間でも正確につかみやすい", "grips accurately even in narrow spaces", "狭窄处也便于准确夹持", "좁은 틈에서도 정확히 잡기 쉬움"),
+    ),
+    "special_1053": template(
+        t(
+            "プッシュロックパッド専用の調整ヤットコです。金具を面で挟むことでカラー剥げや傷を抑え、狭い場所でも調整しやすくします。",
+            "Dedicated pliers for push-lock pad adjustment. The flat gripping surface helps reduce color loss and scratches in narrow spaces.",
+            "推锁式鼻托专用调整钳。以面接触夹持金具，可减少掉色和划伤，并便于在狭小位置调整。",
+            "푸시록 패드 전용 조정 플라이어입니다. 금구를 면으로 잡아 도장 벗겨짐과 흠집을 줄이고 좁은 곳에서도 조정하기 쉽습니다.",
+        ),
+        t("プッシュロックパッド調整", "push-lock pad adjustment", "推锁式鼻托调整", "푸시록 패드 조정"),
+        t("カラー剥げや傷を抑えて調整しやすい", "helps adjust while reducing scratches and color loss", "减少划伤和掉色并便于调整", "흠집과 도장 벗겨짐을 줄이며 조정하기 쉬움"),
+    ),
+    "special_1054": template(
+        t(
+            "2本ダキ足パッド専用の調整ヤットコです。取付金具とパッドを包み込んで保持し、抱き込み部分の緩みを防ぎながら作業できます。",
+            "Dedicated pliers for twin pad-arm pads. They wrap and hold the mounting hardware and pad to help prevent looseness during adjustment.",
+            "双脚鼻托专用调整钳。可包住安装金具和鼻托进行保持，有助于调整时防止抱合部位松动。",
+            "두 갈래 패드 다리 전용 조정 플라이어입니다. 장착 금구와 패드를 감싸 잡아 조정 중 풀림을 줄이며 작업할 수 있습니다.",
+        ),
+        t("2本ダキ足パッド調整", "twin pad-arm adjustment", "双脚鼻托调整", "두 갈래 패드 다리 조정"),
+        t("抱き込み部分の緩みを防ぎやすい", "helps prevent looseness while adjusting", "便于防止抱合部位松动", "감싸는 부분의 풀림을 줄이기 쉬움"),
+    ),
+}
+
+
+CATEGORY_TO_TEMPLATE = {
+    "nose_pad": "nose_pad",
+    "air_pad": "air_pad",
+    "antibacterial_pad": "antibacterial_pad",
+    "adhesive_fit_pad": "adhesive_fit_pad",
+    "cellpita": "adhesive_fit_pad",
+    "nose_pad_build": "nose_pad_build",
+    "pad_arm": "pad_arm",
+    "temple_tip": "temple_tip",
+    "shrink_tube": "shrink_tube",
+    "screw": "screw",
+    "screw_bolt": "screw_bolt",
+    "nut": "nut",
+    "rimless": "nut",
+    "washer": "washer",
+    "nylon_rail": "nylon_rail",
+    "screwdriver": "screwdriver",
+    "screwdriver_handle": "screwdriver_handle",
+    "drill": "drill",
+    "lens_hole_bit": "drill",
+    "reamer": "reamer",
+    "file_grinding": "file_grinding",
+    "finishing_tool": "file_grinding",
+    "processing_file": "file_grinding",
+    "polish": "polish",
+    "polishing": "polish",
+    "cleaner": "cleaner",
+    "tape": "tape",
+    "protective_supply": "tape",
+    "adhesive": "adhesive",
+    "soldering": "soldering",
+    "soldering_supply": "soldering",
+    "pliers": "pliers_generic",
+    "pliers_klings_adjustment_premium": "pliers_klings_adjustment",
+    "pliers_pad_adjustment": "pliers_pad_adjustment",
+    "pliers_temple_opening": "pliers_temple_opening",
+    "pliers_temple_angle": "pliers_temple_angle",
+    "pliers_bridge_angle": "pliers_bridge_angle",
+    "pliers_rim_shape": "pliers_rim_shape",
+    "pliers_rimless_screw_cutter": "pliers_rimless_screw_cutter",
+    "pliers_cutting": "pliers_cutting",
+    "pliers_replacement_tip": "pliers_replacement_tip",
+    "pliers_protective_cover": "pliers_protective_cover",
+    "pliers_lens_size_check": "pliers_lens_size_check",
+    "pliers_pad_remover": "pliers_pad_remover",
+    "pliers_screw_grip": "pliers_screw_grip",
+    "pliers_joint_hold": "pliers_joint_hold",
+    "toolset": "toolset",
+    "tool_set": "toolset",
+    "tool_storage": "tool_storage",
+    "measuring_device": "measuring_device",
+    "measure": "measuring_device",
+    "test_lens": "test_lens",
+    "trial_frame": "trial_frame",
+    "magnifier": "magnifier",
+    "checker": "checker",
+    "progressive_mark_light": "checker",
+    "progressive_mark_light_part": "checker",
+    "reading_glasses": "reading_glasses",
+    "clip_on": "clip_on",
+    "sunglasses": "sunglasses",
+    "sports_band": "sports_band",
+    "retainer_band": "sports_band",
+    "glass_code_chain": "glass_code_chain",
+    "case": "case",
+    "case_bag": "case",
+    "pop_display": "pop_display",
+    "book_training": "book_training",
+    "machine_part": "machine_part",
+    "work_supply": "work_supply",
+    "battery": "battery",
+    "charger": "battery",
+    "decorative_part": "decorative_part",
+    "color_repair": "color_repair",
+    "ink_marker": "ink_marker",
+    "brush": "brush",
+    "parts": "parts",
+    "generic_part": "parts",
+    "repair_part": "parts",
+}
+
+
+def read_rows(path):
+    with path.open("r", encoding="utf-8-sig", newline="") as f:
+        return list(csv.DictReader(f))
+
+
+def write_rows(path, headers, rows):
+    with path.open("w", encoding="utf-8-sig", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=headers, lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def compact(value, limit=None):
+    value = re.sub(r"\s+", " ", str(value or "")).strip()
+    if limit and len(value) > limit:
+        return value[: limit - 1] + "…"
+    return value
+
+
+def has_any(text, words):
+    return any(w in text for w in words)
+
+
+def get_merged_text(row, catalog_row, hp_row):
+    return compact(
+        " ".join(
+            [
+                row.get("品番", ""),
+                row.get("商品名_JA", ""),
+                row.get("説明カテゴリ", ""),
+                row.get("PDF抽出メモ", ""),
+                row.get("カタログから確認した情報", ""),
+                catalog_row.get("catalog_info", ""),
+                catalog_row.get("catalog_usage", ""),
+                catalog_row.get("catalog_features", ""),
+                hp_row.get("hp_categories", ""),
+                hp_row.get("hp_description", ""),
+                row.get("HPから確認した情報", ""),
+            ]
+        )
+    )
+
+
+def detect_pliers_template(name, text):
+    if has_any(text, ["先プラスティック", "先プラ", "先カバー", "透明カバー丈", "交換用先端", "ヤットコ先"]):
+        return "pliers_replacement_tip"
+    if has_any(text, ["プロテクトフィルム", "ツールゴムコーティング", "グリップゴムシート"]):
+        return "pliers_protective_cover"
+    if has_any(name + text, ["ニッパー", "喰い切り", "カッター", "Cutter", "切り"]) and not has_any(
+        text, ["レンズリムーバー"]
+    ):
+        return "pliers_cutting"
+    if has_any(text, ["ツーポネジ切り", "ネジ切りカッター", "ネジの長さ"]):
+        return "pliers_rimless_screw_cutter"
+    if has_any(text, ["ワンタッチパットはずし", "ワンタッチパッドはずし", "パットはずし", "パッドはずし"]):
+        return "pliers_pad_remover"
+    if has_any(text, ["レンズサイズ", "歪度計", "リム止めネジの代わり"]):
+        return "pliers_lens_size_check"
+    if has_any(text, ["クリングス", "パット足を直接", "パッド足を直接"]):
+        return "pliers_klings_adjustment"
+    if has_any(text, ["箱蝶", "ボックス", "パット調整", "パッド調整", "埋込", "ワンタッチパット", "ワンタッチパッド"]):
+        return "pliers_pad_adjustment"
+    if has_any(text, ["丁番コマ", "ネジつかみ", "ネジ抜き"]):
+        return "pliers_screw_grip"
+    if has_any(text, ["智固定", "智の部分", "縦智", "丁番の固定", "テンプル調整時のサポート"]):
+        return "pliers_joint_hold"
+    if has_any(text, ["テンプル角度", "前傾角", "智のねじれ"]):
+        return "pliers_temple_angle"
+    if has_any(text, ["テンプル開き", "開き調整"]):
+        return "pliers_temple_opening"
+    if has_any(text, ["ブリッジ角度", "ブリッジカーブ", "フロントバランス"]):
+        return "pliers_bridge_angle"
+    if has_any(text, ["モダン曲げ", "モダンを", "先セル曲げ"]):
+        return "pliers_modern_bending"
+    if has_any(text, ["リム", "ナイロール", "アール修正", "溝堀"]):
+        return "pliers_rim_shape"
+    return "pliers_generic"
+
+
+def detect_template_key(row, catalog_row, hp_row):
+    code = row.get("品番", "").strip()
+    if code == "104":
+        return "special_104"
+    if code == "1053":
+        return "special_1053"
+    if code == "1054":
+        return "special_1054"
+
+    name = row.get("商品名_JA", "")
+    text = get_merged_text(row, catalog_row, hp_row)
+
+    if has_any(name, ["鼻盛"]):
+        return "nose_pad_build"
+    if has_any(name + text, ["セルピタ", "セルシール", "セルモリー", "メガネグリップ", "クビフリー"]):
+        return "adhesive_fit_pad"
+    if has_any(name + text, ["エアシリコン", "エアーシリコン"]):
+        return "air_pad"
+    if has_any(name + text, ["抗菌パット", "抗菌パッド", "抗菌仕様"]):
+        return "antibacterial_pad"
+    if has_any(name, ["グースネック", "U型", "Ｕ型", "パット足", "パッド足", "ダキ足", "アイアーム", "ガードアーム"]):
+        return "pad_arm"
+    if has_any(name, ["パット", "パッド", "箱蝶", "ワンタッチ", "ビルトイン", "巻式"]):
+        return "nose_pad"
+    if has_any(name, ["モダン", "先セル"]):
+        if has_any(name + text, ["調整ツール", "曲げを補助"]):
+            return "temple_tip_bending_support"
+        return "temple_tip"
+    if has_any(name, ["シュリンクチューブ"]):
+        return "shrink_tube"
+    if has_any(name, ["スポーツバンド"]):
+        return "sports_band"
+    if has_any(name, ["滑り止めシール"]) and has_any(name, ["ヤットコ"]):
+        return "pliers_protective_cover"
+    if has_any(name, ["グラスコード", "グラスチェーン", "チェーン", "コード"]):
+        return "glass_code_chain"
+    if has_any(name, ["クリップオン"]):
+        return "clip_on"
+    if has_any(name, ["サングラス"]):
+        return "sunglasses"
+    if has_any(name, ["ケース", "バッグ", "袋"]) and not has_any(name, ["スライドケース", "ケース丈"]):
+        return "case"
+    if has_any(name, ["のぼり", "POP", "スタンド", "台紙", "ディスプレイ"]):
+        return "pop_display"
+    if has_any(name, ["ヤットコ", "ニッパー", "プライヤー"]):
+        return detect_pliers_template(name, text)
+    if has_any(name, ["ドライバー"]):
+        return "screwdriver"
+    if has_any(name, ["ネジ", "スクリュー"]):
+        if has_any(name, ["ナット", "ボルト", "ツーポ", "ダブルロック", "OS"]):
+            return "screw_bolt"
+        return "screw"
+    if has_any(name, ["ナット"]):
+        return "nut"
+    if has_any(name, ["ワッシャ", "座金"]):
+        return "washer"
+    if has_any(name, ["ナイロンレール", "溝セル", "プロテクトリング", "溝堀レンズはずし"]):
+        return "nylon_rail"
+    if has_any(name, ["ドリル", "穴明", "穴広げ"]):
+        return "drill"
+    if has_any(name, ["リーマ"]):
+        return "reamer"
+    if has_any(name, ["ヤスリ", "砥石", "面取り"]):
+        return "file_grinding"
+    if has_any(name, ["バフ", "ポリッシャ", "みがき", "磨き", "コンパウンド"]):
+        return "polish"
+    if has_any(name, ["洗浄", "クリーナー", "クロス", "メガネブク", "セーム革"]):
+        return "cleaner"
+    if has_any(name, ["テープ", "フィルム"]):
+        return "tape"
+    if has_any(name, ["接着", "アロンタイト", "固着剤"]):
+        return "adhesive"
+    if has_any(name + text, ["ロウ付", "フラックス", "トーチ", "バーナー", "銀ロウ", "酸化防止"]):
+        return "soldering"
+    if has_any(name, ["テストレンズ"]):
+        return "test_lens"
+    if has_any(name, ["試験枠"]):
+        return "trial_frame"
+    if has_any(name, ["ルーペ", "リネンテスター", "拡大", "ローグラス"]):
+        return "magnifier"
+    if has_any(name + text, ["UV", "チェッカー", "チェックライト", "ライト", "テスター"]):
+        return "checker"
+    if has_any(name, ["リーディング", "近用", "老眼"]):
+        return "reading_glasses"
+    if has_any(name, ["工具セット", "セット"]):
+        return "toolset"
+    if has_any(name, ["工具台", "ツールスタンド", "ツールバー"]):
+        return "tool_storage"
+    if has_any(name, ["測定", "ゲージ", "メジャー", "歪度計", "カーブ計", "厚み計"]):
+        return "measuring_device"
+    if has_any(name, ["書籍", "講座", "フィッティング術", "手順"]):
+        return "book_training"
+    if has_any(name, ["電池", "充電", "USB"]):
+        return "battery"
+    if has_any(name, ["インク", "マーカー", "印点"]):
+        return "ink_marker"
+    if has_any(name, ["天然石", "合成石", "ジュエリー"]):
+        return "decorative_part"
+    if has_any(name, ["タッチアップ", "カラーリペア", "染色"]):
+        return "color_repair"
+    if has_any(name, ["ブラシ"]):
+        return "brush"
+
+    category = row.get("説明カテゴリ", "").strip()
+    return CATEGORY_TO_TEMPLATE.get(category, "parts")
+
+
+def source_label(row, catalog_row, hp_row):
+    sources = []
+    hp_url = row.get("商品ページURL") or hp_row.get("hp_url")
+    if hp_url:
+        sources.append(hp_url)
+    pages = catalog_row.get("catalog_pages") or row.get("カタログ参照")
+    if pages:
+        sources.append(pages)
+    if CATALOG_PDF_PATH.exists():
+        sources.append(f"PDF:{CATALOG_PDF_PATH.name}")
+    return " / ".join(dict.fromkeys(sources))
+
+
+def catalog_info(row, catalog_row):
+    parts = [
+        catalog_row.get("catalog_pages") or row.get("カタログ参照", ""),
+        catalog_row.get("catalog_usage", ""),
+        catalog_row.get("catalog_features", ""),
+        catalog_row.get("catalog_size_material", ""),
+        row.get("PDF抽出メモ", ""),
+    ]
+    return compact(" / ".join(p for p in parts if p), 700)
+
+
+def hp_info(row, hp_row):
+    if row.get("HPから確認した情報"):
+        return compact(row.get("HPから確認した情報"), 700)
+    status = hp_row.get("hp_match_status") or row.get("HP確認ステータス", "")
+    if status == "exact":
+        parts = [
+            hp_row.get("hp_product_name", ""),
+            hp_row.get("hp_product_code", ""),
+            hp_row.get("hp_categories", ""),
+            hp_row.get("hp_description", ""),
+        ]
+        return compact(" / ".join(p for p in parts if p), 700)
+    if status:
+        return f"HP照合ステータス: {status}。exact未確認のため要約根拠はカタログ優先。"
+    return ""
+
+
+def apply_template(row, key, hp_row, catalog_row):
+    tpl = TEMPLATES[key]
+    for lang, cols in LANG_COLS.items():
+        row[cols["summary"]] = tpl["summary"][lang]
+        row[cols["customer"]] = tpl["summary"][lang]
+        row[cols["usage"]] = tpl["usage"][lang]
+        row[cols["benefit"]] = tpl["benefit"][lang]
+    row["説明カテゴリ"] = key
+    row["説明強化元"] = "programming_agent_rebuild_summaries.py+HP調査CSV+カタログ調査CSV+PDF抽出メモ"
+    row["HP確認ステータス"] = row.get("HP確認ステータス") or hp_row.get("hp_match_status", "")
+    row["HPから確認した情報"] = hp_info(row, hp_row)
+    row["カタログから確認した情報"] = catalog_info(row, catalog_row)
+    row["要約品質メモ"] = "全件再構築: HP exactは強い根拠、その他はカタログ抽出メモと商品名ルールを優先。"
+
+    if row.get("品番") == "104":
+        row["HP確認ステータス"] = "exact"
+        row["HPから確認した情報"] = (
+            "公式HP: 平ヤットコ 先細・先曲がり。主にクリングス調整用。"
+            "主な使用用途はクリングスの微調整。先端が緩やかにカーブし、狭い隙間でも正確につかめる。"
+        )
+        row["カタログから確認した情報"] = (
+            "カタログP.198ほか: No.104 ヤットコ、挟み面=平、先曲、クリングス調整用として掲載。"
+        )
+        row["要約品質メモ"] = "重要品番の個別修正。ブリッジ角度調整ではなくクリングス微調整として扱う。"
+    elif row.get("品番") == "1053":
+        row["入数"] = ""
+        row["HP確認ステータス"] = "exact"
+        row["HPから確認した情報"] = (
+            "公式HP: 調整時のカラー剥げ・傷を防止できるプッシュロックパッド専用ヤットコ。"
+            "金具を面で挟み、薄く細い先端で狭い場所にも入りやすい。"
+        )
+        row["カタログから確認した情報"] = (
+            "カタログP.9 / P.126: No.1053 ヤットコ、パット調整、プッシュロックパッド調整用途として掲載。"
+            "旧入数「2本」は周辺テキスト誤抽出として表示しない。"
+        )
+        row["要約品質メモ"] = "重要品番の個別修正。工具本体のため入数「2本」は表示しない。"
+    elif row.get("品番") == "1054":
+        row["入数"] = ""
+        row["HP確認ステータス"] = "exact"
+        row["HPから確認した情報"] = (
+            "公式HP調査済み: 2本ダキ足パッド専用の調整ヤットコ。"
+            "取付金具とパッドを包み込んで保持し、抱き込み部分の緩みを防ぎながら調整。"
+        )
+        row["カタログから確認した情報"] = (
+            "カタログP.9 / P.126: No.1054 ヤットコ、2本ダキ足パッド調整用途として掲載。"
+            "商品用途名の「2本ダキ足」を入数と誤認しない。"
+        )
+        row["要約品質メモ"] = "重要品番の個別修正。工具本体のため入数「2本」は表示しない。"
+
+
+def main():
+    rows = read_rows(MASTER_PATH)
+    headers = list(rows[0].keys())
+    catalog_rows = {r["品番"]: r for r in read_rows(CATALOG_PATH)}
+    hp_rows = {r["品番"]: r for r in read_rows(HP_PATH)}
+    evidence_rows = []
+    audit_rows = []
+    counts = Counter()
+
+    for row in rows:
+        code = row.get("品番", "")
+        catalog_row = catalog_rows.get(code, {})
+        hp_row = hp_rows.get(code, {})
+        old_summary = row.get("一言要約_JA", "")
+        old_category = row.get("説明カテゴリ", "")
+        key = detect_template_key(row, catalog_row, hp_row)
+        if key not in TEMPLATES:
+            key = "parts"
+
+        apply_template(row, key, hp_row, catalog_row)
+        counts[key] += 1
+
+        evidence_rows.append(
+            {
+                "品番": code,
+                "商品名": row.get("商品名_JA", ""),
+                "HPから確認した情報": row.get("HPから確認した情報", ""),
+                "カタログから確認した情報": row.get("カタログから確認した情報", ""),
+                "日本語の一言要約": row.get("一言要約_JA", ""),
+                "英語の一言要約": row.get("一言要約_EN", ""),
+                "中国語の一言要約": row.get("一言要約_ZH", ""),
+                "韓国語の一言要約": row.get("一言要約_KO", ""),
+                "確認元URLまたはカタログ掲載ページ": source_label(row, catalog_row, hp_row),
+            }
+        )
+        audit_rows.append(
+            {
+                "品番": code,
+                "商品名_JA": row.get("商品名_JA", ""),
+                "old_category": old_category,
+                "new_category": key,
+                "hp_match_status": row.get("HP確認ステータス", ""),
+                "catalog_pages": catalog_row.get("catalog_pages") or row.get("カタログ参照", ""),
+                "old_summary_ja": old_summary,
+                "new_summary_ja": row.get("一言要約_JA", ""),
+                "source": source_label(row, catalog_row, hp_row),
+                "quality_note": row.get("要約品質メモ", ""),
+            }
+        )
+
+    master_written = MASTER_PATH
+    try:
+        write_rows(MASTER_PATH, headers, rows)
+    except PermissionError:
+        write_rows(FALLBACK_MASTER_PATH, headers, rows)
+        master_written = FALLBACK_MASTER_PATH
+    write_rows(EVIDENCE_PATH, list(evidence_rows[0].keys()), evidence_rows)
+    write_rows(AUDIT_PATH, list(audit_rows[0].keys()), audit_rows)
+
+    print(f"rows={len(rows)}")
+    print(f"catalog_rows={len(catalog_rows)} hp_rows={len(hp_rows)}")
+    print(f"catalog_pdf_exists={CATALOG_PDF_PATH.exists()}")
+    print(f"master_written={master_written}")
+    for key, count in counts.most_common():
+        print(f"{key}\t{count}")
+
+
+if __name__ == "__main__":
+    main()
