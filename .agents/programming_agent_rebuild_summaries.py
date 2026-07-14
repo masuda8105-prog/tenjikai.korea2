@@ -891,6 +891,56 @@ TEMPLATES = {
     ),
 }
 
+TEMPLATES.update(
+    {
+        "special_1510": template(
+            t(
+                "レンズ止め部のリム曲がりを整える専用ヤットコです。レンズ周辺のリムを狙った位置で修正しやすくします。",
+                "Dedicated pliers for straightening a bent rim at the lens-retaining area. They help correct the rim precisely around the lens.",
+                "用于矫正镜片固定部位镜圈弯曲的专用钳。便于在镜片周围准确修整镜圈。",
+                "렌즈 고정부의 림 휨을 바로잡는 전용 플라이어입니다. 렌즈 주변 림을 원하는 위치에서 정밀하게 교정하기 쉽습니다.",
+            ),
+            t("レンズ止め部のリム曲がり修正", "rim straightening at the lens-retaining area", "镜片固定部位镜圈矫正", "렌즈 고정부 림 휨 교정"),
+            t("レンズ周辺のリムを狙って修正しやすい", "helps correct the rim precisely around the lens", "便于准确修整镜片周围的镜圈", "렌즈 주변 림을 정밀하게 교정하기 쉬움"),
+        ),
+        "special_194_w17": template(
+            t(
+                "ネジ頭にマイナス溝を作る、軸径2.3mmのネジ頭切りです。折れ込んだネジにドライバーを掛ける溝を付けられます。",
+                "A 2.3 mm-shank screw-head cutter that makes a flat-blade slot. It lets a screwdriver engage a broken-off screw.",
+                "轴径2.3mm的螺钉头开槽工具，可加工一字槽，使螺丝刀能够拧动断入的螺钉。",
+                "축경 2.3mm의 나사 머리 홈 가공 도구입니다. 부러져 박힌 나사에 일자 드라이버 홈을 만들 수 있습니다.",
+            ),
+            t("ネジ頭へのマイナス溝加工", "cutting a flat-blade slot in a screw head", "螺钉头一字槽加工", "나사 머리 일자 홈 가공"),
+            t("折れ込んだネジを回すための溝を作れる", "creates a slot for turning a broken-off screw", "可为断入螺钉加工便于拧出的槽", "부러져 박힌 나사를 돌릴 홈을 만들 수 있음"),
+        ),
+        "special_669": template(
+            t("時計の電池交換時に電池をつかむプラスチックピンセットです。金属接触によるショートを避けながら扱えます。", "Plastic tweezers for holding batteries during watch-battery replacement. They help avoid short circuits caused by metal contact.", "用于更换手表电池时夹持电池的塑料镊子，可避免金属接触造成短路。", "시계 배터리 교체 시 배터리를 집는 플라스틱 핀셋입니다. 금속 접촉에 의한 단락을 피하며 다룰 수 있습니다."),
+            t("時計電池の交換", "watch-battery replacement", "手表电池更换", "시계 배터리 교체"),
+            t("金属接触によるショートを避けやすい", "helps avoid short circuits from metal contact", "有助于避免金属接触短路", "금속 접촉에 의한 단락을 피하기 쉬움"),
+        ),
+        "special_775": template(
+            t("レンズのアイポイントや加工位置を示す1mm方眼シールです。貼ったまま位置を見比べやすくします。", "A 1 mm grid sticker for marking lens eye points and processing positions. It makes position comparison easy while attached.", "用于标记镜片视点和加工位置的1mm方格贴纸，粘贴后便于比较位置。", "렌즈 아이포인트와 가공 위치를 표시하는 1mm 모눈 스티커입니다. 붙인 상태로 위치를 비교하기 쉽습니다."),
+            t("レンズの位置決め", "lens positioning", "镜片定位", "렌즈 위치 결정"),
+            t("アイポイントや加工位置を確認しやすい", "makes eye points and processing positions easy to check", "便于确认视点和加工位置", "아이포인트와 가공 위치를 확인하기 쉬움"),
+        ),
+        "special_250_a": template(
+            t("貼付式鼻盛りパッドを浮かないよう固定する専用作業台です。接着中のずれを抑えて安定させます。", "A dedicated work stand that holds adhesive nose-build pads flat. It stabilizes them and reduces shifting during bonding.", "用于固定粘贴式增高鼻托、防止翘起的专用工作台，可减少粘接时的移位。", "부착식 코받침이 뜨지 않도록 고정하는 전용 작업대입니다. 접착 중 움직임을 줄여 안정적으로 고정합니다."),
+            t("貼付式鼻盛りパッドの固定", "holding adhesive nose-build pads", "固定粘贴式增高鼻托", "부착식 코받침 고정"),
+            t("接着中の浮きやずれを抑えやすい", "helps reduce lifting and shifting during bonding", "便于减少粘接时翘起和移位", "접착 중 들뜸과 움직임을 줄이기 쉬움"),
+        ),
+        "special_333": template(
+            t("レンズ加工時の削りカスを固めるハードナーです。清掃や廃棄をしやすくします。", "A hardener that solidifies lens-processing swarf, making cleanup and disposal easier.", "用于固化镜片加工碎屑的硬化剂，便于清扫和废弃处理。", "렌즈 가공 찌꺼기를 굳히는 하드너입니다. 청소와 폐기를 쉽게 합니다."),
+            t("レンズ加工くずの固化", "solidifying lens-processing swarf", "镜片加工碎屑固化", "렌즈 가공 찌꺼기 고형화"),
+            t("清掃・廃棄をしやすくする", "makes cleanup and disposal easier", "便于清扫和废弃处理", "청소와 폐기를 쉽게 함"),
+        ),
+        "special_455": template(
+            t("角膜反射光を使い、PDを0.5mm単位でデジタル測定するメーターです。読み取りを素早く安定させます。", "A digital meter that uses corneal reflections to measure PD in 0.5 mm steps, supporting quick and consistent readings.", "利用角膜反射光，以0.5mm为单位数字测量瞳距，可快速稳定读取。", "각막 반사광을 이용해 PD를 0.5mm 단위로 디지털 측정하는 미터입니다. 빠르고 안정적으로 판독할 수 있습니다."),
+            t("瞳孔間距離（PD）の測定", "pupillary-distance measurement", "瞳距（PD）测量", "동공간거리(PD) 측정"),
+            t("0.5mm単位で素早く読み取りやすい", "supports quick readings in 0.5 mm steps", "便于以0.5mm为单位快速读取", "0.5mm 단위로 빠르게 판독하기 쉬움"),
+        ),
+    }
+)
+
 
 CATEGORY_TO_TEMPLATE = {
     "nose_pad": "nose_pad",
@@ -1013,6 +1063,13 @@ def has_any(text, words):
 
 
 CODE_TEMPLATE_OVERRIDES = {
+    "1510": "special_1510",
+    "194-W17": "special_194_w17",
+    "669": "special_669",
+    "775": "special_775",
+    "250-A": "special_250_a",
+    "333": "special_333",
+    "455": "special_455",
     # Yattoko / pliers: keep tool bodies separate from parts and cutters.
     "2": "pliers_modern_bending",
     "3": "pliers_klings_adjustment",
@@ -1064,7 +1121,7 @@ CODE_TEMPLATE_OVERRIDES = {
     "348": "tweezers",
     "814": "tweezers",
     "665": "tweezers",
-    "669": "tweezers",
+    "669": "special_669",
     "168": "screw_remover",
     "2221-02": "screw_remover",
     "985": "screw_remover",
@@ -1411,15 +1468,18 @@ def apply_template(row, key, hp_row, catalog_row):
     row["HPから確認した情報"] = hp_info(row, hp_row)
     row["カタログから確認した情報"] = catalog_info(row, catalog_row)
     row["要約品質メモ"] = "全件再構築: HP exactは強い根拠、その他はカタログ抽出メモと商品名ルールを優先。"
+    if hp_row.get("hp_match_status", "") == "exact" and hp_row.get("hp_url", "") and row.get("品番") != "194-W17":
+        row["商品ページURL"] = hp_row["hp_url"]
 
     if row.get("品番") == "104":
+        row["商品ページURL"] = "https://www.san-nishimura.co.jp/product/item/%E3%83%A4%E3%83%83%E3%83%88%E3%82%B3104/"
         row["HP確認ステータス"] = "exact"
         row["HPから確認した情報"] = (
             "公式HP: 平ヤットコ 先細・先曲がり。主にクリングス調整用。"
             "主な使用用途はクリングスの微調整。先端が緩やかにカーブし、狭い隙間でも正確につかめる。"
         )
         row["カタログから確認した情報"] = (
-            "カタログP.198ほか: No.104 ヤットコ、挟み面=平、先曲、クリングス調整用として掲載。"
+            "印刷カタログP.122: No.104 ヤットコ、挟み面=平、先曲、クリングス調整用として掲載。"
         )
         row["要約品質メモ"] = "重要品番の個別修正。ブリッジ角度調整ではなくクリングス微調整として扱う。"
     elif row.get("品番") == "1053":
@@ -1430,7 +1490,7 @@ def apply_template(row, key, hp_row, catalog_row):
             "金具を面で挟み、薄く細い先端で狭い場所にも入りやすい。"
         )
         row["カタログから確認した情報"] = (
-            "カタログP.9 / P.126: No.1053 ヤットコ、パット調整、プッシュロックパッド調整用途として掲載。"
+            "印刷カタログP.126: No.1053 ヤットコ、パット調整、プッシュロックパッド調整用途として掲載。"
             "旧入数「2本」は周辺テキスト誤抽出として表示しない。"
         )
         row["要約品質メモ"] = "重要品番の個別修正。工具本体のため入数「2本」は表示しない。"
@@ -1442,10 +1502,21 @@ def apply_template(row, key, hp_row, catalog_row):
             "取付金具とパッドを包み込んで保持し、抱き込み部分の緩みを防ぎながら調整。"
         )
         row["カタログから確認した情報"] = (
-            "カタログP.9 / P.126: No.1054 ヤットコ、2本ダキ足パッド調整用途として掲載。"
+            "印刷カタログP.126: No.1054 ヤットコ、2本ダキ足パッド調整用途として掲載。"
             "商品用途名の「2本ダキ足」を入数と誤認しない。"
         )
         row["要約品質メモ"] = "重要品番の個別修正。工具本体のため入数「2本」は表示しない。"
+    elif row.get("品番") == "1510":
+        row["HP確認ステータス"] = "mismatch"
+        row["HPから確認した情報"] = "公式HPのNo.379パッド外しページは品番不一致のため不採用。"
+        row["カタログから確認した情報"] = "印刷カタログP.144: No.1510 ヤットコ。紙面写真と注記でレンズ止めリム曲がり調整を確認。"
+        row["要約品質メモ"] = "紙面P.144を目視確認。ワンタッチパッド外しやテンプル丁番修正の周辺情報は不採用。"
+    elif row.get("品番") == "194-W17":
+        row["HP確認ステータス"] = "mismatch"
+        row["商品ページURL"] = "https://www.san-nishimura.co.jp/product/item/?key_word=194-W17"
+        row["HPから確認した情報"] = "公式HPは同一品番を削込ダイヤモンド砥石として掲載し、現行紙面・商品画像と不一致のため要確認。"
+        row["カタログから確認した情報"] = "印刷カタログP.208: No.194-W17 ネジ頭切り、軸径2.3mm。ネジ頭にマイナス溝を作る工具。"
+        row["要約品質メモ"] = "2025-2027紙面と商品画像を優先。公式HPとの品番・名称衝突を監査事項として保持。"
 
     if row.get("品番") in {"828-B-36", "828-B-38", "828-P-36", "828-P-38"}:
         row["入数"] = ""
@@ -1459,7 +1530,26 @@ def main():
     rows = read_rows(MASTER_PATH)
     headers = list(rows[0].keys())
     catalog_rows = {r["品番"]: r for r in read_rows(CATALOG_PATH)}
-    hp_rows = {r["品番"]: r for r in read_rows(HP_PATH)}
+    hp_source_rows = read_rows(HP_PATH)
+    hp_rows = {r["品番"]: r for r in hp_source_rows}
+    hp_104 = hp_rows.get("104")
+    if hp_104:
+        hp_104.update(
+            {
+                "hp_match_status": "exact",
+                "hp_url": "https://www.san-nishimura.co.jp/product/item/%E3%83%A4%E3%83%83%E3%83%88%E3%82%B3104/",
+                "hp_product_name": "平ヤットコ 先細・先曲がり",
+                "hp_product_code": "104",
+                "hp_categories": "工具 > ヤットコ(クリングス調整)",
+                "hp_description": "主にクリングス調整用。主な使用用途はクリングスの微調整。先端が緩やかにカーブし、狭い隙間でも正確につかみやすい。",
+                "hp_evidence": "公式商品ページで品番104・用途・先端形状を確認。旧No.352参照は破棄。",
+                "notes": "v0.14 critical fix: exact confirmed",
+            }
+        )
+    hp_194 = hp_rows.get("194-W17")
+    if hp_194 and "catalog_hp_name_conflict" not in hp_194.get("notes", ""):
+        hp_194["notes"] = (hp_194.get("notes", "") + "; catalog_hp_name_conflict: printed catalog P.208 and local image show screw-head cutter").strip("; ")
+    write_rows(HP_PATH, list(hp_source_rows[0].keys()), hp_source_rows)
     evidence_rows = []
     audit_rows = []
     counts = Counter()
@@ -1523,6 +1613,4 @@ def main():
 
 
 if __name__ == "__main__":
-    from rebuild_summaries_grounded_usage import main as grounded_main
-
-    grounded_main()
+    main()
