@@ -6,7 +6,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MASTER_PATH = ROOT / "product_master_multilingual.csv"
-FALLBACK_MASTER_PATH = ROOT / "product_master_multilingual.rebuilt.csv"
+LEGACY_MASTER_PATH = ROOT / "product_master_multilingual.rebuilt.csv"
+FALLBACK_MASTER_PATH = ROOT / "product_master_multilingual.generated.csv"
 CATALOG_PATH = ROOT / ".agents" / "catalog_research_output.csv"
 HP_PATH = ROOT / ".agents" / "hp_research_output.csv"
 EVIDENCE_PATH = ROOT / ".agents" / "one_line_summary_evidence_report.csv"
@@ -839,6 +840,316 @@ TEMPLATES = {
         t("清掃・研磨仕上げ", "cleaning and polishing finish", "清洁与研磨收尾", "청소 및 연마 마감"),
         t("作業後の見た目を整えやすい", "helps tidy the finish after work", "便于整理作业后的外观", "작업 후 외관을 정돈하기 쉬움"),
     ),
+    "eye_point_chart": template(
+        t(
+            "眼鏡に貼るだけでアイポイントを確認しやすくするシール式チャートです。手書き線を省き、確認作業の効率と精度を高めます。",
+            "A sticker chart that makes eyewear eye points easy to check. It removes the need for hand-drawn lines and improves checking speed and accuracy.",
+            "贴在眼镜上即可方便确认视点的贴纸式图表。无需手动画线，可提高确认效率和精度。",
+            "안경에 붙이기만 하면 아이포인트를 확인하기 쉬운 스티커형 차트입니다. 손으로 선을 그릴 필요가 없어 확인 효율과 정확도를 높입니다.",
+        ),
+        t("アイポイント・PD確認", "eye-point and PD checking", "视点与瞳距确认", "아이포인트 및 PD 확인"),
+        t("確認作業の効率と精度を高めやすい", "helps improve checking speed and accuracy", "有助于提高确认效率和精度", "확인 효율과 정확도를 높이기 쉬움"),
+    ),
+    "near_point_chart": template(
+        t(
+            "近距離の見え方を確認するための近点表です。複数の視標で近用視力や老眼鏡の見え方を確認しやすくします。",
+            "A near-point chart for checking close vision. Its multiple targets help assess near acuity and reading-glasses performance.",
+            "用于确认近距离视力的近点表。通过多种视标，便于检查近用视力和老花镜的视觉效果。",
+            "근거리 시야를 확인하는 근점표입니다. 여러 시표로 근용 시력과 돋보기안경의 보임을 확인하기 쉽습니다.",
+        ),
+        t("近距離視力の確認", "near-vision checking", "近距离视力确认", "근거리 시력 확인"),
+        t("近用の見え方を確認しやすい", "makes near vision easy to assess", "便于确认近用视觉", "근용 시야를 확인하기 쉬움"),
+    ),
+    "visual_acuity_chart": template(
+        t(
+            "視標を使って見え方を確認する視力検査用チャートです。検査条件をそろえ、結果を読み取りやすくします。",
+            "A visual-acuity chart for checking vision with standardized targets. It helps keep test conditions consistent and results easy to read.",
+            "使用标准视标确认视力的检查表。可统一检查条件，便于读取结果。",
+            "표준 시표로 시야를 확인하는 시력검사용 차트입니다. 검사 조건을 맞추고 결과를 읽기 쉽게 합니다.",
+        ),
+        t("視力・見え方の確認", "visual-acuity checking", "视力与视觉确认", "시력 및 시야 확인"),
+        t("検査条件をそろえやすい", "helps standardize test conditions", "便于统一检查条件", "검사 조건을 맞추기 쉬움"),
+    ),
+    "color_vision_chart": template(
+        t(
+            "数字やランドルト環などの視標で色の見え方を確認する色覚検査表です。検査を手順化し、判定を進めやすくします。",
+            "A color-vision test chart using numbers and Landolt-ring targets. It helps standardize the procedure and supports clear assessment.",
+            "通过数字和兰氏环等视标确认色觉的检查表。可规范检查步骤，便于判定。",
+            "숫자와 란돌트 고리 시표로 색각을 확인하는 검사표입니다. 검사 절차를 표준화해 판정을 진행하기 쉽습니다.",
+        ),
+        t("色覚の確認", "color-vision checking", "色觉确认", "색각 확인"),
+        t("色覚検査を進めやすい", "helps conduct color-vision testing", "便于进行色觉检查", "색각 검사를 진행하기 쉬움"),
+    ),
+    "vision_test_accessory": template(
+        t(
+            "視力検査で片眼の遮閉や視標提示などに使う補助器具です。検査条件を整え、見え方を確認しやすくします。",
+            "An accessory for occlusion, target presentation, or other vision-test tasks. It helps prepare consistent conditions for checking vision.",
+            "用于视力检查中的单眼遮挡、视标呈现等辅助器具。可整理检查条件，便于确认视力。",
+            "시력검사에서 한쪽 눈 가림이나 시표 제시 등에 쓰는 보조기구입니다. 검사 조건을 갖춰 시야를 확인하기 쉽게 합니다.",
+        ),
+        t("視力検査の補助", "vision-test support", "视力检查辅助", "시력검사 보조"),
+        t("検査条件を整えやすい", "helps prepare test conditions", "便于整理检查条件", "검사 조건을 갖추기 쉬움"),
+    ),
+    "hinge_part": template(
+        t(
+            "丁番・箱足・ブッシュなど、テンプルの開閉部を交換・補修する部品です。対応形状を合わせ、動きやガタつきを整えやすくします。",
+            "A hinge-area part such as a hinge, end piece, or bushing. Matching the shape helps restore temple movement and reduce looseness.",
+            "用于更换或维修铰链、桩头、衬套等镜腿开合部位的零件。匹配形状后，便于改善开合和松动。",
+            "힌지, 엔드피스, 부싱 등 템플 개폐부를 교체·보수하는 부품입니다. 대응 형태를 맞춰 움직임과 흔들림을 정돈하기 쉽습니다.",
+        ),
+        t("丁番・テンプル開閉部の補修", "hinge and temple-joint repair", "铰链与镜腿开合部维修", "힌지 및 템플 개폐부 보수"),
+        t("開閉の動きやガタつきを整えやすい", "helps restore movement and reduce looseness", "便于改善开合和松动", "개폐 움직임과 흔들림을 정돈하기 쉬움"),
+    ),
+    "lubricant": template(
+        t(
+            "眼鏡の丁番や細かな可動部に使う潤滑用品です。動きの固さやきしみを抑え、開閉を滑らかにしやすくします。",
+            "A lubricant for eyewear hinges and small moving parts. It helps reduce stiffness and squeaking for smoother movement.",
+            "用于眼镜铰链和细小活动部位的润滑用品。可减轻发涩和异响，使开合更顺畅。",
+            "안경 힌지와 작은 가동부에 쓰는 윤활용품입니다. 뻑뻑함과 마찰음을 줄여 개폐를 부드럽게 하기 쉽습니다.",
+        ),
+        t("丁番・可動部の潤滑", "hinge and moving-part lubrication", "铰链与活动部润滑", "힌지 및 가동부 윤활"),
+        t("開閉を滑らかにしやすい", "helps smooth movement", "便于顺畅开合", "개폐를 부드럽게 하기 쉬움"),
+    ),
+    "processing_chemical": template(
+        t(
+            "レンズ加工時の泡・臭い・削りカスなどを処理する作業用薬剤です。加工後の清掃や設備管理を行いやすくします。",
+            "A processing chemical for foam, odor, swarf, or similar issues during lens work. It helps simplify cleanup and equipment care.",
+            "用于处理镜片加工时泡沫、气味、切削屑等问题的作业药剂。便于加工后的清洁和设备管理。",
+            "렌즈 가공 중 거품, 냄새, 가공 찌꺼기 등을 처리하는 작업용 약제입니다. 가공 후 청소와 장비 관리를 하기 쉽게 합니다.",
+        ),
+        t("レンズ加工環境の処理", "lens-processing environment treatment", "镜片加工环境处理", "렌즈 가공 환경 처리"),
+        t("清掃や設備管理を行いやすい", "helps simplify cleanup and equipment care", "便于清洁和设备管理", "청소와 장비 관리를 하기 쉬움"),
+    ),
+    "optical_machine": template(
+        t(
+            "眼鏡レンズやフレームの加工・仕上げに使う専用機器です。作業を安定させ、加工精度や仕上がりをそろえやすくします。",
+            "Dedicated equipment for processing or finishing eyewear lenses and frames. It helps stabilize work and produce consistent results.",
+            "用于眼镜镜片或镜架加工、收尾的专用设备。可稳定作业，便于统一加工精度和完成效果。",
+            "안경 렌즈와 프레임의 가공·마감에 쓰는 전용 장비입니다. 작업을 안정시켜 가공 정밀도와 마감을 일정하게 하기 쉽습니다.",
+        ),
+        t("レンズ・フレーム加工", "lens and frame processing", "镜片与镜架加工", "렌즈 및 프레임 가공"),
+        t("加工精度や仕上がりをそろえやすい", "helps produce consistent processing results", "便于统一加工精度和效果", "가공 정밀도와 마감을 일정하게 하기 쉬움"),
+    ),
+    "anti_fog": template(
+        t(
+            "眼鏡レンズのくもりを防ぐための用品です。温度差やマスク使用時でも視界を保ちやすくします。",
+            "An anti-fog product for eyewear lenses. It helps maintain clear vision during temperature changes or mask use.",
+            "用于防止眼镜镜片起雾的用品。在温差变化或佩戴口罩时也有助于保持清晰视野。",
+            "안경 렌즈의 김서림을 막는 용품입니다. 온도 차이나 마스크 착용 시에도 시야를 선명하게 유지하기 쉽습니다.",
+        ),
+        t("レンズのくもり止め", "lens anti-fog treatment", "镜片防雾", "렌즈 김서림 방지"),
+        t("視界をクリアに保ちやすい", "helps keep vision clear", "有助于保持清晰视野", "시야를 선명하게 유지하기 쉬움"),
+    ),
+    "hearing_accessory": template(
+        t(
+            "補聴器や集音器の耳まわりに使う交換・装着部品です。対応サイズを選び、耳への収まりや衛生状態を整えやすくします。",
+            "A replacement or fitting part used around the ear with hearing devices. Choosing the right size helps improve fit and hygiene.",
+            "用于助听器或集音器耳部的更换、佩戴零件。选择合适尺寸，便于改善贴合和卫生状态。",
+            "보청기나 집음기의 귀 주변에 쓰는 교체·장착 부품입니다. 맞는 크기를 골라 착용감과 위생 상태를 정돈하기 쉽습니다.",
+        ),
+        t("補聴器・集音器の装着補助", "hearing-device fitting support", "助听设备佩戴辅助", "청각기기 착용 보조"),
+        t("耳への収まりを整えやすい", "helps improve ear fit", "便于改善耳部贴合", "귀에 맞는 착용감을 정돈하기 쉬움"),
+    ),
+    "service": template(
+        t(
+            "フレームやレンズに指定の加工・修理を行うサービス項目です。加工内容を明確にし、注文時の指示をそろえやすくします。",
+            "A service item for specified frame or lens processing and repair. It makes the requested work clear when ordering.",
+            "针对镜架或镜片进行指定加工、维修的服务项目。可明确加工内容，便于统一下单指示。",
+            "프레임이나 렌즈에 지정 가공·수리를 하는 서비스 항목입니다. 가공 내용을 명확히 해 주문 지시를 맞추기 쉽습니다.",
+        ),
+        t("指定加工・修理", "specified processing and repair", "指定加工与维修", "지정 가공 및 수리"),
+        t("注文時の加工指示をそろえやすい", "helps clarify processing instructions", "便于明确加工指示", "주문 시 가공 지시를 맞추기 쉬움"),
+    ),
+    "eyewear_frame": template(
+        t(
+            "掛け心地や用途に合わせて選ぶ眼鏡フレームです。サイズや設計の特徴を比べ、使用者に合う一本を提案しやすくします。",
+            "An eyewear frame selected for fit and intended use. Its size and design features help staff recommend a suitable option.",
+            "根据佩戴舒适度和用途选择的眼镜架。可比较尺寸和设计特点，便于推荐合适款式。",
+            "착용감과 용도에 맞춰 고르는 안경 프레임입니다. 크기와 설계 특징을 비교해 사용자에게 맞는 제품을 제안하기 쉽습니다.",
+        ),
+        t("眼鏡フレームの提案", "eyewear-frame selection", "眼镜架推荐", "안경 프레임 제안"),
+        t("用途と掛け心地に合う一本を選びやすい", "helps select a frame suited to use and fit", "便于选择符合用途和舒适度的镜架", "용도와 착용감에 맞는 프레임을 고르기 쉬움"),
+    ),
+    "watch_tool": template(
+        t(
+            "腕時計の裏蓋開けや部品保持などに使う時計用工具です。細かな部品を扱う作業を安定させやすくします。",
+            "A watch tool for opening case backs or holding small components. It helps stabilize detailed watch work.",
+            "用于打开手表后盖或夹持小部件的钟表工具。便于稳定进行精细作业。",
+            "손목시계 뒷면 덮개 열기나 소부품 고정에 쓰는 시계용 공구입니다. 세밀한 작업을 안정적으로 하기 쉽습니다.",
+        ),
+        t("腕時計の分解・調整", "watch opening and adjustment", "手表拆装与调整", "손목시계 분해 및 조정"),
+        t("細かな時計作業を安定させやすい", "helps stabilize detailed watch work", "便于稳定进行精细钟表作业", "세밀한 시계 작업을 안정시키기 쉬움"),
+    ),
+    "eyewear_measurement_chart": template(
+        t(
+            "フレーム幅やそり角など、眼鏡作りに必要な寸法・角度を確認する測定チャートです。採寸項目をそろえて確認しやすくします。",
+            "A measurement chart for frame width, face-form angle, and other eyewear-making dimensions. It helps standardize the items being checked.",
+            "用于确认镜架宽度、弯曲角等眼镜制作所需尺寸和角度的测量图表。便于统一检查项目。",
+            "프레임 폭과 안면각 등 안경 제작에 필요한 치수·각도를 확인하는 측정 차트입니다. 측정 항목을 맞춰 확인하기 쉽습니다.",
+        ),
+        t("眼鏡寸法・角度の測定", "eyewear dimensions and angle measurement", "眼镜尺寸与角度测量", "안경 치수 및 각도 측정"),
+        t("必要な採寸項目をまとめて確認しやすい", "helps check required measurements together", "便于集中确认所需测量项目", "필요한 측정 항목을 함께 확인하기 쉬움"),
+    ),
+    "measurement_chart_accessory": template(
+        t(
+            "測定チャート上で眼鏡を滑りにくくし、眼鏡とチャートを保護するシリコンシートです。位置を保って測定しやすくします。",
+            "A silicone sheet that reduces slipping on a measurement chart and protects both the eyewear and chart. It helps keep items positioned during measurement.",
+            "用于测量图表的防滑硅胶垫，可保护眼镜和图表，并便于在测量时保持位置。",
+            "측정 차트 위에서 안경이 미끄러지는 것을 줄이고 안경과 차트를 보호하는 실리콘 시트입니다. 위치를 유지해 측정하기 쉽습니다.",
+        ),
+        t("測定チャートの滑り止め・保護", "measurement-chart grip and protection", "测量图表防滑与保护", "측정 차트 미끄럼 방지 및 보호"),
+        t("眼鏡の位置を保って測定しやすい", "helps hold eyewear in position for measurement", "便于固定眼镜位置进行测量", "안경 위치를 유지해 측정하기 쉬움"),
+    ),
+    "lens_selection_chart": template(
+        t(
+            "フレームに必要なレンズの最小有効径を確認する測定チャートです。適切なレンズサイズを選び、加工判断をしやすくします。",
+            "A chart for checking the minimum effective lens diameter required by a frame. It helps select an appropriate lens size for processing.",
+            "用于确认镜架所需镜片最小有效直径的测量图表。便于选择合适镜片尺寸并判断加工。",
+            "프레임에 필요한 렌즈의 최소 유효 지름을 확인하는 측정 차트입니다. 적절한 렌즈 크기를 골라 가공 판단을 하기 쉽습니다.",
+        ),
+        t("レンズ最小有効径の確認", "minimum effective lens-diameter checking", "镜片最小有效直径确认", "렌즈 최소 유효 지름 확인"),
+        t("適切なレンズサイズを選びやすい", "helps select the appropriate lens size", "便于选择合适镜片尺寸", "적절한 렌즈 크기를 고르기 쉬움"),
+    ),
+    "curve_scale": template(
+        t(
+            "レンズカーブを測るためのスケールです。測定箇所に合うサイズを使い分け、レンズを傷つけにくく確認できます。",
+            "A scale for measuring lens curvature. Different sizes suit different areas and help check curves without easily scratching lenses.",
+            "用于测量镜片弯度的量尺。可按测量部位选择尺寸，并减少镜片划伤。",
+            "렌즈 커브를 측정하는 스케일입니다. 측정 부위에 맞는 크기를 골라 렌즈에 흠집을 내기 어렵게 확인할 수 있습니다.",
+        ),
+        t("レンズカーブの測定", "lens-curve measurement", "镜片弯度测量", "렌즈 커브 측정"),
+        t("測定箇所に合わせて確認しやすい", "helps measure the appropriate area", "便于按测量部位确认", "측정 부위에 맞춰 확인하기 쉬움"),
+    ),
+    "lens_template": template(
+        t(
+            "レンズ加工用の形状を写し取る型板です。対応サイズを選び、レンズの形や加工位置をそろえやすくします。",
+            "A lens-processing template for transferring frame shape. Choosing the matching size helps keep lens shape and processing position consistent.",
+            "用于描取镜片加工形状的模板。选择对应尺寸，便于统一镜片形状和加工位置。",
+            "렌즈 가공 형상을 옮기는 형판입니다. 맞는 크기를 골라 렌즈 모양과 가공 위치를 일정하게 하기 쉽습니다.",
+        ),
+        t("レンズ加工形状の型取り", "lens-shape templating", "镜片加工形状取样", "렌즈 가공 형상 본뜨기"),
+        t("加工形状をそろえやすい", "helps keep processing shape consistent", "便于统一加工形状", "가공 형상을 일정하게 하기 쉬움"),
+    ),
+    "pliers_axis_adjustment": template(
+        t(
+            "レンズの水平や軸位置を調整するヤットコです。レンズ位置を確認しながら、左右の傾きをそろえやすくします。",
+            "Pliers for adjusting lens level and axis position. They help align left and right lens tilt while checking lens position.",
+            "用于调整镜片水平和轴位的钳子。可边确认镜片位置，边统一左右倾斜。",
+            "렌즈 수평과 축 위치를 조정하는 플라이어입니다. 렌즈 위치를 확인하며 좌우 기울기를 맞추기 쉽습니다.",
+        ),
+        t("レンズ水平・軸位置の調整", "lens level and axis adjustment", "镜片水平与轴位调整", "렌즈 수평 및 축 위치 조정"),
+        t("左右の傾きをそろえやすい", "helps align lens tilt", "便于统一左右倾斜", "좌우 기울기를 맞추기 쉬움"),
+    ),
+    "sanitizing_box": template(
+        t(
+            "紫外線照射でトライアルフレームを清潔に保管するボックスです。短時間で全体を照射し、次の検査に備えやすくします。",
+            "A UV sanitizing box for storing trial frames hygienically. It irradiates the frame from all sides and helps prepare it for the next examination.",
+            "利用紫外线清洁并存放试镜架的消毒箱。可从各方向照射，便于为下一次检查做好准备。",
+            "자외선 조사로 시험테를 위생적으로 보관하는 살균함입니다. 전체를 골고루 조사해 다음 검사에 대비하기 쉽습니다.",
+        ),
+        t("トライアルフレームの衛生管理", "trial-frame hygiene", "试镜架卫生管理", "시험테 위생 관리"),
+        t("次の検査に清潔な状態で備えやすい", "helps prepare hygienically for the next exam", "便于以清洁状态准备下次检查", "다음 검사에 깨끗한 상태로 대비하기 쉬움"),
+    ),
+    "coating_supply": template(
+        t(
+            "コーティング剤の下処理・希釈・塗布に使う関連用品です。指定の材料と組み合わせ、被膜を均一に仕上げやすくします。",
+            "A supply for preparing, thinning, or applying coatings. Used with the specified material, it helps produce an even coating.",
+            "用于涂层剂的预处理、稀释或涂布。与指定材料配合使用，便于形成均匀涂层。",
+            "코팅제 전처리, 희석 또는 도포에 쓰는 관련 용품입니다. 지정 재료와 함께 사용해 피막을 균일하게 마감하기 쉽습니다.",
+        ),
+        t("コーティング作業", "coating work", "涂层作业", "코팅 작업"),
+        t("被膜を均一に仕上げやすい", "helps produce an even coating", "便于形成均匀涂层", "피막을 균일하게 마감하기 쉬움"),
+    ),
+    "frame_coating": template(
+        t(
+            "眼鏡フレーム表面を保護するコーティング剤です。肌との直接接触や汗の影響を抑え、白化や緑青も予防しやすくします。",
+            "A protective coating for eyewear frames. It helps reduce direct skin contact and perspiration effects while preventing whitening and verdigris.",
+            "用于保护眼镜架表面的涂层剂。可减少皮肤直接接触和汗液影响，并有助于预防发白和铜绿。",
+            "안경테 표면을 보호하는 코팅제입니다. 피부 직접 접촉과 땀의 영향을 줄이고 백화와 녹청을 예방하기 쉽습니다.",
+        ),
+        t("フレーム表面の保護", "frame-surface protection", "镜架表面保护", "안경테 표면 보호"),
+        t("汗や肌接触による劣化を抑えやすい", "helps reduce wear from sweat and skin contact", "有助于减少汗液和皮肤接触造成的劣化", "땀과 피부 접촉으로 인한 열화를 줄이기 쉬움"),
+    ),
+    "tool_grip_aid": template(
+        t(
+            "ドライバーや工具の滑りを抑える作業補助材です。接触部のグリップを高め、ネジ頭のつぶれや作業中のズレを防ぎやすくします。",
+            "A grip aid that reduces slipping between tools and workpieces. It improves contact and helps prevent damaged screw heads or unwanted movement.",
+            "用于减少螺丝刀和工具打滑的辅助材料。可提高接触部摩擦力，减少螺丝头损伤和作业偏移。",
+            "드라이버와 공구의 미끄러짐을 줄이는 작업 보조재입니다. 접촉부 그립을 높여 나사머리 손상과 작업 중 어긋남을 줄이기 쉽습니다.",
+        ),
+        t("工具の滑り止め", "tool grip support", "工具防滑", "공구 미끄럼 방지"),
+        t("ネジ頭のつぶれやズレを防ぎやすい", "helps prevent damaged screw heads and slipping", "有助于防止螺丝头损伤和打滑", "나사머리 손상과 미끄러짐을 줄이기 쉬움"),
+    ),
+    "fitting_support_tool": template(
+        t(
+            "テンプル曲げやブリッジ調整、ネジ締め時の支えに使うフィッティング補助工具です。小さなフレーム作業を安定させやすくします。",
+            "A fitting support tool for temple bending, bridge adjustment, and screw work. It helps stabilize small frame tasks.",
+            "用于镜腿弯曲、鼻梁调整和拧螺丝时支撑的验配辅助工具。便于稳定进行细小镜架作业。",
+            "템플 굽힘, 브리지 조정, 나사 조임 때 받침으로 쓰는 피팅 보조 공구입니다. 작은 프레임 작업을 안정시키기 쉽습니다.",
+        ),
+        t("フレーム調整の保持・補助", "frame-adjustment support", "镜架调整支撑", "프레임 조정 지지 및 보조"),
+        t("小さな作業を安定させやすい", "helps stabilize small tasks", "便于稳定细小作业", "작은 작업을 안정시키기 쉬움"),
+    ),
+    "pin_removal_tool": template(
+        t(
+            "丁番やブッシュ部のピンを押し抜くための専用工具です。対象部を保持しながら、細いピンを外しやすくします。",
+            "A dedicated tool for pushing pins out of hinges or bushings. It holds the area steady and makes fine pins easier to remove.",
+            "用于推出铰链或衬套部位销钉的专用工具。可稳定固定目标部位，便于拆下细销。",
+            "힌지와 부싱 부분의 핀을 밀어 빼는 전용 공구입니다. 대상 부위를 고정하면서 가는 핀을 제거하기 쉽습니다.",
+        ),
+        t("丁番・ブッシュのピン抜き", "hinge and bushing pin removal", "铰链与衬套销钉拆卸", "힌지 및 부싱 핀 제거"),
+        t("細いピンを外しやすい", "makes fine pins easier to remove", "便于拆下细销", "가는 핀을 제거하기 쉬움"),
+    ),
+    "lens_removal_tool": template(
+        t(
+            "フレームからレンズやナイロール糸を外すための専用工具です。周囲を傷つけにくく、レンズ交換作業を進めやすくします。",
+            "A dedicated tool for removing lenses or nylor cord from frames. It helps replacement work proceed with less risk of surrounding damage.",
+            "用于从镜架拆下镜片或尼龙丝的专用工具。可减少周围划伤，便于进行镜片更换。",
+            "프레임에서 렌즈나 나일론 실을 분리하는 전용 공구입니다. 주변 흠집을 줄이며 렌즈 교체 작업을 진행하기 쉽습니다.",
+        ),
+        t("レンズ・ナイロール糸の取り外し", "lens and nylor-cord removal", "镜片与尼龙丝拆卸", "렌즈 및 나일론 실 분리"),
+        t("交換時の傷を抑えやすい", "helps reduce damage during replacement", "有助于减少更换时的划伤", "교체 중 흠집을 줄이기 쉬움"),
+    ),
+    "binoculars": template(
+        t(
+            "遠くの対象を拡大して見るための双眼鏡・オペラグラスです。観劇や屋外観察で、見たい対象を捉えやすくします。",
+            "Binoculars or opera glasses for magnifying distant subjects. They make targets easier to see at performances or outdoors.",
+            "用于放大观察远处目标的双筒望远镜或观剧镜。便于在观演和户外观察时看清目标。",
+            "먼 대상을 확대해 보는 쌍안경·오페라글라스입니다. 공연 관람과 야외 관찰에서 보고 싶은 대상을 찾기 쉽습니다.",
+        ),
+        t("遠方観察", "distance viewing", "远距离观察", "원거리 관찰"),
+        t("遠くの対象を捉えやすい", "makes distant subjects easier to see", "便于看清远处目标", "먼 대상을 보기 쉬움"),
+    ),
+    "price_tag_printer": template(
+        t(
+            "商品値札を定位置へ見やすく印字するタッチパネル式プリンターです。多言語や各種文字に対応し、値札作成を効率化します。",
+            "A touch-panel printer for placing clear text on product tags. Multilingual and varied character support helps streamline tag creation.",
+            "用于在商品吊牌指定位置清晰打印的触摸屏打印机。支持多语言和多种字符，可提高标签制作效率。",
+            "상품 가격표의 정해진 위치에 선명하게 인쇄하는 터치패널 프린터입니다. 다국어와 다양한 문자에 대응해 가격표 제작을 효율화합니다.",
+        ),
+        t("商品値札の印刷", "product-tag printing", "商品标签打印", "상품 가격표 인쇄"),
+        t("多言語の値札を作りやすい", "helps create multilingual tags", "便于制作多语言标签", "다국어 가격표를 만들기 쉬움"),
+    ),
+    "eyelid_support": template(
+        t(
+            "眼瞼下垂で下がったまぶたをやさしく支える眼鏡装着用の補助具です。左右と高さを合わせ、視界を確保しやすくします。",
+            "An eyewear-mounted aid that gently supports a drooping eyelid. Selecting the correct side and height helps maintain the field of view.",
+            "安装在眼镜上、用于轻柔支撑下垂眼睑的辅助器具。选择对应左右和高度，便于保持视野。",
+            "안검하수로 처진 눈꺼풀을 부드럽게 받치는 안경 장착형 보조기구입니다. 좌우와 높이를 맞춰 시야를 확보하기 쉽습니다.",
+        ),
+        t("眼瞼下垂の視界補助", "drooping-eyelid vision support", "眼睑下垂视野辅助", "안검하수 시야 보조"),
+        t("まぶたを支えて視界を確保しやすい", "helps support the eyelid and maintain vision", "便于支撑眼睑并保持视野", "눈꺼풀을 받쳐 시야를 확보하기 쉬움"),
+    ),
+    "high_curve_demo": template(
+        t(
+            "ハイカーブレンズの見え方を店頭で体験してもらうためのセットです。度数や乱視条件を組み合わせ、装用前に見え方を比べやすくします。",
+            "A demonstration set for experiencing high-curve lens vision in store. Combining prescription and astigmatism conditions makes pre-wear comparison easier.",
+            "用于在店内体验高弯镜片视觉效果的套装。可组合度数和散光条件，便于佩戴前比较视野。",
+            "하이커브 렌즈의 보임을 매장에서 체험하는 세트입니다. 도수와 난시 조건을 조합해 착용 전에 시야를 비교하기 쉽습니다.",
+        ),
+        t("ハイカーブレンズの見え方体験", "high-curve lens vision demonstration", "高弯镜片视觉体验", "하이커브 렌즈 시야 체험"),
+        t("装用前に見え方を比べやすい", "helps compare vision before wear", "便于佩戴前比较视觉效果", "착용 전에 보임을 비교하기 쉬움"),
+    ),
     "parts": template(
         t(
             "眼鏡フレームや関連器具の交換・補修に使うパーツです。対応部位やサイズを合わせ、必要な部分だけを補修しやすくします。",
@@ -1033,9 +1344,38 @@ CATEGORY_TO_TEMPLATE = {
     "color_repair": "color_repair",
     "ink_marker": "ink_marker",
     "brush": "brush",
+    "eye_point_chart": "eye_point_chart",
+    "near_point_chart": "near_point_chart",
+    "visual_acuity_chart": "visual_acuity_chart",
+    "color_vision_chart": "color_vision_chart",
+    "vision_test_accessory": "vision_test_accessory",
+    "hinge_part": "hinge_part",
+    "lubricant": "lubricant",
+    "processing_chemical": "processing_chemical",
+    "optical_machine": "optical_machine",
+    "anti_fog": "anti_fog",
+    "hearing_accessory": "hearing_accessory",
+    "service": "service",
     "parts": "parts",
     "generic_part": "parts",
     "repair_part": "parts",
+}
+
+# Legacy classifications are used only as a weak fallback for families that are
+# difficult to recognize from a model number or brand name alone. Broad or
+# historically noisy categories (parts, measuring_device, toolset, soldering,
+# book_training, and similar) are intentionally excluded.
+LOW_RISK_LEGACY_FALLBACKS = {
+    "magnifier": "magnifier",
+    "reading_glasses": "reading_glasses",
+    "machine_part": "machine_part",
+    "case": "case",
+    "sports_band": "sports_band",
+    "sunglasses": "sunglasses",
+    "pc_glasses": "pc_glasses",
+    "cleaner": "cleaner",
+    "decorative_part": "decorative_part",
+    "glass_code_chain": "glass_code_chain",
 }
 
 
@@ -1045,10 +1385,12 @@ def read_rows(path):
 
 
 def write_rows(path, headers, rows):
-    with path.open("w", encoding="utf-8-sig", newline="") as f:
+    temp_path = path.with_name(path.name + ".tmp")
+    with temp_path.open("w", encoding="utf-8-sig", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=headers, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
+    temp_path.replace(path)
 
 
 def compact(value, limit=None):
@@ -1067,6 +1409,48 @@ CODE_TEMPLATE_OVERRIDES = {
     "194-W17": "special_194_w17",
     "669": "special_669",
     "775": "special_775",
+    "1040": "eye_point_chart",
+    "1040-S": "eye_point_chart",
+    "1040-A": "eye_point_chart",
+    "493": "watch_tool",
+    "636-B": "lens_template",
+    "676": "pliers_axis_adjustment",
+    "801N-BK": "sports_band",
+    "821": "sanitizing_box",
+    "836": "screwdriver",
+    "877-2": "coating_supply",
+    "980": "tool_grip_aid",
+    "994-A": "cleaner",
+    "1003": "pliers_protective_cover",
+    "1007-Z": "work_supply",
+    "1032": "screwdriver",
+    "1039": "screwdriver",
+    "1041": "cleaner",
+    "1050": "frame_coating",
+    "1062": "eyewear_frame",
+    "2045": "fitting_support_tool",
+    "2073-10": "reamer",
+    "2267-10": "pin_removal_tool",
+    "PS-3": "tool_storage",
+    "T-40": "lens_removal_tool",
+    "329": "nut_driver",
+    "672": "adhesive",
+    "750-B": "machine_part",
+    "773-528": "hinge_part",
+    "773-529": "hinge_part",
+    "1052-1": "checker",
+    "1721-51": "nut_driver",
+    "AP-2-3": "polish",
+    "E16042": "magnifier",
+    "E160422": "magnifier",
+    "E299729270": "anti_slip_retainer",
+    "UT-06": "anti_slip_retainer",
+    "UT-08": "anti_slip_retainer",
+    "423": "near_point_chart",
+    "815": "near_point_chart",
+    "817": "visual_acuity_chart",
+    "961": "color_vision_chart",
+    "991": "color_vision_chart",
     "250-A": "special_250_a",
     "333": "special_333",
     "455": "special_455",
@@ -1106,7 +1490,7 @@ CODE_TEMPLATE_OVERRIDES = {
     "642-P": "pliers_temple_opening",
     "25-B": "pliers_bridge_angle",
     "352": "pliers_bridge_angle",
-    "642": "pliers_bridge_angle",
+    "642": "pliers_temple_opening",
     "720": "pliers_bridge_angle",
     "613-B": "pliers_bridge_angle",
     "834": "pliers_pad_adjustment",
@@ -1193,6 +1577,15 @@ def get_merged_text(row, catalog_row, hp_row):
                 row.get("HPから確認した情報", ""),
             ]
         )
+    elif hp_status == "variant_group":
+        # Family-page context is useful for broad product-family classification,
+        # but is not treated as exact evidence for variant-specific claims.
+        hp_text = " ".join(
+            [
+                hp_row.get("_family_categories", ""),
+                hp_row.get("_family_description", ""),
+            ]
+        )
     return compact(
         " ".join(
             [
@@ -1243,7 +1636,7 @@ def detect_pliers_template(name, text):
     return "pliers_generic"
 
 
-def detect_template_key(row, catalog_row, hp_row):
+def detect_template_key(row, catalog_row, hp_row, legacy_row=None):
     code = row.get("品番", "").strip()
     if code == "104":
         return "special_104"
@@ -1257,6 +1650,228 @@ def detect_template_key(row, catalog_row, hp_row):
     name = row.get("商品名_JA", "")
     text = get_merged_text(row, catalog_row, hp_row)
     category = row.get("説明カテゴリ", "").strip()
+    legacy_category = (legacy_row or {}).get("説明カテゴリ", "").strip()
+
+    # Direct product-purpose rules. These run before broad category fallbacks so
+    # chart, inspection, machine, chemical, and service items cannot collapse to
+    # the generic replacement-part summary.
+    if has_any(name, ["(加工内容)", "（加工内容）", "(修理内容)", "（修理内容）"]):
+        return "service"
+    if "Sチャート" in name:
+        return "measurement_chart_accessory" if "シリコンシート" in name else "eyewear_measurement_chart"
+    if "システムチャート" in name:
+        return "visual_acuity_chart" if "本体" in name else "machine_part"
+    if has_any(name, ["フロアースタンド", "テーブルスタンド", "スマートリモコン", "レッドグリーンメガネ"]):
+        return "machine_part"
+    if has_any(name, ["ガード二本足"]):
+        return "pad_arm"
+    if has_any(name, ["シリコンプッシュロック", "スリムフィット", "ピターム", "セルシ-ル", "セルシール"]):
+        return "nose_pad"
+    if has_any(name, ["ジュニアケ-ブル", "ジュニアケーブル"]):
+        return "temple_cable"
+    if has_any(name, ["販売用テンプルカバー"]):
+        return "temple_tip"
+    if has_any(name, ["SWANSスポーツベルト", "スワンズスポーツベルト"]):
+        return "sports_band"
+    if has_any(name, ["クラッチグラス"]):
+        return "eyelid_support"
+    if has_any(name, ["イヤホンマイク"]):
+        return "hearing_accessory"
+    if has_any(name, ["ハイカーブグラス体験用"]):
+        return "high_curve_demo"
+    if has_any(name, ["おしゃれ仮枠", "万能トライアル・フレーム", "万能トライアル･フレーム"]):
+        return "trial_frame"
+    if has_any(name, ["バイフォーカルレンズ", "球面S±", "乱視C±", "プリズムP.", "UNIVISION 単品レンズ"]):
+        return "test_lens"
+    if has_any(name, ["基礎両眼視", "眼鏡用語辞典", "装用テストの実際", "すぐに役立つ眼鏡学"]):
+        return "book_training"
+    if has_any(name, ["ウェルネスプロテクト", "キャップ・クリップ・サンシェード"]):
+        return "clip_on"
+    if has_any(name, ["プリズムビノコンフォート", "スマートルクスデジタル", "イージーポケット", "マックス DETAIL", "マックスディテール", "ライトグリップLED"]):
+        return "magnifier"
+    if has_any(name, ["双眼鏡", "オペラグラス"]):
+        return "binoculars"
+    if has_any(name, ["グラスホルダー", "ルーぺ用ストラップ", "ルーペ用ストラップ"]):
+        return "glass_code_chain"
+    if has_any(name, ["天武チタン", "優眠"]):
+        return "eyewear_frame"
+    if has_any(name, ["提札", "眼鏡かける君"]):
+        return "pop_display"
+    if has_any(name, ["型板ストッカー"]):
+        return "tool_storage"
+    if has_any(name, ["型板(", "型板（"]):
+        return "lens_template"
+    if has_any(name, ["タッチパネルプリンター"]):
+        return "price_tag_printer"
+    if has_any(name, ["ハイルック", "メガネクリンビュー", "エアダスター"]):
+        return "cleaner"
+    if has_any(name, ["フレームコート"]):
+        return "frame_coating"
+    if has_any(name, ["ツールゴムコーティング", "グリップゴムシート"]):
+        return "pliers_protective_cover"
+    if has_any(name, ["グリップペースト"]):
+        return "tool_grip_aid"
+    if has_any(name, ["シリコンコートプライマー", "ナノコート溶剤", "コーティングスポンジ", "シリコン液", "うすめ液のみ"]):
+        return "coating_supply"
+    if has_any(name, ["オイルスプレー"]):
+        return "lubricant"
+    if has_any(name, ["ガチドラ", "穴切りドライバ", "ドライバ-", "ドライバー"]):
+        return "screwdriver"
+    if has_any(name, ["コジ明け", "ウラブタ締め器", "キズ見", "側開器", "万能保持器", "保持器", "バネ棒用工具"]):
+        return "watch_tool"
+    if has_any(name, ["オヤユビツール"]):
+        return "fitting_support_tool"
+    if has_any(name, ["ピン抜き"]):
+        return "pin_removal_tool"
+    if has_any(name, ["レンズリムバー"]):
+        return "lens_removal_tool"
+    if has_any(name, ["溝堀、セル削り", "溝掘、セル削り", "溝掘セル削り"]):
+        return "reamer"
+    if re.match(r"^(N\d|NLE|NLEP)", code):
+        return "machine_part"
+    if has_any(
+        name,
+        [
+            "クリップH",
+            "台I",
+            "フィルター",
+            "ソケットタケノコ",
+            "抜き棒",
+            "受け台",
+            "カシメ",
+            "集熱カバー",
+            "フロート計",
+            "チップ20",
+            "チップ21",
+            "チップ22",
+            "チップ23",
+            "チップ24",
+            "チップ25",
+            "エレメントY",
+            "ブースター",
+            "メタル爪",
+            "スペアニ-ドル",
+            "スペアニードル",
+            "カードA",
+            "ゴムパッキン",
+            "ACアダプター",
+            "電源トランス",
+            "削込カバー",
+            "フィルタースポンジ",
+            "交換用ビット",
+            "バネのみ",
+            "丸ベルト",
+            "ガイドレイル",
+            "マットガラス",
+            "取り付け用リング",
+            "LEDヘッドライト",
+            "LEDワイドライト",
+        ],
+    ):
+        return "machine_part"
+    if has_any(name + text, ["E・P(アイポイント)", "E.Pシール", "E・Pシール", "アイポイントチャート"]):
+        return "eye_point_chart"
+    if has_any(name, ["近点表"]):
+        return "near_point_chart"
+    if has_any(name, ["色覚検査表", "色覚異常検査表"]):
+        return "color_vision_chart"
+    if has_any(name, ["視力表", "視標", "ランドルド環", "ランドルト環"]):
+        return "visual_acuity_chart"
+    if has_any(
+        name + text,
+        [
+            "遮眼子",
+            "遮閉器",
+            "眼球模型",
+            "トアール",
+            "ツインレンズ",
+            "立体視検査",
+            "バタフライテスト",
+            "利き目棒",
+            "検眼テスト枠",
+            "視力検査備品",
+            "試験枠アイテム",
+        ],
+    ):
+        return "vision_test_accessory"
+    if has_any(name + text, ["PDメーター", "レンズメータ", "軸度計", "眼鏡サシ", "サシ・ゲージ", "カーブ計", "厚み計"]):
+        return "measuring_device"
+    if has_any(name, ["イヤーチップ", "耳あかガード", "イヤーパートナー", "フェミミ", "補聴器", "集音器"]):
+        return "hearing_accessory"
+    if has_any(name, ["耳ピタ"]):
+        return "anti_slip_retainer"
+    if has_any(name, ["リメイクカバー"]):
+        return "temple_tip"
+    if has_any(name + text, ["くもり止め", "アンチーフォグ", "ANTI-FOG"]):
+        return "anti_fog"
+    if has_any(name + text, ["メガネオイル", "丁番潤滑", "潤滑油", "潤滑剤"]):
+        return "lubricant"
+    if has_any(name + text, ["消泡剤", "消臭剤", "消臭スプレー", "ハードナー", "凝固剤", "固マリン", "加工用専用水"]):
+        return "processing_chemical"
+    if has_any(name, ["ディスペンサー", "ハンドラップ"]):
+        return "work_supply"
+    if has_any(name, ["加工整理箱", "整理箱用ラック", "バースタンド", "ツールスタンド", "工具台", "ツールバー"]):
+        return "tool_storage"
+    if has_any(name, ["値札", "プライスタグ", "プライスホルダー", "値札用回転印", "デージーホイール", "接客トレー", "プレゼンテーショントレー"]):
+        return "pop_display"
+    if has_any(name, ["マルチフクロ", "グラスポーチ"]):
+        return "case"
+    if has_any(name, ["ステッドラー", "レンズマーカー"]):
+        return "ink_marker"
+    if has_any(name, ["白化防止プライマー", "穴うめ液", "穴うめパウダー"]):
+        return "adhesive"
+    if has_any(name, ["緑棒", "青棒", "白棒", "赤棒", "茶棒", "黄棒", "光沢液", "艶出し液"]):
+        return "polish"
+    if has_any(name, ["耐水ペーパー", "仕上げドレス棒", "粗ドレス棒"]):
+        return "file_grinding"
+    if has_any(name, ["丁番", "箱足", "Wブッシュ", "Ｗブッシュ", "丁番リング", "カシメW", "チタングス"]):
+        return "hinge_part"
+    if has_any(name, ["ロングロックW", "ロングロックＷ"]):
+        return "screw"
+    if has_any(name, ["ナイロンキャップ", "スーパーロックシート"]):
+        return "screw_bolt"
+    if has_any(name, ["先プラスティック", "先プラスチック", "ヤットコ先端", "交換用先端"]):
+        return "pliers_replacement_tip"
+    if has_any(name, ["チェンジドライバ-柄", "チェンジドライバー柄", "先のみ"]):
+        return "screwdriver_handle"
+    if has_any(name, ["レンズ艶出機", "ミニルーター", "自動溝堀機", "自動型取機", "NH手摺機", "バフモーター"]):
+        return "optical_machine"
+    if (
+        re.match(r"^(N|E16)", code)
+        and has_any(
+            name,
+            ["交換用", "用専用", "用電球", "用ハロゲンランプ", "用フィルター", "押え", "アダプター", "カートリッジ", "ヒューズ", "フィーラ", "ワイドカップ", "カスバケット", "交換用ゴム"],
+        )
+    ):
+        return "machine_part"
+
+    # Exact official categories are strong family-level evidence.
+    if has_any(text, ["バフモーター用研磨剤", "フレーム磨き"]):
+        return "polish"
+    if has_any(text, ["消泡剤・消臭剤・ハードナー"]):
+        return "processing_chemical"
+    if has_any(text, ["アイポイントチャート"]):
+        return "eye_point_chart"
+    if has_any(text, ["値札・ホルダー関連"]):
+        return "pop_display"
+    if has_any(text, ["ショップアイテム > 書籍"]):
+        return "book_training"
+    if has_any(text, ["エッシェンバッハ（ルーペ）", "ルーペ >", "ロービジョン"]):
+        return "magnifier"
+    if has_any(text, ["レンズチェッカー", "レンズメーター"]):
+        return "checker"
+    if has_any(text, ["チェンジドライバー"]):
+        return "screwdriver_handle"
+    if has_any(text, ["バネ丁番関連", "丁番関連"]):
+        return "hinge_part"
+    if has_any(text, ["加工整理箱・関連備品"]):
+        return "tool_storage"
+    if has_any(text, ["メガネオイル"]):
+        return "lubricant"
+    if has_any(text, ["店舗除菌"]):
+        return "cleaner"
+    if has_any(text, ["ネジゆるみ止め"]):
+        return "adhesive"
 
     if has_any(name, ["のぼり", "POP", "吊下台紙", "ディスプレイ"]):
         return "pop_display"
@@ -1397,6 +2012,30 @@ def detect_template_key(row, catalog_row, hp_row):
     if has_any(name, ["ブラシ"]):
         return "brush"
 
+    if has_any(text, ["視力測定 > 視力検査備品", "視力測定 > 試験枠アイテム"]):
+        return "vision_test_accessory"
+    if has_any(text, ["計測器 > サシ・ゲージ", "計測器 > カーブ計"]):
+        return "measuring_device"
+    if has_any(text, ["加工 > バフモーター機器", "加工 > タクボ製機器"]):
+        return "optical_machine"
+    if has_any(text, ["加工 > ルーター・バイス"]):
+        return "workbench"
+    if has_any(text, ["パーツ > 加工備品・消耗品 > 溝セル関連"]):
+        return "nylon_rail"
+    if has_any(text, ["販売 > くもり止め", "販売 > クリーナー > くもり止め"]):
+        return "anti_fog"
+    if has_any(text, ["加工備品・消耗品 > マーカーペン・溶解液関連"]):
+        return "ink_marker" if has_any(name, ["ペン", "マーカー", "ステッドラー"]) else "work_supply"
+    if has_any(text, ["加工 > フレームヒーター"]):
+        return "frame_heater"
+    if has_any(text, ["ショップアイテム > 鏡"]):
+        return "pop_display"
+    if has_any(text, ["加工 > ビット(ドリル)"]):
+        return "drill"
+
+    if legacy_category in LOW_RISK_LEGACY_FALLBACKS:
+        return LOW_RISK_LEGACY_FALLBACKS[legacy_category]
+
     if category == "checker":
         if has_any(name, ["ペーパー", "紙", "保持台"]):
             return "work_supply"
@@ -1416,8 +2055,9 @@ def detect_template_key(row, catalog_row, hp_row):
 
 def source_label(row, catalog_row, hp_row):
     sources = []
-    hp_url = row.get("商品ページURL") or hp_row.get("hp_url")
-    if hp_url:
+    hp_status = hp_row.get("hp_match_status") or row.get("HP確認ステータス", "")
+    hp_url = hp_row.get("hp_url") or row.get("商品ページURL")
+    if hp_status == "exact" and hp_url:
         sources.append(hp_url)
     pages = catalog_row.get("catalog_pages") or row.get("カタログ参照")
     if pages:
@@ -1428,10 +2068,20 @@ def source_label(row, catalog_row, hp_row):
 
 
 def catalog_info(row, catalog_row):
+    generic_phrases = (
+        "眼鏡店向け作業・販売補助",
+        "眼鏡店の作業や店頭提案を補助する商品です",
+        "作業や提案をスムーズにし、店頭対応の幅を広げやすい",
+    )
+
+    def grounded(value):
+        value = value or ""
+        return "" if any(phrase in value for phrase in generic_phrases) else value
+
     parts = [
         catalog_row.get("catalog_pages") or row.get("カタログ参照", ""),
-        catalog_row.get("catalog_usage", ""),
-        catalog_row.get("catalog_features", ""),
+        grounded(catalog_row.get("catalog_usage", "")),
+        grounded(catalog_row.get("catalog_features", "")),
         catalog_row.get("catalog_size_material", ""),
         row.get("PDF抽出メモ", ""),
     ]
@@ -1439,8 +2089,6 @@ def catalog_info(row, catalog_row):
 
 
 def hp_info(row, hp_row):
-    if row.get("HPから確認した情報"):
-        return compact(row.get("HPから確認した情報"), 700)
     status = hp_row.get("hp_match_status") or row.get("HP確認ステータス", "")
     if status == "exact":
         parts = [
@@ -1452,7 +2100,7 @@ def hp_info(row, hp_row):
         return compact(" / ".join(p for p in parts if p), 700)
     if status:
         return f"HP照合ステータス: {status}。exact未確認のため要約根拠はカタログ優先。"
-    return ""
+    return compact(row.get("HPから確認した情報", ""), 700)
 
 
 def apply_template(row, key, hp_row, catalog_row):
@@ -1464,7 +2112,7 @@ def apply_template(row, key, hp_row, catalog_row):
         row[cols["benefit"]] = tpl["benefit"][lang]
     row["説明カテゴリ"] = key
     row["説明強化元"] = "programming_agent_rebuild_summaries.py+HP調査CSV+カタログ調査CSV+PDF抽出メモ"
-    row["HP確認ステータス"] = row.get("HP確認ステータス") or hp_row.get("hp_match_status", "")
+    row["HP確認ステータス"] = hp_row.get("hp_match_status") or row.get("HP確認ステータス", "")
     row["HPから確認した情報"] = hp_info(row, hp_row)
     row["カタログから確認した情報"] = catalog_info(row, catalog_row)
     row["要約品質メモ"] = "全件再構築: HP exactは強い根拠、その他はカタログ抽出メモと商品名ルールを優先。"
@@ -1526,13 +2174,84 @@ def apply_template(row, key, hp_row, catalog_row):
         ).strip()
 
 
+def validate_rebuild(rows):
+    by_code = {row.get("品番", ""): row for row in rows}
+    expected_categories = {
+        "104": "special_104",
+        "1040": "eye_point_chart",
+        "1040-S": "eye_point_chart",
+        "1040-A": "eye_point_chart",
+        "352": "pliers_bridge_angle",
+        "642": "pliers_temple_opening",
+        "642-P": "pliers_temple_opening",
+        "1053": "special_1053",
+        "1054": "special_1054",
+    }
+    errors = []
+    for code, expected in expected_categories.items():
+        actual = by_code.get(code, {}).get("説明カテゴリ", "")
+        if actual != expected:
+            errors.append(f"{code}: expected category {expected}, got {actual or '<missing>'}")
+    forbidden_phrases = (
+        "眼鏡店の作業や店頭提案を補助する商品です",
+        "眼鏡フレームや関連器具の交換・補修に使うパーツです",
+    )
+    for row in rows:
+        code = row.get("品番", "")
+        summary = row.get("一言要約_JA", "")
+        if any(phrase in summary for phrase in forbidden_phrases):
+            errors.append(f"{code}: forbidden generic summary remains")
+        for col in ("一言要約_JA", "一言要約_EN", "一言要約_ZH", "一言要約_KO"):
+            if not row.get(col, "").strip():
+                errors.append(f"{code}: missing {col}")
+    for code in ("1053", "1054"):
+        if by_code.get(code, {}).get("入数", "").strip():
+            errors.append(f"{code}: tool body must not display pack quantity")
+    if "ブリッジ" in by_code.get("642", {}).get("一言要約_JA", ""):
+        errors.append("642: bridge-adjustment text remains")
+    if errors:
+        preview = "\n".join(errors[:30])
+        raise RuntimeError(f"Rebuild QA failed ({len(errors)} issues):\n{preview}")
+
+
 def main():
     rows = read_rows(MASTER_PATH)
     headers = list(rows[0].keys())
-    catalog_rows = {r["品番"]: r for r in read_rows(CATALOG_PATH)}
+    eye_point_names = {
+        "1040": {
+            "商品名_JA": "E・P(アイポイント)シール10枚入",
+            "商品名_EN": "E.P. (Eye Point) sticker, 10 sheets",
+            "商品名_ZH": "E・P（视点）贴纸，10张",
+            "商品名_KO": "E·P(아이포인트) 스티커 10매",
+        },
+        "1040-S": {
+            "商品名_JA": "E・P(アイポイント)シール50枚",
+            "商品名_EN": "E.P. (Eye Point) sticker, 50 sheets",
+            "商品名_ZH": "E・P（视点）贴纸，50张",
+            "商品名_KO": "E·P(아이포인트) 스티커 50매",
+        },
+        "1040-A": {
+            "商品名_JA": "E・P(アイポイント)シール100枚",
+            "商品名_EN": "E.P. (Eye Point) sticker, 100 sheets",
+            "商品名_ZH": "E・P（视点）贴纸，100张",
+            "商品名_KO": "E·P(아이포인트) 스티커 100매",
+        },
+    }
+    for row in rows:
+        if row.get("品番") in eye_point_names:
+            row.update(eye_point_names[row["品番"]])
+        if row.get("品番") == "642":
+            row["カタログ参照"] = "カタログP.136,170"
+    legacy_rows = (
+        {r["品番"]: r for r in read_rows(LEGACY_MASTER_PATH)}
+        if LEGACY_MASTER_PATH.exists()
+        else {}
+    )
+    catalog_source_rows = read_rows(CATALOG_PATH)
+    catalog_rows = {r["品番"]: r for r in catalog_source_rows}
     hp_source_rows = read_rows(HP_PATH)
-    hp_rows = {r["品番"]: r for r in hp_source_rows}
-    hp_104 = hp_rows.get("104")
+    hp_source_map = {r["品番"]: r for r in hp_source_rows}
+    hp_104 = hp_source_map.get("104")
     if hp_104:
         hp_104.update(
             {
@@ -1546,10 +2265,61 @@ def main():
                 "notes": "v0.14 critical fix: exact confirmed",
             }
         )
-    hp_194 = hp_rows.get("194-W17")
+    hp_642 = hp_source_map.get("642")
+    if hp_642:
+        hp_642.update(
+            {
+                "hp_match_status": "exact",
+                "hp_url": "https://www.san-nishimura.co.jp/product/item/%E3%83%A4%E3%83%83%E3%83%88%E3%82%B3642/",
+                "hp_product_name": "ヤットコ",
+                "hp_product_code": "642",
+                "hp_categories": "工具 > ヤットコ(テンプル開き)",
+                "hp_description": "テンプル開き調整用のヤットコ。テンプルの開き幅を整える。",
+                "hp_evidence": "公式商品ページで品番642とテンプル開き調整用途を確認。旧No.352参照は破棄。",
+                "notes": "v0.17 critical fix: exact confirmed; wrong No.352 match removed",
+            }
+        )
+    hp_194 = hp_source_map.get("194-W17")
     if hp_194 and "catalog_hp_name_conflict" not in hp_194.get("notes", ""):
         hp_194["notes"] = (hp_194.get("notes", "") + "; catalog_hp_name_conflict: printed catalog P.208 and local image show screw-head cutter").strip("; ")
-    write_rows(HP_PATH, list(hp_source_rows[0].keys()), hp_source_rows)
+    catalog_642 = catalog_rows.get("642")
+    if catalog_642:
+        catalog_642.update(
+            {
+                "catalog_pages": "カタログP.136,170",
+                "catalog_info": "ヤットコ / テンプル開き幅調整 / テンプル開閉の調整に使用",
+                "catalog_usage": "テンプル開き幅調整",
+                "catalog_features": "左右のテンプル開き具合を整え、掛け具合を合わせやすい",
+                "issue_flags": "printed_pages_normalized|wrong_tool_role_from_no352_corrected|adjacent_product_context_mixed|catalog_primary_page_136",
+            }
+        )
+    for eye_point_code in ("1040", "1040-S", "1040-A"):
+        catalog_1040 = catalog_rows.get(eye_point_code)
+        if not catalog_1040:
+            continue
+        catalog_1040.update(
+            {
+                "catalog_pages": "カタログP.175",
+                "catalog_info": "E.Pシール / 眼鏡に直接貼るシール式チャート / E.P・PD確認",
+                "catalog_usage": "アイポイント・PD確認",
+                "catalog_features": "手書き線を省き、E.P確認の効率・精度・標準化に役立つ",
+                "issue_flags": "printed_pages_normalized|summary_overgeneralized_corrected|exact_catalog_purpose_adopted",
+            }
+        )
+    # Inherit only broad family context from an exact page to rows that the HP
+    # audit explicitly marked as a variant group on the same URL.
+    hp_rows = {code: dict(source) for code, source in hp_source_map.items()}
+    exact_by_url = {}
+    for source in hp_source_rows:
+        if source.get("hp_match_status") == "exact" and source.get("hp_url"):
+            exact_by_url[source["hp_url"]] = source
+    for hp_row in hp_rows.values():
+        if hp_row.get("hp_match_status") != "variant_group":
+            continue
+        family = exact_by_url.get(hp_row.get("hp_url", ""))
+        if family:
+            hp_row["_family_categories"] = family.get("hp_categories", "")
+            hp_row["_family_description"] = family.get("hp_description", "")
     evidence_rows = []
     audit_rows = []
     counts = Counter()
@@ -1560,7 +2330,7 @@ def main():
         hp_row = hp_rows.get(code, {})
         old_summary = row.get("一言要約_JA", "")
         old_category = row.get("説明カテゴリ", "")
-        key = detect_template_key(row, catalog_row, hp_row)
+        key = detect_template_key(row, catalog_row, hp_row, legacy_rows.get(code, {}))
         if key not in TEMPLATES:
             key = "parts"
 
@@ -1595,12 +2365,15 @@ def main():
             }
         )
 
+    validate_rebuild(rows)
     master_written = MASTER_PATH
     try:
         write_rows(MASTER_PATH, headers, rows)
     except PermissionError:
         write_rows(FALLBACK_MASTER_PATH, headers, rows)
         master_written = FALLBACK_MASTER_PATH
+    write_rows(HP_PATH, list(hp_source_rows[0].keys()), hp_source_rows)
+    write_rows(CATALOG_PATH, list(catalog_source_rows[0].keys()), catalog_source_rows)
     write_rows(EVIDENCE_PATH, list(evidence_rows[0].keys()), evidence_rows)
     write_rows(AUDIT_PATH, list(audit_rows[0].keys()), audit_rows)
 
