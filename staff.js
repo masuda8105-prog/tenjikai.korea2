@@ -25,6 +25,9 @@
     loadVersion: 0,
     workflowReady: true,
     batch: null,
+    editDirty: false,
+    editRefreshPending: false,
+    customerQrUrl: '',
   };
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({
@@ -185,6 +188,7 @@
     $('loginView').classList.add('hidden');
     $('dashboardView').classList.remove('hidden');
     $('staffIdentity').innerHTML = `<b>${escapeHtml(staffName())}</b>${escapeHtml(state.user?.email || '')} / ${staffRole() === 'admin' ? '管理者' : 'スタッフ'}`;
+    $('utilityIdentity').innerHTML = `<b>${escapeHtml(staffName())}</b><br>${escapeHtml(state.user?.email || '')}`;
   }
 
   async function loadStaffProfile() {
@@ -202,7 +206,7 @@
     state.staff = { role: 'staff', ...rows[0] };
   }
 
-  const legacySelect = 'id,order_no,order_data,status,assigned_to,assigned_name,business_card_original_path,business_card_preview_path,expires_at,created_at,updated_at,printed_at,completed_at';
+  const legacySelect = 'id,public_token,order_no,order_data,status,assigned_to,assigned_name,business_card_original_path,business_card_preview_path,expires_at,created_at,updated_at,printed_at,completed_at';
   const workflowSelect = `${legacySelect},event_id,event_name,event_date,event_day,updated_by,updated_by_name,revision_count,revision_reason,requires_resend,sent_at,sent_by,sent_by_name,batch_id,pending_batch_id,deleted_at,deleted_by,deleted_by_name,delete_reason,status_before_delete`;
 
   async function fetchOrders(select) {
@@ -210,7 +214,7 @@
     return apiJson(`/rest/v1/exhibition_orders?select=${encodeURIComponent(select)}&expires_at=gt.${now}&order=created_at.desc&limit=1000`, { headers: { Accept: 'application/json' } });
   }
 
-  async function loadOrders({ notify = false } = {}) {
+  async function loadOrders({ notify = false, forceDetail = false } = {}) {
     if (!state.session) return;
     const version = ++state.loadVersion;
     setSync('', '更新中…');
@@ -234,11 +238,21 @@
     if (state.current) {
       const fresh = state.orders.find((row) => row.id === state.current.id);
       if (fresh && $('detailDialog').open) {
-        state.current = fresh;
-        await renderDetail(fresh);
+        if (state.editDirty && !forceDetail) {
+          if (fresh.updated_at !== state.current.updated_at) {
+            state.editRefreshPending = true;
+            setEditProtection('新しい更新を受信しました。入力中の内容は保護しています。保存時に他スタッフの更新との競合を確認します。', 'pending');
+          } else {
+            setEditProtection('入力中の内容を保護しています。自動更新が入っても、この画面の入力は消えません。', 'dirty');
+          }
+        } else {
+          state.current = fresh;
+          await renderDetail(fresh);
+        }
       }
     }
     if (!state.workflowReady) setSync('error', 'DB更新が必要です');
+    else if (state.editDirty && state.editRefreshPending) setSync('live', '編集中・入力を保護中');
     else setSync(state.realtimeChannel ? 'live' : '', state.realtimeChannel ? 'リアルタイム接続中' : '10秒ごとに自動更新');
     if (notify && newRows.length) notifyNewOrder(newRows[0]);
   }
@@ -254,7 +268,9 @@
     const json = await response.json().catch(() => []);
     if (!response.ok) throw new Error(json.message || json.error || `UPDATE_${response.status}`);
     if (!Array.isArray(json) || json.length !== 1) throw new Error('CONFLICT');
-    await loadOrders();
+    state.editDirty = false;
+    state.editRefreshPending = false;
+    await loadOrders({ forceDetail: true });
     const updated = state.orders.find((row) => row.id === order.id);
     if (updated) state.current = updated;
     return updated;
@@ -372,10 +388,42 @@
     return signed ? (signed.startsWith('http') ? signed : `${SUPABASE_URL}/storage/v1${signed.startsWith('/') ? '' : '/'}${signed}`) : '';
   }
 
+  function setEditProtection(message, mode = '') {
+    const notice = $('editProtectionNotice');
+    if (!notice) return;
+    notice.className = `editProtectionNotice${mode ? ` ${mode}` : ''}`;
+    notice.textContent = message;
+  }
+
+  function markEditDirty() {
+    if (!$('detailDialog').open) return;
+    state.editDirty = true;
+    setEditProtection('入力中の内容を保護しています。自動更新が入っても、この画面の入力は消えません。', 'dirty');
+    setSync('live', '編集中・入力を保護中');
+  }
+
+  function requireSavedEditor() {
+    if (!state.editDirty) return true;
+    setEditProtection('未保存の変更があります。先に「変更を保存」してください。', 'pending');
+    $('saveEditButton')?.focus();
+    showToast('未保存の変更を先に保存してください。', 4500);
+    return false;
+  }
+
+  function closeDetailSafely() {
+    if (state.editDirty && !window.confirm('保存していない変更があります。変更を破棄して閉じますか？')) return;
+    state.editDirty = false;
+    state.editRefreshPending = false;
+    state.current = null;
+    $('detailDialog').close();
+  }
+
   async function openDetail(id) {
     const order = state.orders.find((row) => row.id === id);
     if (!order) return;
     state.current = order;
+    state.editDirty = false;
+    state.editRefreshPending = false;
     await renderDetail(order);
     $('detailDialog').showModal();
   }
@@ -394,6 +442,11 @@
   async function renderDetail(order, draft = null) {
     const data = order.order_data || {};
     const edit = draft || editDraftFromOrder(order);
+    if (draft) state.editDirty = true;
+    else {
+      state.editDirty = false;
+      state.editRefreshPending = false;
+    }
     state.editItems = edit.items.map((item) => ({ ...item }));
     $('detailTitle').textContent = `${order.order_no}　${data.customerCompany || ''}`;
     let previewUrl = '', originalUrl = '';
@@ -405,6 +458,8 @@
     const sentWarning = order.status === 'sent' ? '<div class="revisionNotice"><b>この注文は代理店送付済みです。</b><br>変更すると修正版・再送待ちへ移動し、修正理由が必要です。</div>' : '';
     const resendWarning = order.status === 'resend_required' ? `<div class="revisionNotice"><b>修正版・再送待ち</b><br>${escapeHtml(order.revision_reason || data._lastRevisionReason || '')}</div>` : '';
     $('detailBody').innerHTML = `${sentWarning}${resendWarning}<div class="detailGrid"><section class="infoPanel"><div class="infoGrid"><div class="infoBox"><div class="label">受付番号</div><div class="value">${escapeHtml(order.order_no)}</div></div><div class="infoBox"><div class="label">状態</div><div class="value">${statusLabel(order.status)}</div></div><div class="infoBox"><div class="label">受付日時</div><div class="value">${escapeHtml(new Date(order.created_at).toLocaleString('ja-JP'))}</div></div><div class="infoBox"><div class="label">展示会日</div><div class="value">${escapeHtml(dateOf(order))}</div></div><div class="infoBox"><div class="label">最終担当</div><div class="value">${escapeHtml(order.assigned_name || '-')}</div></div><div class="infoBox"><div class="label">改訂</div><div class="value">Revision ${Number(order.revision_count || data._revisionCount || 0)}</div></div></div><div class="editBlock"><h3>お客様情報・備考を編集</h3><div class="editGrid"><div class="editField"><label for="editCompany">会社名</label><input id="editCompany" maxlength="160" value="${escapeHtml(edit.customerCompany)}"></div><div class="editField"><label for="editName">氏名</label><input id="editName" maxlength="120" value="${escapeHtml(edit.customerName)}"></div><div class="editField full"><label for="editPhone">電話番号</label><input id="editPhone" maxlength="30" value="${escapeHtml(edit.customerPhone)}"></div><div class="editField full"><label for="editNotes">備考</label><textarea id="editNotes" maxlength="2000">${escapeHtml(edit.notes)}</textarea></div></div></div><div class="businessCard"><h3>名刺</h3>${previewUrl || originalUrl ? `<a href="${escapeHtml(originalUrl || previewUrl)}" target="_blank" rel="noopener"><img src="${escapeHtml(previewUrl || originalUrl)}" alt="名刺画像"></a>` : '<div class="noCard">名刺画像なし</div>'}</div></section><section class="itemsPanel"><h3>商品・数量</h3><table class="itemsTable"><thead><tr><th>品番</th><th>商品名</th><th class="num">数量</th><th class="num">単価</th><th class="num">小計</th></tr></thead><tbody>${state.editItems.map((item, index) => `<tr><td><b>${escapeHtml(item.c)}</b></td><td>${escapeHtml(itemName(item))}</td><td class="num"><div class="qtyControl"><button type="button" data-qty-minus="${index}" aria-label="数量を減らす">−</button><input data-qty-input="${index}" type="number" min="0" max="9999" step="1" value="${Number(item.q || 0)}" aria-label="${escapeHtml(item.c)}の数量"><button type="button" data-qty-plus="${index}" aria-label="数量を増やす">＋</button></div></td><td class="num">${formatMoney(item.p)}</td><td class="num" data-subtotal="${index}"><b>${formatMoney(Number(item.p || 0) * Number(item.q || 0))}</b></td></tr>`).join('')}</tbody></table><div class="detailTotal"><span>合計</span><span id="editedTotal">${formatMoney(orderTotal(order))}</span></div><div class="productAdder"><input id="addProductCode" type="text" placeholder="追加する品番を入力（例 1053）" aria-label="追加する品番"><button id="addProductButton" class="secondary" type="button">商品を追加</button><div id="productSuggest" class="productSuggest">品番を完全一致で入力してください。商品マスターから名称・価格を取得します。</div></div><div class="saveRow"><button id="saveEditButton" class="primary" type="button">変更を保存</button></div></section></div>`;
+    $('detailBody').insertAdjacentHTML('afterbegin', '<div id="editProtectionNotice" class="editProtectionNotice">編集中の入力は自動更新から保護されます。</div>');
+    $('saveEditButton').insertAdjacentHTML('beforebegin', '<span class="saveHint">保存後、お客様用QRにも最新内容が反映されます。</span>');
     const refreshEditedTotal = () => {
       let total = 0;
       document.querySelectorAll('[data-qty-input]').forEach((input) => {
@@ -416,12 +471,14 @@
       });
       $('editedTotal').textContent = formatMoney(total);
     };
-    document.querySelectorAll('[data-qty-minus]').forEach((button) => button.addEventListener('click', () => { const input = document.querySelector(`[data-qty-input="${button.dataset.qtyMinus}"]`); input.value = Math.max(0, Number(input.value || 0) - 1); refreshEditedTotal(); }));
-    document.querySelectorAll('[data-qty-plus]').forEach((button) => button.addEventListener('click', () => { const input = document.querySelector(`[data-qty-input="${button.dataset.qtyPlus}"]`); input.value = Math.min(9999, Number(input.value || 0) + 1); refreshEditedTotal(); }));
-    document.querySelectorAll('[data-qty-input]').forEach((input) => input.addEventListener('input', refreshEditedTotal));
+    ['editCompany', 'editName', 'editPhone', 'editNotes'].forEach((id) => $(id).addEventListener('input', markEditDirty));
+    document.querySelectorAll('[data-qty-minus]').forEach((button) => button.addEventListener('click', () => { const input = document.querySelector(`[data-qty-input="${button.dataset.qtyMinus}"]`); input.value = Math.max(0, Number(input.value || 0) - 1); refreshEditedTotal(); markEditDirty(); }));
+    document.querySelectorAll('[data-qty-plus]').forEach((button) => button.addEventListener('click', () => { const input = document.querySelector(`[data-qty-input="${button.dataset.qtyPlus}"]`); input.value = Math.min(9999, Number(input.value || 0) + 1); refreshEditedTotal(); markEditDirty(); }));
+    document.querySelectorAll('[data-qty-input]').forEach((input) => input.addEventListener('input', () => { refreshEditedTotal(); markEditDirty(); }));
     $('saveEditButton').addEventListener('click', () => withBusy(['saveEditButton'], saveEditedOrder).catch((error) => showToast(`保存失敗：${humanError(error)}`, 6000)));
     $('addProductButton').addEventListener('click', () => withBusy(['addProductButton'], addProductToCurrent).catch((error) => showToast(`商品追加失敗：${humanError(error)}`)));
     refreshEditedTotal();
+    if (state.editDirty) setEditProtection('入力中の内容を保護しています。自動更新が入っても、この画面の入力は消えません。', 'dirty');
     $('startButton').classList.toggle('hidden', order.status !== 'new');
     $('completeButton').classList.toggle('hidden', !['new', 'in_progress'].includes(order.status));
     $('reopenButton').classList.toggle('hidden', !['completed', 'resend_required'].includes(order.status));
@@ -479,7 +536,13 @@
     if (!items.length) throw new Error('商品を1点以上残してください。');
     const total = items.reduce((sum, item) => sum + Number(item.p || 0) * Number(item.q || 0), 0);
     const changed = JSON.stringify({ ...draft, items }) !== JSON.stringify({ customerCompany: oldData.customerCompany || '', customerName: oldData.customerName || '', customerPhone: oldData.customerPhone || '', notes: oldData.notes || '', items: oldData.items || [] });
-    if (!changed) { showToast('変更はありません。'); return; }
+    if (!changed) {
+      state.editDirty = false;
+      state.editRefreshPending = false;
+      setEditProtection('変更はありません。自動更新からの保護を解除しました。');
+      showToast('変更はありません。');
+      return;
+    }
     let reason = 'スタッフによる内容確認・修正';
     let nextStatus = order.status;
     let requiresResend = Boolean(order.requires_resend || oldData._requiresResend);
@@ -512,11 +575,12 @@
     } catch (error) { console.warn('revision history unavailable', error); }
     await logActivity(updated || order, order.status === 'sent' ? 'sent_order_revised' : 'order_updated', { reason, revision_count: revisionCount });
     if (updated) await renderDetail(updated);
-    showToast(`${order.order_no} を保存しました。`);
+    showToast(`${order.order_no} を保存しました。お客様用QRにも最新内容が反映されています。`, 5000);
   }
 
   async function startOrder() {
     if (!state.current) return;
+    if (!requireSavedEditor()) return;
     const order = state.current;
     const updated = await updateOrder(order, { status: 'in_progress' });
     await logActivity(updated || order, 'review_started');
@@ -526,6 +590,7 @@
 
   async function completeOrder() {
     if (!state.current) return;
+    if (!requireSavedEditor()) return;
     const order = state.current;
     if (!window.confirm(`${order.order_no} をこの内容で確定しますか？\n確定後は「送信待ち」へ移動します。`)) return;
     const updated = await updateOrder(order, { status: 'completed', completed_at: new Date().toISOString(), requires_resend: false });
@@ -536,6 +601,7 @@
 
   async function reopenOrder() {
     if (!state.current) return;
+    if (!requireSavedEditor()) return;
     const order = state.current;
     if (!window.confirm(`${order.order_no} を確認待ちへ戻しますか？`)) return;
     const data = { ...(order.order_data || {}), status: 'new', _requiresResend: false };
@@ -547,6 +613,7 @@
 
   function openDeleteDialog() {
     if (!state.current) return;
+    if (!requireSavedEditor()) return;
     const data = state.current.order_data || {};
     $('deleteTarget').innerHTML = `<b>${escapeHtml(state.current.order_no)}（${escapeHtml(data.customerCompany || '')}）</b><br>通常の注文一覧には表示されなくなります。データは削除履歴から元に戻せます。`;
     $('deleteReason').value = '';
@@ -604,18 +671,82 @@
     showToast(`${order.order_no} を${statusLabel(restoreStatus)}へ戻しました。`);
   }
 
+  function customerReceiptUrl(order) {
+    const token = String(order?.public_token || '').trim();
+    if (!/^[A-Za-z0-9_-]{30,80}$/.test(token)) return '';
+    const configured = String(config.publicAppUrl || '').trim();
+    const fallback = `${location.origin}${location.pathname.replace(/staff\.html(?:\?.*)?$/i, '')}`;
+    const base = (configured || fallback).replace(/#.*$/, '');
+    return `${base}#online-receipt=${encodeURIComponent(token)}`;
+  }
+
+  function openCustomerQr() {
+    if (!state.current) return;
+    if (!requireSavedEditor()) return;
+    const url = customerReceiptUrl(state.current);
+    if (!url) {
+      showToast('この注文にはお客様用QRを作成できる公開トークンがありません。最新情報に更新してください。', 6000);
+      return;
+    }
+    state.customerQrUrl = url;
+    $('customerQrCode').innerHTML = '';
+    $('customerQrLink').textContent = url;
+    $('openCustomerQrLink').href = url;
+    try {
+      if (!window.QRCode) throw new Error('QR_LIBRARY_UNAVAILABLE');
+      new QRCode($('customerQrCode'), { text: url, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
+    } catch (error) {
+      console.warn(error);
+      $('customerQrCode').textContent = 'QRコードを生成できませんでした。下のURLをコピーしてください。';
+    }
+    $('customerQrDialog').showModal();
+  }
+
+  async function copyCustomerQrUrl() {
+    if (!state.customerQrUrl) return;
+    try {
+      await navigator.clipboard.writeText(state.customerQrUrl);
+    } catch {
+      const input = document.createElement('textarea');
+      input.value = state.customerQrUrl;
+      input.style.position = 'fixed';
+      input.style.opacity = '0';
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      input.remove();
+    }
+    showToast('お客様用URLをコピーしました。');
+  }
+
   function revisedMark(order) {
     const revision = Number(order.revision_count || order.order_data?._revisionCount || 0);
     return order.status === 'resend_required' || revision > 0 ? `<div class="revisedMark">REVISED ORDER / 修正版 / Revision ${revision}</div>` : '';
   }
 
+  function printItemNames(item) {
+    const names = Array.isArray(item?.n) ? item.n : [String(item?.n || ''), ''];
+    const ja = String(names[0] || item?.c || '');
+    const ko = String(names[1] || '');
+    return `<span class="receiptItemName">${escapeHtml(ja)}</span>${ko && ko !== ja ? `<span class="receiptItemSub">${escapeHtml(ko)}</span>` : ''}`;
+  }
+
   function buildPrint(order, cardUrl = '', wrapperClass = 'printOrder') {
     const data = order.order_data || {}, items = data.items || [];
-    return `<section class="${wrapperClass}">${revisedMark(order)}<div class="printHead"><img src="assets/sun_nishimura_logo.jpg" alt="SAN NISHIMURA"><div class="printTitle"><h1>韓国展示会 確定注文</h1><div>Korea Exhibition Confirmed Order</div><b>${escapeHtml(order.order_no)}</b></div></div><div class="printMeta"><div class="printBox"><b>会社名</b>${escapeHtml(data.customerCompany || '-')}</div><div class="printBox"><b>氏名</b>${escapeHtml(data.customerName || '-')}</div><div class="printBox"><b>電話番号</b>${escapeHtml(data.customerPhone || '-')}</div><div class="printBox"><b>展示会 / 日付</b>${escapeHtml(eventNameOf(order))}<br>${escapeHtml(dateOf(order))}</div><div class="printBox"><b>受付日時</b>${escapeHtml(new Date(order.created_at).toLocaleString('ja-JP'))}</div><div class="printBox"><b>確認担当</b>${escapeHtml(order.assigned_name || staffName())}</div></div><table class="printTable"><thead><tr><th>品番</th><th>商品名</th><th class="num">数量</th><th class="num">単価</th><th class="num">小計</th></tr></thead><tbody>${items.map((item) => `<tr><td>${escapeHtml(item.c)}</td><td>${escapeHtml(itemName(item))}</td><td class="num">${escapeHtml(item.q)}</td><td class="num">${formatMoney(item.p)}</td><td class="num">${formatMoney(Number(item.p || 0) * Number(item.q || 0))}</td></tr>`).join('')}</tbody></table><div class="printTotal">合計 ${formatMoney(orderTotal(order))}</div>${data.notes ? `<div><b>備考</b><br>${escapeHtml(data.notes).replace(/\n/g, '<br>')}</div>` : ''}${cardUrl ? `<img class="printCard" src="${escapeHtml(cardUrl)}" alt="名刺">` : ''}<div class="printFooter">SAN NISHIMURA CO., LTD. / Korea Distributor: KY-S Corporation${state.batch?.batchId ? ` / Batch ID: ${escapeHtml(state.batch.batchId)}` : ''}</div></section>`;
+    const businessCard = cardUrl ? `<div class="receiptBusinessCard"><div class="receiptBusinessCardLabel">名刺写真 / 명함 사진<small>お客様からお預かりした名刺画像 / 고객 명함 이미지</small></div><div class="receiptBusinessCardImage"><img src="${escapeHtml(cardUrl)}" alt="名刺写真 / 명함 사진"></div></div>` : '';
+    const notes = data.notes ? `<div class="receiptNote"><b>備考 / 비고</b>${escapeHtml(data.notes).replace(/\n/g, '<br>')}</div>` : '';
+    return `<section class="${wrapperClass}">${revisedMark(order)}
+      <div class="receiptHeaderSimple"><div class="receiptBrandBlock"><img class="receiptBrandLogo" src="assets/sun_nishimura_logo.jpg" alt="SAN NISHIMURA"><div><div class="receiptBrandName">SAN NISHIMURA CO., LTD.</div><div class="receiptBrandSub">サンニシムラ株式会社 / 선 니시무라 주식회사<br>Korea Distributor: KY-S Corporation | TEL +82-2-3789-2440</div></div></div><div class="receiptDocMeta"><div class="receiptDocTitle">確定注文書 / 확정 주문서</div><div class="receiptDocSub">Confirmed exhibition order sheet</div><div class="receiptMetaLine"><b>注文番号 / 주문번호</b> ${escapeHtml(order.order_no)}<br><b>状態 / 상태</b> ${escapeHtml(statusLabel(order.status))}<br><b>作成日時 / 작성일시</b> ${escapeHtml(new Date(order.created_at).toLocaleString('ja-JP'))}</div></div></div>
+      <div class="receiptInfoBand"><div class="receiptInfoCard"><div class="receiptInfoLabel">Company / 회사명</div><div class="receiptInfoValue">${escapeHtml(data.customerCompany || '-')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Name / 성명</div><div class="receiptInfoValue">${escapeHtml(data.customerName || '-')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Phone / 연락처</div><div class="receiptInfoValue">${escapeHtml(data.customerPhone || '-')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Event / 전시회</div><div class="receiptInfoValue">${escapeHtml(eventNameOf(order))}<br>${escapeHtml(dateOf(order))}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Distributor / 대리점</div><div class="receiptInfoValue">${escapeHtml(data.distributor || config.distributorName || 'KY-S Corporation')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Staff / 담당자</div><div class="receiptInfoValue">${escapeHtml(order.assigned_name || data.staffName || staffName())}</div></div></div>
+      ${businessCard}
+      <div class="receiptSection"><div class="receiptSectionHead"><div class="receiptSectionTitle">注文明細 / 주문 내역</div><div class="receiptSectionHint">Main order details</div></div><table class="receiptTable"><colgroup><col class="code"><col class="image"><col><col class="qty"><col class="unit"><col class="subtotal"></colgroup><thead><tr><th>品番 / 품번</th><th></th><th>商品名 / 상품명</th><th class="num">数量 / 수량</th><th class="num">単価 / 단가</th><th class="num">金額 / 금액</th></tr></thead><tbody>${items.map((item) => `<tr><td><b>${escapeHtml(item.c)}</b></td><td>${item.img ? `<div class="receiptThumb"><img src="${escapeHtml(item.img)}" alt="${escapeHtml(item.c)}"></div>` : ''}</td><td>${printItemNames(item)}</td><td class="num">${escapeHtml(item.q)}</td><td class="num">${formatMoney(item.p)}</td><td class="num"><b>${formatMoney(Number(item.p || 0) * Number(item.q || 0))}</b></td></tr>`).join('')}</tbody></table><div class="receiptImageNote">※ 商品画像は参考表示です。 / 상품 이미지는 참고용입니다.</div></div>
+      <div class="receiptFooterGrid"><div class="receiptMemoStack">${notes}<div class="receiptNote"><b>ご案内 / 안내</b>本書は展示会場で受け付けた注文をスタッフが確認した注文書です。最終在庫・納期は代理店よりご案内します。<br><br>본 문서는 전시장에서 접수한 주문을 직원이 확인한 주문서입니다. 최종 재고 및 납기는 대리점에서 안내합니다.</div></div><div><div class="receiptSummaryBox"><div class="receiptSummaryRow"><span>点数 / 수량 합계</span><span>${totalQty(order)}</span></div><div class="receiptSummaryRow total"><span>合計 / 합계</span><span>${formatMoney(orderTotal(order))}</span></div></div><div class="receiptCurrencyNote">Currency / 통화 : KRW</div></div></div>
+      <div class="receiptFooterMini"><div>KY-S Corporation | 3F, 16 Sowol-ro, Jung-gu, Seoul, Korea</div><div>TEL +82-2-3789-2440 / FAX +82-2-3789-2441${state.batch?.batchId ? ` / ${escapeHtml(state.batch.batchId)}` : ''}</div></div></section>`;
   }
 
   async function printCurrent() {
     if (!state.current) return;
+    if (!requireSavedEditor()) return;
     const order = state.current;
     let card = '';
     try { card = await createSignedUrl(order.business_card_original_path || order.business_card_preview_path); } catch {}
@@ -827,11 +958,15 @@
     $('showUnsentButton').addEventListener('click', () => { $('dateFilter').value = 'all'; switchTab('completed'); render(); });
     $('soundButton').addEventListener('click', () => { state.soundEnabled = !state.soundEnabled; if (state.soundEnabled) { beep(); $('soundButton').textContent = '🔔 通知音ON'; } else $('soundButton').textContent = '🔕 通知音OFF'; });
     document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.tab)));
-    $('detailTopClose').addEventListener('click', () => $('detailDialog').close());
-    $('closeDetail').addEventListener('click', () => $('detailDialog').close());
+    $('detailTopClose').addEventListener('click', closeDetailSafely);
+    $('closeDetail').addEventListener('click', closeDetailSafely);
+    $('detailDialog').addEventListener('cancel', (event) => { event.preventDefault(); closeDetailSafely(); });
     $('startButton').addEventListener('click', () => withBusy(['startButton'], startOrder).catch((error) => showToast(`更新失敗：${humanError(error)}`)));
     $('completeButton').addEventListener('click', () => withBusy(['completeButton'], completeOrder).catch((error) => showToast(`確定失敗：${humanError(error)}`)));
     $('reopenButton').addEventListener('click', () => withBusy(['reopenButton'], reopenOrder).catch((error) => showToast(`更新失敗：${humanError(error)}`)));
+    $('customerQrButton').addEventListener('click', openCustomerQr);
+    $('customerQrTopClose').addEventListener('click', () => $('customerQrDialog').close());
+    $('copyCustomerQrButton').addEventListener('click', () => copyCustomerQrUrl().catch((error) => showToast(`コピー失敗：${humanError(error)}`)));
     $('deleteButton').addEventListener('click', openDeleteDialog);
     $('printButton').addEventListener('click', () => withBusy(['printButton'], printCurrent).catch((error) => showToast(`印刷準備失敗：${humanError(error)}`)));
     $('deleteTopClose').addEventListener('click', () => $('deleteDialog').close());
