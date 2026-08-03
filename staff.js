@@ -23,6 +23,7 @@
     firstLoad: true,
     activeTab: 'open',
     loadVersion: 0,
+    orderViewSignature: null,
     workflowReady: true,
     batch: null,
     editDirty: false,
@@ -38,6 +39,11 @@
     if (!Array.isArray(item?.n)) return String(item?.n || item?.c || '');
     const names = item.n.slice(0, 2).map((name) => String(name || '').trim()).filter(Boolean);
     return [...new Set(names)].join('\n') || String(item?.c || '');
+  };
+  const detailItemImage = (item) => {
+    const src = String(item?.img || '').trim();
+    if (!src) return '<div class="detailProductThumb missing" aria-label="商品画像なし"></div>';
+    return `<div class="detailProductThumb"><img src="${escapeHtml(src)}" alt="${escapeHtml(item?.c || '商品')}" loading="lazy" onerror="this.parentElement.classList.add('missing');this.remove()"></div>`;
   };
   const orderTotal = (order) => Number(order?.order_data?.total ?? (order?.order_data?.items || []).reduce((sum, item) => sum + Number(item.p || 0) * Number(item.q || 0), 0));
   const totalQty = (order) => (order?.order_data?.items || []).reduce((sum, item) => sum + Number(item.q || 0), 0);
@@ -218,10 +224,18 @@
     return apiJson(`/rest/v1/exhibition_orders?select=${encodeURIComponent(select)}&expires_at=gt.${now}&order=created_at.desc&limit=1000`, { headers: { Accept: 'application/json' } });
   }
 
-  async function loadOrders({ notify = false, forceDetail = false } = {}) {
+  function ordersSnapshotSignature(orders) {
+    return orders.map((order) => [
+      order.id, order.updated_at, order.status, order.deleted_at,
+      order.assigned_to, order.assigned_name, order.revision_count,
+      order.resend_required, order.order_no,
+    ].map((value) => String(value ?? '')).join(':')).join('|');
+  }
+
+  async function loadOrders({ notify = false, forceDetail = false, silent = false } = {}) {
     if (!state.session) return;
     const version = ++state.loadVersion;
-    setSync('', '更新中…');
+    if (!silent) setSync('', '更新中…');
     let json;
     try {
       json = await fetchOrders(workflowSelect);
@@ -234,24 +248,34 @@
     if (version !== state.loadVersion) return;
     const incomingIds = new Set(json.map((order) => order.id));
     const newRows = state.firstLoad ? [] : json.filter((order) => !state.knownIds.has(order.id));
+    const nextViewSignature = ordersSnapshotSignature(json);
+    const viewChanged = nextViewSignature !== state.orderViewSignature;
     state.orders = json;
     state.knownIds = incomingIds;
     state.firstLoad = false;
-    populateFilters();
-    render();
+    if (viewChanged) {
+      const scrollPosition = { left: window.scrollX, top: window.scrollY };
+      state.orderViewSignature = nextViewSignature;
+      populateFilters();
+      render();
+      window.scrollTo(scrollPosition);
+    }
     if (state.current) {
       const fresh = state.orders.find((row) => row.id === state.current.id);
       if (fresh && $('detailDialog').open) {
+        const detailChanged = fresh.updated_at !== state.current.updated_at || fresh.status !== state.current.status;
         if (state.editDirty && !forceDetail) {
-          if (fresh.updated_at !== state.current.updated_at) {
+          if (detailChanged) {
             state.editRefreshPending = true;
             setEditProtection('新しい更新を受信しました。入力中の内容は保護しています。保存時に他スタッフの更新との競合を確認します。', 'pending');
           } else {
             setEditProtection('入力中の内容を保護しています。自動更新が入っても、この画面の入力は消えません。', 'dirty');
           }
-        } else {
+        } else if (forceDetail || detailChanged) {
           state.current = fresh;
           await renderDetail(fresh);
+        } else {
+          state.current = fresh;
         }
       }
     }
@@ -462,7 +486,14 @@
       state.editDirty = false;
       state.editRefreshPending = false;
     }
-    state.editItems = edit.items.map((item) => ({ ...item }));
+    let productMaster = null;
+    if (edit.items.some((item) => !String(item?.img || '').trim())) {
+      try { productMaster = await loadProductMaster(); } catch (error) { console.warn(error); }
+    }
+    state.editItems = edit.items.map((item) => {
+      const masterItem = productMaster?.get(String(item?.c || '').trim().toUpperCase());
+      return { ...(masterItem || {}), ...item, img: String(item?.img || masterItem?.img || '') };
+    });
     $('detailTitle').textContent = `${order.order_no}　注文内容`;
     let previewUrl = '', originalUrl = '';
     try {
@@ -472,7 +503,7 @@
     }
     const sentWarning = order.status === 'sent' ? '<div class="revisionNotice"><b>この注文は代理店送付済みです。</b><br>変更すると修正版・再送待ちへ移動し、修正理由が必要です。</div>' : '';
     const resendWarning = order.status === 'resend_required' ? `<div class="revisionNotice"><b>修正版・再送待ち</b><br>${escapeHtml(order.revision_reason || data._lastRevisionReason || '')}</div>` : '';
-    $('detailBody').innerHTML = `${sentWarning}${resendWarning}<div class="detailGrid"><section class="infoPanel"><div class="infoGrid"><div class="infoBox"><div class="label">受付番号</div><div class="value">${escapeHtml(order.order_no)}</div></div><div class="infoBox"><div class="label">状態</div><div class="value">${statusLabel(order.status)}</div></div><div class="infoBox"><div class="label">受付日時</div><div class="value">${escapeHtml(new Date(order.created_at).toLocaleString('ja-JP'))}</div></div><div class="infoBox"><div class="label">展示会日</div><div class="value">${escapeHtml(dateOf(order))}</div></div><div class="infoBox"><div class="label">最終担当</div><div class="value">${escapeHtml(order.assigned_name || '-')}</div></div><div class="infoBox"><div class="label">改訂</div><div class="value">Revision ${Number(order.revision_count || data._revisionCount || 0)}</div></div></div><div class="editBlock"><h3>お客様情報・備考を編集</h3><div class="editGrid"><div class="editField"><label for="editCompany">会社名</label><input id="editCompany" maxlength="160" value="${escapeHtml(edit.customerCompany)}"></div><div class="editField"><label for="editName">氏名</label><input id="editName" maxlength="120" value="${escapeHtml(edit.customerName)}"></div><div class="editField full"><label for="editPhone">電話番号</label><input id="editPhone" maxlength="30" value="${escapeHtml(edit.customerPhone)}"></div><div class="editField full"><label for="editNotes">備考</label><textarea id="editNotes" maxlength="2000">${escapeHtml(edit.notes)}</textarea></div></div></div><div class="businessCard"><h3>名刺</h3>${previewUrl || originalUrl ? `<a href="${escapeHtml(originalUrl || previewUrl)}" target="_blank" rel="noopener"><img src="${escapeHtml(previewUrl || originalUrl)}" alt="名刺画像"></a>` : '<div class="noCard">名刺画像なし</div>'}</div></section><section class="itemsPanel"><h3>商品・数量</h3><table class="itemsTable"><thead><tr><th>品番</th><th>商品名</th><th class="num">数量</th><th class="num">単価</th><th class="num">小計</th></tr></thead><tbody>${state.editItems.map((item, index) => `<tr><td><b>${escapeHtml(item.c)}</b></td><td>${escapeHtml(itemName(item))}</td><td class="num"><div class="qtyControl"><button type="button" data-qty-minus="${index}" aria-label="数量を減らす">−</button><input data-qty-input="${index}" type="number" min="0" max="9999" step="1" value="${Number(item.q || 0)}" aria-label="${escapeHtml(item.c)}の数量"><button type="button" data-qty-plus="${index}" aria-label="数量を増やす">＋</button></div></td><td class="num">${formatMoney(item.p)}</td><td class="num" data-subtotal="${index}"><b>${formatMoney(Number(item.p || 0) * Number(item.q || 0))}</b></td></tr>`).join('')}</tbody></table><div class="detailTotal"><span>合計</span><span id="editedTotal">${formatMoney(orderTotal(order))}</span></div><div class="productAdder"><input id="addProductCode" type="text" placeholder="追加する品番を入力（例 1053）" aria-label="追加する品番"><button id="addProductButton" class="secondary" type="button">商品を追加</button><div id="productSuggest" class="productSuggest">品番を完全一致で入力してください。商品マスターから名称・価格を取得します。</div></div><div class="saveRow"><button id="saveEditButton" class="primary" type="button">変更を保存</button></div></section></div>`;
+    $('detailBody').innerHTML = `${sentWarning}${resendWarning}<div class="detailGrid"><section class="infoPanel"><div class="infoGrid"><div class="infoBox"><div class="label">受付番号</div><div class="value">${escapeHtml(order.order_no)}</div></div><div class="infoBox"><div class="label">状態</div><div class="value">${statusLabel(order.status)}</div></div><div class="infoBox"><div class="label">受付日時</div><div class="value">${escapeHtml(new Date(order.created_at).toLocaleString('ja-JP'))}</div></div><div class="infoBox"><div class="label">展示会日</div><div class="value">${escapeHtml(dateOf(order))}</div></div><div class="infoBox"><div class="label">最終担当</div><div class="value">${escapeHtml(order.assigned_name || '-')}</div></div><div class="infoBox"><div class="label">改訂</div><div class="value">Revision ${Number(order.revision_count || data._revisionCount || 0)}</div></div></div><div class="editBlock"><h3>お客様情報・備考を編集</h3><div class="editGrid"><div class="editField"><label for="editCompany">会社名</label><input id="editCompany" maxlength="160" value="${escapeHtml(edit.customerCompany)}"></div><div class="editField"><label for="editName">氏名</label><input id="editName" maxlength="120" value="${escapeHtml(edit.customerName)}"></div><div class="editField full"><label for="editPhone">電話番号</label><input id="editPhone" maxlength="30" value="${escapeHtml(edit.customerPhone)}"></div><div class="editField full"><label for="editNotes">備考</label><textarea id="editNotes" maxlength="2000">${escapeHtml(edit.notes)}</textarea></div></div></div><div class="businessCard"><h3>名刺</h3>${previewUrl || originalUrl ? `<a href="${escapeHtml(originalUrl || previewUrl)}" target="_blank" rel="noopener"><img src="${escapeHtml(previewUrl || originalUrl)}" alt="名刺画像"></a>` : '<div class="noCard">名刺画像なし</div>'}</div></section><section class="itemsPanel"><h3>商品・数量</h3><table class="itemsTable"><thead><tr><th>品番</th><th>商品名</th><th class="num">数量</th><th class="num">単価</th><th class="num">小計</th></tr></thead><tbody>${state.editItems.map((item, index) => `<tr><td><b>${escapeHtml(item.c)}</b></td><td><div class="detailProductIdentity">${detailItemImage(item)}<span>${escapeHtml(itemName(item))}</span></div></td><td class="num"><div class="qtyControl"><button type="button" data-qty-minus="${index}" aria-label="数量を減らす">−</button><input data-qty-input="${index}" type="number" min="0" max="9999" step="1" value="${Number(item.q || 0)}" aria-label="${escapeHtml(item.c)}の数量"><button type="button" data-qty-plus="${index}" aria-label="数量を増やす">＋</button></div></td><td class="num">${formatMoney(item.p)}</td><td class="num" data-subtotal="${index}"><b>${formatMoney(Number(item.p || 0) * Number(item.q || 0))}</b></td></tr>`).join('')}</tbody></table><div class="detailTotal"><span>合計</span><span id="editedTotal">${formatMoney(orderTotal(order))}</span></div><div class="productAdder"><input id="addProductCode" type="text" placeholder="追加する品番を入力（例 1053）" aria-label="追加する品番"><button id="addProductButton" class="secondary" type="button">商品を追加</button><div id="productSuggest" class="productSuggest">品番を完全一致で入力してください。商品マスターから名称・価格を取得します。</div></div><div class="saveRow"><button id="saveEditButton" class="primary" type="button">変更を保存</button></div></section></div>`;
     $('detailBody').insertAdjacentHTML('afterbegin', '<div id="editProtectionNotice" class="editProtectionNotice">編集中の入力は自動更新から保護されます。</div>');
     $('saveEditButton').insertAdjacentHTML('beforebegin', '<span class="saveHint">保存後、お客様用QRにも最新内容が反映されます。</span>');
     const refreshEditedTotal = () => {
@@ -916,12 +947,12 @@
 
   async function startRealtime() {
     stopRealtime();
-    state.pollTimer = setInterval(() => loadOrders().catch((error) => { console.warn(error); setSync('error', '自動更新エラー'); }), 10000);
+    state.pollTimer = setInterval(() => loadOrders({ silent: true }).catch((error) => { console.warn(error); setSync('error', '自動更新エラー'); }), 10000);
     try {
       const module = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4/+esm');
       const client = module.createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
       client.realtime.setAuth(state.session.access_token);
-      const channel = client.channel('korea-exhibition-orders').on('postgres_changes', { event: '*', schema: 'public', table: 'exhibition_orders' }, (payload) => loadOrders({ notify: payload.eventType === 'INSERT' }).catch(console.error)).subscribe((status) => {
+      const channel = client.channel('korea-exhibition-orders').on('postgres_changes', { event: '*', schema: 'public', table: 'exhibition_orders' }, (payload) => loadOrders({ notify: payload.eventType === 'INSERT', silent: true }).catch(console.error)).subscribe((status) => {
         if (status === 'SUBSCRIBED') setSync('live', 'リアルタイム接続中');
         else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') setSync('error', '10秒ごとの自動更新へ切替');
       });

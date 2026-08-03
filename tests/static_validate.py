@@ -91,8 +91,17 @@ def check_required_markers() -> None:
     permissions = (ROOT / "supabase/migrations/20260803150000_lock_browser_order_permissions.sql").read_text(encoding="utf-8")
     edge = (ROOT / "supabase/functions/exhibition-order/index.ts").read_text(encoding="utf-8")
     cleanup = (ROOT / "supabase/functions/cleanup-orders/index.ts").read_text(encoding="utf-8")
+    for forbidden in ["packBadgeHtml(", "specsInfoHtml(", "'pack_qty','qty'", "i.pack||''"]:
+        if forbidden in index:
+            fail(f"Pack quantity is visible in the UI or order-history export: {forbidden}")
+    for marker in ["detailProductThumb", "ordersSnapshotSignature", "viewChanged", "silent: true"]:
+        if marker not in staff_js + staff_html:
+            fail(f"Staff detail image or stable refresh marker is missing: {marker}")
+    for marker in ["受付番号を発行", "近くのスタッフにお見せください"]:
+        if marker not in index:
+            fail(f"Reception-number guidance marker is missing: {marker}")
     markers = [
-        "注文を送信 / 주문 전송",
+        "受付番号を発行 / 접수 번호 발급",
         "名刺画像を送信できませんでした。再試行してください。",
         "受付番号 / 접수 번호",
         "予備QRを表示 / 예비 QR 표시",
