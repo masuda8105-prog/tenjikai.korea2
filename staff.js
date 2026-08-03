@@ -359,7 +359,7 @@
       if (dateFilter !== 'all' && dateOf(order) !== dateFilter) return false;
       if (!query) return true;
       const data = order.order_data || {};
-      const searchable = [order.order_no, data.customerCompany, data.customerName, data.customerPhone, data.notes, order.assigned_name, eventNameOf(order), dateOf(order), ...(data.items || []).flatMap((item) => [item.c, itemName(item)])].join(' ').toLowerCase();
+      const searchable = [order.order_no, data.customerCompany, data.customerName, data.customerPhone, data.shippingAddress, data.notes, order.assigned_name, eventNameOf(order), dateOf(order), ...(data.items || []).flatMap((item) => [item.c, itemName(item)])].join(' ').toLowerCase();
       return searchable.includes(query);
     });
   }
@@ -469,13 +469,13 @@
 
   function editDraftFromOrder(order) {
     const data = order.order_data || {};
-    return { customerCompany: data.customerCompany || '', customerName: data.customerName || '', customerPhone: data.customerPhone || '', notes: data.notes || '', items: (data.items || []).map((item) => ({ ...item })) };
+    return { customerCompany: data.customerCompany || '', customerName: data.customerName || '', customerPhone: data.customerPhone || '', shippingAddress: data.shippingAddress || '', notes: data.notes || '', items: (data.items || []).map((item) => ({ ...item })) };
   }
 
   function currentEditDraft() {
     if (!$('editCompany')) return editDraftFromOrder(state.current);
     const items = state.editItems.map((item, index) => ({ ...item, q: Math.max(0, Math.min(9999, Math.floor(Number(document.querySelector(`[data-qty-input="${index}"]`)?.value || 0)))) }));
-    return { customerCompany: $('editCompany').value.trim(), customerName: $('editName').value.trim(), customerPhone: $('editPhone').value.trim(), notes: $('editNotes').value.trim(), items };
+    return { customerCompany: $('editCompany').value.trim(), customerName: $('editName').value.trim(), customerPhone: $('editPhone').value.trim(), shippingAddress: $('editShippingAddress').value.trim(), notes: $('editNotes').value.trim(), items };
   }
 
   async function renderDetail(order, draft = null) {
@@ -504,6 +504,7 @@
     const sentWarning = order.status === 'sent' ? '<div class="revisionNotice"><b>この注文は代理店送付済みです。</b><br>変更すると修正版・再送待ちへ移動し、修正理由が必要です。</div>' : '';
     const resendWarning = order.status === 'resend_required' ? `<div class="revisionNotice"><b>修正版・再送待ち</b><br>${escapeHtml(order.revision_reason || data._lastRevisionReason || '')}</div>` : '';
     $('detailBody').innerHTML = `${sentWarning}${resendWarning}<div class="detailGrid"><section class="infoPanel"><div class="infoGrid"><div class="infoBox"><div class="label">受付番号</div><div class="value">${escapeHtml(order.order_no)}</div></div><div class="infoBox"><div class="label">状態</div><div class="value">${statusLabel(order.status)}</div></div><div class="infoBox"><div class="label">受付日時</div><div class="value">${escapeHtml(new Date(order.created_at).toLocaleString('ja-JP'))}</div></div><div class="infoBox"><div class="label">展示会日</div><div class="value">${escapeHtml(dateOf(order))}</div></div><div class="infoBox"><div class="label">最終担当</div><div class="value">${escapeHtml(order.assigned_name || '-')}</div></div><div class="infoBox"><div class="label">改訂</div><div class="value">Revision ${Number(order.revision_count || data._revisionCount || 0)}</div></div></div><div class="editBlock"><h3>お客様情報・備考を編集</h3><div class="editGrid"><div class="editField"><label for="editCompany">会社名</label><input id="editCompany" maxlength="160" value="${escapeHtml(edit.customerCompany)}"></div><div class="editField"><label for="editName">氏名</label><input id="editName" maxlength="120" value="${escapeHtml(edit.customerName)}"></div><div class="editField full"><label for="editPhone">電話番号</label><input id="editPhone" maxlength="30" value="${escapeHtml(edit.customerPhone)}"></div><div class="editField full"><label for="editNotes">備考</label><textarea id="editNotes" maxlength="2000">${escapeHtml(edit.notes)}</textarea></div></div></div><div class="businessCard"><h3>名刺</h3>${previewUrl || originalUrl ? `<a href="${escapeHtml(originalUrl || previewUrl)}" target="_blank" rel="noopener"><img src="${escapeHtml(previewUrl || originalUrl)}" alt="名刺画像"></a>` : '<div class="noCard">名刺画像なし</div>'}</div></section><section class="itemsPanel"><h3>商品・数量</h3><table class="itemsTable"><thead><tr><th>品番</th><th>商品名</th><th class="num">数量</th><th class="num">単価</th><th class="num">小計</th></tr></thead><tbody>${state.editItems.map((item, index) => `<tr><td><b>${escapeHtml(item.c)}</b></td><td><div class="detailProductIdentity">${detailItemImage(item)}<span>${escapeHtml(itemName(item))}</span></div></td><td class="num"><div class="qtyControl"><button type="button" data-qty-minus="${index}" aria-label="数量を減らす">−</button><input data-qty-input="${index}" type="number" min="0" max="9999" step="1" value="${Number(item.q || 0)}" aria-label="${escapeHtml(item.c)}の数量"><button type="button" data-qty-plus="${index}" aria-label="数量を増やす">＋</button></div></td><td class="num">${formatMoney(item.p)}</td><td class="num" data-subtotal="${index}"><b>${formatMoney(Number(item.p || 0) * Number(item.q || 0))}</b></td></tr>`).join('')}</tbody></table><div class="detailTotal"><span>合計</span><span id="editedTotal">${formatMoney(orderTotal(order))}</span></div><div class="productAdder"><input id="addProductCode" type="text" placeholder="追加する品番を入力（例 1053）" aria-label="追加する品番"><button id="addProductButton" class="secondary" type="button">商品を追加</button><div id="productSuggest" class="productSuggest">品番を完全一致で入力してください。商品マスターから名称・価格を取得します。</div></div><div class="saveRow"><button id="saveEditButton" class="primary" type="button">変更を保存</button></div></section></div>`;
+    $('editPhone').closest('.editField').insertAdjacentHTML('afterend', `<div class="editField full"><label for="editShippingAddress">発送先住所（任意）</label><textarea id="editShippingAddress" maxlength="500" autocomplete="shipping street-address">${escapeHtml(edit.shippingAddress)}</textarea></div>`);
     $('detailBody').insertAdjacentHTML('afterbegin', '<div id="editProtectionNotice" class="editProtectionNotice">編集中の入力は自動更新から保護されます。</div>');
     $('saveEditButton').insertAdjacentHTML('beforebegin', '<span class="saveHint">保存後、お客様用QRにも最新内容が反映されます。</span>');
     const refreshEditedTotal = () => {
@@ -517,7 +518,7 @@
       });
       $('editedTotal').textContent = formatMoney(total);
     };
-    ['editCompany', 'editName', 'editPhone', 'editNotes'].forEach((id) => $(id).addEventListener('input', markEditDirty));
+    ['editCompany', 'editName', 'editPhone', 'editShippingAddress', 'editNotes'].forEach((id) => $(id).addEventListener('input', markEditDirty));
     document.querySelectorAll('[data-qty-minus]').forEach((button) => button.addEventListener('click', () => { const input = document.querySelector(`[data-qty-input="${button.dataset.qtyMinus}"]`); input.value = Math.max(0, Number(input.value || 0) - 1); refreshEditedTotal(); markEditDirty(); }));
     document.querySelectorAll('[data-qty-plus]').forEach((button) => button.addEventListener('click', () => { const input = document.querySelector(`[data-qty-input="${button.dataset.qtyPlus}"]`); input.value = Math.min(9999, Number(input.value || 0) + 1); refreshEditedTotal(); markEditDirty(); }));
     document.querySelectorAll('[data-qty-input]').forEach((input) => input.addEventListener('input', () => { refreshEditedTotal(); markEditDirty(); }));
@@ -581,7 +582,7 @@
     if (!draft.customerCompany || !draft.customerName || !draft.customerPhone) throw new Error('会社名・氏名・電話番号は必須です。');
     if (!items.length) throw new Error('商品を1点以上残してください。');
     const total = items.reduce((sum, item) => sum + Number(item.p || 0) * Number(item.q || 0), 0);
-    const changed = JSON.stringify({ ...draft, items }) !== JSON.stringify({ customerCompany: oldData.customerCompany || '', customerName: oldData.customerName || '', customerPhone: oldData.customerPhone || '', notes: oldData.notes || '', items: oldData.items || [] });
+    const changed = JSON.stringify({ ...draft, items }) !== JSON.stringify({ customerCompany: oldData.customerCompany || '', customerName: oldData.customerName || '', customerPhone: oldData.customerPhone || '', shippingAddress: oldData.shippingAddress || '', notes: oldData.notes || '', items: oldData.items || [] });
     if (!changed) {
       state.editDirty = false;
       state.editRefreshPending = false;
@@ -605,7 +606,7 @@
     }
     const revisionCount = Number(order.revision_count || oldData._revisionCount || 0) + 1;
     const now = new Date().toISOString();
-    const orderData = { ...oldData, customerCompany: draft.customerCompany, customerName: draft.customerName, customerPhone: draft.customerPhone, notes: draft.notes, items, total, status: nextStatus, _revisionCount: revisionCount, _lastRevisionAt: now, _lastRevisionBy: staffName(), _lastRevisionReason: reason, _requiresResend: requiresResend };
+    const orderData = { ...oldData, customerCompany: draft.customerCompany, customerName: draft.customerName, customerPhone: draft.customerPhone, shippingAddress: draft.shippingAddress, notes: draft.notes, items, total, status: nextStatus, _revisionCount: revisionCount, _lastRevisionAt: now, _lastRevisionBy: staffName(), _lastRevisionReason: reason, _requiresResend: requiresResend };
     if (order.status === 'sent') {
       orderData._previousBatchId = order.batch_id || oldData._batchId || '';
       orderData._previousSentAt = order.sent_at || oldData._sentAt || '';
@@ -779,26 +780,60 @@
 
   function buildPrint(order, cardUrl = '', wrapperClass = 'printOrder') {
     const data = order.order_data || {}, items = data.items || [];
-    const businessCard = cardUrl ? `<div class="receiptBusinessCard"><div class="receiptBusinessCardLabel">名刺写真 / 명함 사진<small>お客様からお預かりした名刺画像 / 고객 명함 이미지</small></div><div class="receiptBusinessCardImage"><img src="${escapeHtml(cardUrl)}" alt="名刺写真 / 명함 사진"></div></div>` : '';
+    const hasBusinessCard = Boolean(order.business_card_original_path || order.business_card_preview_path);
+    const businessCard = cardUrl ? `<div class="receiptBusinessCard"><div class="receiptBusinessCardLabel">名刺写真 / 명함 사진<small>お客様からお預かりした名刺画像 / 고객 명함 이미지</small></div><div class="receiptBusinessCardImage"><img src="${escapeHtml(cardUrl)}" alt="名刺写真 / 명함 사진"></div></div>` : hasBusinessCard ? '<div class="receiptBusinessCard receiptBusinessCardMissing"><div class="receiptBusinessCardLabel">名刺写真 / 명함 사진</div><div>画像を取得できませんでした。スタッフ画面で原本を確認してください。<br>명함 이미지를 불러오지 못했습니다. 직원 화면에서 원본을 확인해 주세요.</div></div>' : '';
+    const shippingAddress = data.shippingAddress ? `<div class="receiptShippingAddress"><div class="receiptInfoLabel">Shipping address / 배송지 주소</div><div class="receiptInfoValue">${escapeHtml(data.shippingAddress).replace(/\n/g, '<br>')}</div></div>` : '';
     const notes = data.notes ? `<div class="receiptNote"><b>備考 / 비고</b>${escapeHtml(data.notes).replace(/\n/g, '<br>')}</div>` : '';
     return `<section class="${wrapperClass}">${revisedMark(order)}
       <div class="receiptHeaderSimple"><div class="receiptBrandBlock"><img class="receiptBrandLogo" src="assets/sun_nishimura_logo.jpg" alt="SAN NISHIMURA"><div><div class="receiptBrandName">SAN NISHIMURA CO., LTD.</div><div class="receiptBrandSub">サンニシムラ株式会社 / 선 니시무라 주식회사<br>Korea Distributor: KY-S Corporation | TEL +82-2-3789-2440</div></div></div><div class="receiptDocMeta"><div class="receiptDocTitle">確定注文書 / 확정 주문서</div><div class="receiptDocSub">Confirmed exhibition order sheet</div><div class="receiptMetaLine"><b>注文番号 / 주문번호</b> ${escapeHtml(order.order_no)}<br><b>状態 / 상태</b> ${escapeHtml(statusLabel(order.status))}<br><b>作成日時 / 작성일시</b> ${escapeHtml(new Date(order.created_at).toLocaleString('ja-JP'))}</div></div></div>
       <div class="receiptInfoBand"><div class="receiptInfoCard"><div class="receiptInfoLabel">Company / 회사명</div><div class="receiptInfoValue">${escapeHtml(data.customerCompany || '-')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Name / 성명</div><div class="receiptInfoValue">${escapeHtml(data.customerName || '-')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Phone / 연락처</div><div class="receiptInfoValue">${escapeHtml(data.customerPhone || '-')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Event / 전시회</div><div class="receiptInfoValue">${escapeHtml(eventNameOf(order))}<br>${escapeHtml(dateOf(order))}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Distributor / 대리점</div><div class="receiptInfoValue">${escapeHtml(data.distributor || config.distributorName || 'KY-S Corporation')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Staff / 담당자</div><div class="receiptInfoValue">${escapeHtml(order.assigned_name || data.staffName || staffName())}</div></div></div>
+      ${shippingAddress}
       ${businessCard}
       <div class="receiptSection"><div class="receiptSectionHead"><div class="receiptSectionTitle">注文明細 / 주문 내역</div><div class="receiptSectionHint">Main order details</div></div><table class="receiptTable"><colgroup><col class="code"><col class="image"><col><col class="qty"><col class="unit"><col class="subtotal"></colgroup><thead><tr><th>品番 / 품번</th><th></th><th>商品名 / 상품명</th><th class="num">数量 / 수량</th><th class="num">単価 / 단가</th><th class="num">金額 / 금액</th></tr></thead><tbody>${items.map((item) => `<tr><td><b>${escapeHtml(item.c)}</b></td><td>${item.img ? `<div class="receiptThumb"><img src="${escapeHtml(item.img)}" alt="${escapeHtml(item.c)}"></div>` : ''}</td><td>${printItemNames(item)}</td><td class="num">${escapeHtml(item.q)}</td><td class="num">${formatMoney(item.p)}</td><td class="num"><b>${formatMoney(Number(item.p || 0) * Number(item.q || 0))}</b></td></tr>`).join('')}</tbody></table><div class="receiptImageNote">※ 商品画像は参考表示です。 / 상품 이미지는 참고용입니다.</div></div>
       <div class="receiptFooterGrid"><div class="receiptMemoStack">${notes}<div class="receiptNote"><b>ご案内 / 안내</b>本書は展示会場で受け付けた注文をスタッフが確認した注文書です。最終在庫・納期は代理店よりご案内します。<br><br>본 문서는 전시장에서 접수한 주문을 직원이 확인한 주문서입니다. 최종 재고 및 납기는 대리점에서 안내합니다.</div></div><div><div class="receiptSummaryBox"><div class="receiptSummaryRow"><span>点数 / 수량 합계</span><span>${totalQty(order)}</span></div><div class="receiptSummaryRow total"><span>合計 / 합계</span><span>${formatMoney(orderTotal(order))}</span></div></div><div class="receiptCurrencyNote">Currency / 통화 : KRW</div></div></div>
       <div class="receiptFooterMini"><div>KY-S Corporation | 3F, 16 Sowol-ro, Jung-gu, Seoul, Korea</div><div>TEL +82-2-3789-2440 / FAX +82-2-3789-2441${state.batch?.batchId ? ` / ${escapeHtml(state.batch.batchId)}` : ''}</div></div></section>`;
   }
 
+  async function signedBusinessCardUrl(order) {
+    const paths = [...new Set([order?.business_card_original_path, order?.business_card_preview_path].filter(Boolean))];
+    for (const path of paths) {
+      try {
+        const url = await createSignedUrl(path);
+        if (url) return url;
+      } catch (error) {
+        console.warn('business card URL unavailable', error);
+      }
+    }
+    return '';
+  }
+
+  async function waitForPrintImages(timeoutMs = 10000) {
+    const images = [...$('printArea').querySelectorAll('img')];
+    await Promise.all(images.map(async (img) => {
+      if (!img.complete) {
+        await Promise.race([
+          new Promise((resolve) => { img.addEventListener('load', resolve, { once: true }); img.addEventListener('error', resolve, { once: true }); }),
+          new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+        ]);
+      }
+      if (img.decode) await Promise.race([img.decode().catch(() => {}), new Promise((resolve) => setTimeout(resolve, timeoutMs))]);
+    }));
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  }
+
+  async function openPrintWhenImagesReady() {
+    await waitForPrintImages();
+    window.print();
+  }
+
   async function printCurrent() {
     if (!state.current) return;
     if (!requireSavedEditor()) return;
     const order = state.current;
-    let card = '';
-    try { card = await createSignedUrl(order.business_card_original_path || order.business_card_preview_path); } catch {}
+    const card = await signedBusinessCardUrl(order);
     $('printArea').innerHTML = buildPrint(order, card);
     try { await updateOrder(order, { printed_at: new Date().toISOString() }); } catch (error) { if (error.message !== 'CONFLICT') throw error; }
-    setTimeout(() => window.print(), 100);
+    await openPrintWhenImagesReady();
   }
 
   function selectedBatchOrders() {
@@ -807,8 +842,59 @@
     return source.filter((order) => checked.includes(order.id));
   }
 
+  function batchGroupKey(order) {
+    return `${eventIdOf(order)}::${dateOf(order)}`;
+  }
+
+  function batchDateText(order) {
+    if (!order) return '-';
+    const day = Number(order.event_day || order.order_data?.eventDay || 0);
+    return `${dateOf(order).replace(/-/g, '/')}${day ? `（${day}日目）` : ''}`;
+  }
+
+  function batchScopedOrders() {
+    const eventFilter = $('eventFilter').value;
+    return state.orders.filter((order) => !isDeleted(order) && ['completed', 'resend_required'].includes(order.status) && (eventFilter === 'all' || eventIdOf(order) === eventFilter));
+  }
+
   function batchEligibleOrders() {
-    return filteredBase().filter((order) => ['completed', 'resend_required'].includes(order.status) && !order.pending_batch_id);
+    return batchScopedOrders().filter((order) => !order.pending_batch_id);
+  }
+
+  function batchGroups(orders) {
+    const grouped = new Map();
+    orders.forEach((order) => {
+      const key = batchGroupKey(order);
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key).push(order);
+    });
+    return [...grouped.entries()].map(([key, rows]) => ({ key, rows })).sort((a, b) => dateOf(a.rows[0]).localeCompare(dateOf(b.rows[0])) || eventNameOf(a.rows[0]).localeCompare(eventNameOf(b.rows[0]), 'ja'));
+  }
+
+  function renderBatchOrderList() {
+    const rows = state.batch?.orders || [];
+    const locked = Boolean(state.batch?.batchId);
+    $('batchOrderList').innerHTML = rows.map((order) => {
+      const time = new Date(order.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+      return `<label class="batchOrderRow"><span><input data-batch-order type="checkbox" value="${escapeHtml(order.id)}" checked ${locked ? 'disabled' : ''}> <b>${escapeHtml(order.order_no)}</b>　${escapeHtml(order.order_data?.customerCompany || '-')}<small class="batchOrderDate">${escapeHtml(time)}受付</small></span><span>${totalQty(order)}点 / ${formatMoney(orderTotal(order))}${order.status === 'resend_required' ? ' / 修正版' : ''}</span></label>`;
+    }).join('');
+    document.querySelectorAll('[data-batch-order]').forEach((input) => input.addEventListener('change', updateBatchDialogSummary));
+    updateBatchDialogSummary();
+  }
+
+  function selectBatchDateGroup(key) {
+    if (!state.batch || state.batch.batchId) return;
+    const group = state.batch.groups.find((item) => item.key === key) || state.batch.groups[0];
+    if (!group) return;
+    state.batch.selectedGroupKey = group.key;
+    state.batch.orders = group.rows;
+    $('batchDateSelect').value = group.key;
+    $('pdfSavedCheck').checked = false;
+    $('mailSentCheck').checked = false;
+    $('openBatchMailButton').disabled = true;
+    $('markBatchSentButton').disabled = true;
+    $('batchMessage').textContent = `${batchDateText(group.rows[0])} の注文確定分を表示しています。対象を確認してPDFを作成してください。`;
+    renderBatchOrderList();
   }
 
   function updateBatchDialogSummary() {
@@ -816,55 +902,66 @@
     const qty = rows.reduce((sum, order) => sum + totalQty(order), 0);
     const amount = rows.reduce((sum, order) => sum + orderTotal(order), 0);
     const revised = rows.filter((order) => order.status === 'resend_required').length;
-    $('batchSummary').innerHTML = `<div><span>注文件数</span><b>${rows.length}件</b></div><div><span>合計数量</span><b>${qty}点</b></div><div><span>合計金額</span><b>${formatMoney(amount)}</b></div><div><span>再送注文</span><b>${revised}件</b></div><div><span>対象日</span><b>${escapeHtml(rows[0] ? dateOf(rows[0]) : '-')}</b></div><div><span>Batch ID</span><b>${escapeHtml(state.batch?.batchId || 'PDF作成時に採番')}</b></div>`;
+    const targetOrder = state.batch?.orders?.[0];
+    $('batchSummary').innerHTML = `<div><span>注文件数</span><b>${rows.length}件</b></div><div><span>合計数量</span><b>${qty}点</b></div><div><span>合計金額</span><b>${formatMoney(amount)}</b></div><div><span>再送注文</span><b>${revised}件</b></div><div><span>対象日</span><b>${escapeHtml(batchDateText(targetOrder))}</b></div><div><span>Batch ID</span><b>${escapeHtml(state.batch?.batchId || 'PDF作成時に採番')}</b></div>`;
     $('createBatchPdfButton').disabled = rows.length === 0;
+    const inputs = [...document.querySelectorAll('[data-batch-order]')];
+    const checked = inputs.filter((input) => input.checked).length;
+    $('batchSelectAll').checked = inputs.length > 0 && checked === inputs.length;
+    $('batchSelectAll').indeterminate = checked > 0 && checked < inputs.length;
+    $('batchSelectAll').disabled = Boolean(state.batch?.batchId) || inputs.length === 0;
   }
 
   async function openBatchDialog() {
+    const pending = batchScopedOrders().filter((order) => order.pending_batch_id);
+    let batchId = '';
     let orders = batchEligibleOrders();
-    if (!orders.length) {
-      const pending = filteredBase().filter((order) => ['completed', 'resend_required'].includes(order.status) && order.pending_batch_id);
-      if (pending.length) {
-        const pendingId = pending[0].pending_batch_id;
-        orders = pending.filter((order) => order.pending_batch_id === pendingId);
-        state.batch = { batchId: pendingId, orders };
-      }
+    if (pending.length) {
+      batchId = pending[0].pending_batch_id;
+      orders = pending.filter((order) => order.pending_batch_id === batchId);
     }
-    if (!orders.length) { showToast('現在の絞り込みに注文確定分はありません。'); return; }
-    const dates = [...new Set(orders.map(dateOf))];
-    if (dates.length > 1) { showToast('送信する日付を上の日付フィルターで1日選択してください。', 5000); return; }
-    state.batch ||= { batchId: '', orders };
-    state.batch.orders = orders;
+    if (!orders.length) { showToast('注文確定分はありません。'); return; }
+    const groups = batchGroups(orders);
+    const currentDate = $('dateFilter').value;
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
+    const preferred = batchId ? groups[0] : groups.find((group) => currentDate !== 'all' && dateOf(group.rows[0]) === currentDate) || groups.find((group) => dateOf(group.rows[0]) === today) || groups[0];
+    state.batch = { batchId, orders: preferred.rows, groups, selectedGroupKey: preferred.key };
+    const multipleEvents = new Set(groups.map((group) => eventIdOf(group.rows[0]))).size > 1;
+    $('batchDateSelect').innerHTML = groups.map((group) => `<option value="${escapeHtml(group.key)}">${multipleEvents ? `${escapeHtml(eventNameOf(group.rows[0]))}｜` : ''}${escapeHtml(batchDateText(group.rows[0]))} — ${group.rows.length}件</option>`).join('');
+    $('batchDateSelect').value = preferred.key;
+    $('batchDateSelect').disabled = Boolean(batchId);
     $('recipientEmail').value = String(config.distributorEmail || '');
-    $('batchOrderList').innerHTML = orders.map((order) => `<label class="batchOrderRow"><span><input data-batch-order type="checkbox" value="${escapeHtml(order.id)}" checked ${state.batch.batchId ? 'disabled' : ''}> <b>${escapeHtml(order.order_no)}</b>　${escapeHtml(order.order_data?.customerCompany || '-')}</span><span>${totalQty(order)}点 / ${formatMoney(orderTotal(order))}${order.status === 'resend_required' ? ' / 修正版' : ''}</span></label>`).join('');
-    document.querySelectorAll('[data-batch-order]').forEach((input) => input.addEventListener('change', updateBatchDialogSummary));
     $('pdfSavedCheck').checked = false;
     $('mailSentCheck').checked = false;
-    $('openBatchMailButton').disabled = !state.batch.batchId;
+    $('openBatchMailButton').disabled = !batchId;
     $('markBatchSentButton').disabled = true;
-    $('batchMessage').textContent = state.batch.batchId ? `作業中の ${state.batch.batchId} を再開しました。` : '対象を確認し、最初にPDFを作成してください。';
-    updateBatchDialogSummary();
+    $('batchMessage').textContent = batchId ? `作業中の ${batchId} を再開しました。` : `${batchDateText(preferred.rows[0])} の注文確定分を表示しています。対象を確認してPDFを作成してください。`;
+    renderBatchOrderList();
     $('batchDialog').showModal();
   }
 
   async function createBatchPdf() {
     const rows = selectedBatchOrders();
     if (!rows.length) throw new Error('送信対象を選択してください。');
+    if (new Set(rows.map(batchGroupKey)).size !== 1) throw new Error('同じ展示会日の注文だけを選択してください。');
     if (!state.batch.batchId) {
       const eventId = eventIdOf(rows[0]), eventName = eventNameOf(rows[0]), eventDate = dateOf(rows[0]);
       const result = await rpc('create_exhibition_order_batch', { p_event_id: eventId, p_event_name: eventName, p_event_date: eventDate, p_order_ids: rows.map((order) => order.id), p_recipient_email: $('recipientEmail').value.trim(), p_created_by_name: staffName() });
       const record = Array.isArray(result) ? result[0] : result;
       if (!record?.batch_id) throw new Error('Batch IDを作成できませんでした。');
       state.batch = { ...state.batch, batchId: record.batch_id, orders: rows };
+      $('batchDateSelect').disabled = true;
+      $('batchSelectAll').disabled = true;
+      document.querySelectorAll('[data-batch-order]').forEach((input) => { input.disabled = true; });
     }
-    const urls = await Promise.all(rows.map((order) => createSignedUrl(order.business_card_original_path || order.business_card_preview_path).catch(() => '')));
+    const urls = await Promise.all(rows.map(signedBusinessCardUrl));
     const qty = rows.reduce((sum, order) => sum + totalQty(order), 0), amount = rows.reduce((sum, order) => sum + orderTotal(order), 0);
     const cover = `<section class="batchCover"><img src="assets/sun_nishimura_logo.jpg" alt="SAN NISHIMURA" style="width:220px"><h1>Korea Exhibition Confirmed Orders</h1><h2>韓国展示会 確定注文明細</h2><table class="batchCoverTable"><tr><th>展示会</th><td>${escapeHtml(eventNameOf(rows[0]))}</td></tr><tr><th>対象日</th><td>${escapeHtml(dateOf(rows[0]))}</td></tr><tr><th>送信グループ番号</th><td>${escapeHtml(state.batch.batchId)}</td></tr><tr><th>作成日時</th><td>${escapeHtml(new Date().toLocaleString('ja-JP'))}</td></tr><tr><th>注文件数</th><td>${rows.length}件</td></tr><tr><th>合計数量</th><td>${qty}点</td></tr><tr><th>合計金額</th><td>${formatMoney(amount)}</td></tr><tr><th>作成担当</th><td>${escapeHtml(staffName())}</td></tr><tr><th>韓国代理店</th><td>KY-S Corporation</td></tr></table></section>`;
     $('printArea').innerHTML = cover + rows.map((order, index) => buildPrint(order, urls[index])).join('');
     $('openBatchMailButton').disabled = false;
     $('batchMessage').textContent = `${state.batch.batchId} の印刷画面を開きます。保存先でPDFを選択してください。`;
     updateBatchDialogSummary();
-    setTimeout(() => window.print(), 100);
+    await openPrintWhenImagesReady();
   }
 
   function openBatchMail() {
@@ -898,9 +995,9 @@
     if (state.batch?.batchId) {
       if (!window.confirm(`${state.batch.batchId} の送付作業を中止しますか？\nPDFを作り直す場合は再度バッチを作成します。`)) return;
       try { await rpc('cancel_exhibition_order_batch', { p_batch_id: state.batch.batchId }); } catch (error) { showToast(`バッチ中止失敗：${humanError(error)}`); return; }
-      state.batch = null;
       await loadOrders();
     }
+    state.batch = null;
     $('batchDialog').close();
   }
 
@@ -996,6 +1093,11 @@
     $('batchHistoryTopClose').addEventListener('click', () => $('batchHistoryDialog').close());
     $('batchTopClose').addEventListener('click', () => closeBatchDialog().catch((error) => showToast(humanError(error))));
     $('cancelBatchButton').addEventListener('click', () => closeBatchDialog().catch((error) => showToast(humanError(error))));
+    $('batchDateSelect').addEventListener('change', () => selectBatchDateGroup($('batchDateSelect').value));
+    $('batchSelectAll').addEventListener('change', () => {
+      document.querySelectorAll('[data-batch-order]').forEach((input) => { if (!input.disabled) input.checked = $('batchSelectAll').checked; });
+      updateBatchDialogSummary();
+    });
     $('createBatchPdfButton').addEventListener('click', () => withBusy(['createBatchPdfButton'], createBatchPdf).catch((error) => showToast(`PDF準備失敗：${humanError(error)}`, 6000)));
     $('openBatchMailButton').addEventListener('click', openBatchMail);
     $('pdfSavedCheck').addEventListener('change', updateBatchSendEnabled);

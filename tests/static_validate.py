@@ -47,6 +47,7 @@ def validate_catalog() -> None:
 def validate_files() -> None:
     required = [
         "index.html", "staff.html", "staff.js", "online-config.js",
+        "vendor/html2canvas.min.js",
         "supabase/functions/exhibition-order/index.ts",
         "supabase/functions/cleanup-orders/index.ts",
         "supabase/migrations/20260730090000_korea_staff_dashboard.sql",
@@ -100,6 +101,9 @@ def check_required_markers() -> None:
     for marker in ["受付番号を発行", "近くのスタッフにお見せください"]:
         if marker not in index:
             fail(f"Reception-number guidance marker is missing: {marker}")
+    for marker in ["shippingAddress", "saveReceiptImage", "html2canvas.min.js", "画像で保存（かんたん）"]:
+        if marker not in index:
+            fail(f"Shipping-address or image-save marker is missing: {marker}")
     markers = [
         "受付番号を発行 / 접수 번호 발급",
         "名刺画像を送信できませんでした。再試行してください。",
@@ -114,6 +118,11 @@ def check_required_markers() -> None:
     for marker in ["対応開始", "注文を確定する", "確定注文をまとめて送る", "削除履歴へ移す"]:
         if marker not in staff_html:
             fail(f"スタッフ画面の必須機能がありません: {marker}")
+    for marker in ["batchDateSelect", "batchSelectAll", "editShippingAddress", "signedBusinessCardUrl", "waitForPrintImages", "receiptShippingAddress"]:
+        if marker not in staff_js + staff_html:
+            fail(f"日付別送信・住所・名刺印刷の必須機能がありません: {marker}")
+    if "送信する日付を上の日付フィルターで1日選択してください。" in staff_js:
+        fail("一括送信が画面上部の日付フィルターに依存しています")
     for marker in ["リアルタイム接続中", "business-cards", "updated_at=eq.", "resend_required", "CONFLICT"]:
         if marker not in staff_js:
             fail(f"スタッフ画面の必須機能がありません: {marker}")

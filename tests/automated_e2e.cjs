@@ -12,6 +12,7 @@ function customerHtml(mock) {
   let html = read('index.html');
   html = html.replace('<script src="online-config.js"></script>', `<script>${storageShim}${mock}</script><script>${read('online-config.js')}</script>`);
   html = html.replace('<script src="vendor/qrcode.min.js"></script>', `<script>${read('vendor/qrcode.min.js')}</script>`);
+  html = html.replace('<script src="vendor/html2canvas.min.js"></script>', `<script>${read('vendor/html2canvas.min.js')}</script>`);
   // This scenario imports CSV only; the XLSX bundle is unnecessary here.
   html = html.replace('<script src="vendor/xlsx.full.min.js"></script>', '');
   const csv = read('product_master_korea.csv').split(/\r?\n/);
@@ -40,8 +41,8 @@ async function customerFlow(browser) {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   const errors = [];
   page.on('pageerror', (error) => errors.push(String(error)));
-  const order = { v: 10, status: 'new', lang: 'ja', orderNo: 'K260803-001', createdAt: '2026-08-03T08:00:00.000Z', eventName: 'Korea Optical Exhibition 2026', customerCompany: 'Test Optical', customerName: 'Kim', customerPhone: '010-1234-5678', total: 120000, items: [{ c: '1053', n: ['ヤットコ', '플라이어'], q: 1, p: 120000 }] };
-  const mock = `window.__postCount=0;window.__cardParts=null;const __nativeFetch=window.fetch.bind(window);window.fetch=async(input,init={})=>{const url=String(input);if(url.includes('/functions/v1/exhibition-order')){if((init.method||'GET').toUpperCase()==='POST'){window.__postCount+=1;window.__cardParts={original:init.body.get('businessCardOriginal')?.size||0,preview:init.body.get('businessCardPreview')?.size||0};return new Response(JSON.stringify({id:'1',token:'${'A'.repeat(43)}',orderNo:'K260803-001',status:'new',createdAt:'2026-08-03T08:00:00.000Z',expiresAt:'2026-08-17T08:00:00.000Z'}),{status:201,headers:{'Content-Type':'application/json'}})}return new Response(JSON.stringify({order:${JSON.stringify(order)},status:'new',expiresAt:'2026-08-17T08:00:00.000Z',businessCardOriginalUrl:'',businessCardPreviewUrl:''}),{status:200,headers:{'Content-Type':'application/json'}})}return __nativeFetch(input,init)};`;
+  const order = { v: 10, status: 'new', lang: 'ja', orderNo: 'K260803-001', createdAt: '2026-08-03T08:00:00.000Z', eventName: 'Korea Optical Exhibition 2026', customerCompany: 'Test Optical', customerName: 'Kim', customerPhone: '010-1234-5678', shippingAddress: '04524 Seoul Test Address', total: 120000, items: [{ c: '1053', n: ['ヤットコ', '플라이어'], q: 1, p: 120000 }] };
+  const mock = `window.__postCount=0;window.__cardParts=null;window.__postedOrder=null;const __nativeFetch=window.fetch.bind(window);window.fetch=async(input,init={})=>{const url=String(input);if(url.includes('/functions/v1/exhibition-order')){if((init.method||'GET').toUpperCase()==='POST'){window.__postCount+=1;window.__postedOrder=JSON.parse(init.body.get('order'));window.__cardParts={original:init.body.get('businessCardOriginal')?.size||0,preview:init.body.get('businessCardPreview')?.size||0};return new Response(JSON.stringify({id:'1',token:'${'A'.repeat(43)}',orderNo:'K260803-001',status:'new',createdAt:'2026-08-03T08:00:00.000Z',expiresAt:'2026-08-17T08:00:00.000Z'}),{status:201,headers:{'Content-Type':'application/json'}})}return new Response(JSON.stringify({order:${JSON.stringify(order)},status:'new',expiresAt:'2026-08-17T08:00:00.000Z',businessCardOriginalUrl:'',businessCardPreviewUrl:''}),{status:200,headers:{'Content-Type':'application/json'}})}return __nativeFetch(input,init)};`;
   await page.setContent(customerHtml(mock), { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => /\d/.test(document.querySelector('#searchResultStatus')?.textContent || ''), null, { timeout: 30000 });
   await page.selectOption('#langSelect', 'ja');
@@ -57,6 +58,7 @@ async function customerFlow(browser) {
   await page.fill('#customerCompany', 'Test Optical');
   await page.fill('#customerName', 'Kim');
   await page.fill('#customerPhone', '010-1234-5678');
+  await page.fill('#shippingAddress', '04524 Seoul Test Address');
   await page.setInputFiles('#businessCardInput', path.join(ROOT, 'assets', 'sun_nishimura_logo.jpg'));
   await page.waitForSelector('#businessCardPreview.show');
   await page.click('#createQr');
@@ -67,10 +69,16 @@ async function customerFlow(browser) {
   await page.waitForSelector('#qrDialog[open]');
   if (await page.evaluate(() => window.__postCount) !== 1) throw new Error('同じ注文が二重送信されました');
   if (!await page.evaluate(() => window.__cardParts?.original > 0 && window.__cardParts?.preview > 0)) throw new Error('名刺の原本とプレビューが分離されていません');
+  if (await page.evaluate(() => window.__postedOrder?.shippingAddress) !== '04524 Seoul Test Address') throw new Error('発送先住所が注文データへ送信されていません');
   await page.click('#openReceipt');
   await page.waitForFunction(() => document.querySelector('#receiptPrintArea')?.textContent.includes('K260803-001'));
   const receipt = await page.textContent('#receiptPrintArea');
-  if (!receipt.includes('スタッフ確認待ち') || !receipt.includes('1053')) throw new Error('控えの状態または商品が不正です');
+  if (!receipt.includes('スタッフ確認待ち') || !receipt.includes('1053') || !receipt.includes('04524 Seoul Test Address')) throw new Error('控えの状態・商品・発送先住所が不正です');
+  if (!(await page.textContent('#saveReceiptImage')).includes('画像で保存')) throw new Error('画像保存ボタンが分かりやすく表示されません');
+  await page.evaluate(() => { isMobileLike = () => false; downloadBlob = (blob, filename) => { window.__imageFileName = filename; window.__imageBlobType = blob.type; window.__imageBlobSize = blob.size; }; });
+  await page.click('#saveReceiptImage');
+  await page.waitForFunction(() => window.__imageFileName);
+  if (!await page.evaluate(() => window.__imageFileName.endsWith('-order-copy.png') && window.__imageBlobType === 'image/png' && window.__imageBlobSize > 1000)) throw new Error('注文控えがPNGで保存されません');
   if (errors.length) throw new Error(errors.join('\n'));
   await page.close();
 }
@@ -96,7 +104,12 @@ async function staffFlow(browser) {
   page.on('pageerror', (error) => errors.push(String(error)));
   page.on('dialog', async (dialog) => dialog.accept());
   const mock = `let __status='new',__updated=1,__batch=null;window.print=()=>{window.__printed=true};const __order={id:'00000000-0000-0000-0000-000000000001',public_token:'${'A'.repeat(43)}',order_no:'K260803-001',status:'new',assigned_to:null,assigned_name:null,business_card_original_path:null,business_card_preview_path:null,expires_at:'2026-08-17T08:00:00.000Z',created_at:'2026-08-03T08:00:00.000Z',updated_at:'2026-08-03T08:00:01.000Z',printed_at:null,completed_at:null,event_id:'korea-exhibition-2026',event_name:'Korea Optical Exhibition 2026',event_date:'2026-08-03',event_day:1,revision_count:0,requires_resend:false,pending_batch_id:null,order_data:{customerCompany:'Test Optical',customerName:'Kim',customerPhone:'010-1234',notes:'',eventId:'korea-exhibition-2026',eventName:'Korea Optical Exhibition 2026',eventDate:'2026-08-03',total:120000,items:[{c:'1053',n:['ヤットコ','플라이어'],q:1,p:120000,img:'product-images/1053_1.jpg'}]}};window.fetch=async(input,init={})=>{const url=String(input),method=(init.method||'GET').toUpperCase();if(url.includes('/auth/v1/token'))return new Response(JSON.stringify({access_token:'test-access',refresh_token:'test-refresh',expires_in:3600,user:{id:'11111111-1111-1111-1111-111111111111',email:'staff@example.com',user_metadata:{full_name:'増田'}}}),{status:200,headers:{'Content-Type':'application/json'}});if(url.includes('/rest/v1/exhibition_staff'))return new Response(JSON.stringify([{display_name:'増田',role:'staff',active:true}]),{status:200,headers:{'Content-Type':'application/json'}});if(url.includes('/rest/v1/rpc/create_exhibition_order_batch')){__batch='KY-20260803-01';__order.pending_batch_id=__batch;return new Response(JSON.stringify([{batch_id:__batch,order_count:1,total_quantity:1,total_amount:120000}]),{status:200,headers:{'Content-Type':'application/json'}})}if(url.includes('/rest/v1/rpc/mark_exhibition_order_batch_sent')){__status='sent';__order.status='sent';__order.pending_batch_id=null;__order.batch_id=__batch;return new Response('1',{status:200,headers:{'Content-Type':'application/json'}})}if(url.includes('/rest/v1/rpc/cancel_exhibition_order_batch')){__order.pending_batch_id=null;return new Response('1',{status:200,headers:{'Content-Type':'application/json'}})}if(url.includes('/rest/v1/order_activity_logs')||url.includes('/rest/v1/order_revisions'))return new Response('',{status:201,headers:{'Content-Type':'application/json'}});if(url.includes('/rest/v1/exhibition_orders')&&method==='PATCH'){const data=JSON.parse(init.body||'{}');Object.assign(__order,data);if(data.status)__status=data.status;__updated+=1;__order.updated_at='2026-08-03T08:00:'+String(__updated).padStart(2,'0')+'.000Z';return new Response(JSON.stringify([{...__order,status:__status}]),{status:200,headers:{'Content-Type':'application/json'}})}if(url.includes('/rest/v1/exhibition_orders'))return new Response(JSON.stringify([{...__order,status:__status,assigned_name:__status==='new'?null:'増田'}]),{status:200,headers:{'Content-Type':'application/json'}});if(url.includes('/rest/v1/order_batches'))return new Response('[]',{status:200,headers:{'Content-Type':'application/json'}});if(url.includes('/auth/v1/logout'))return new Response('',{status:204});throw new Error('unexpected fetch '+url)};`;
-  await page.setContent(staffHtml(mock.replace('product-images/1053_1.jpg', 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==')), { waitUntil: 'domcontentloaded' });
+  const enhancedMock = mock
+    .replace("customerPhone:'010-1234',notes:''", "customerPhone:'010-1234',shippingAddress:'04524 Seoul Test Address',notes:''")
+    .replace(']}};window.fetch=', `]}};const __orders=[__order];window.__addSecondOrder=()=>{if(__orders.length>1)return;const second=JSON.parse(JSON.stringify(__order));Object.assign(second,{id:'00000000-0000-0000-0000-000000000002',order_no:'K260804-002',status:'completed',assigned_name:'増田',created_at:'2026-08-04T08:00:00.000Z',updated_at:'2026-08-04T08:00:01.000Z',event_date:'2026-08-04',event_day:2,pending_batch_id:null});second.order_data={...second.order_data,customerCompany:'Day 2 Optical',customerName:'Lee',shippingAddress:'04600 Seoul Day 2 Address',eventDate:'2026-08-04',eventDay:2};__orders.push(second)};window.fetch=`)
+    .replace("JSON.stringify([{...__order,status:__status,assigned_name:__status==='new'?null:'増田'}])", "JSON.stringify(__orders.map(order=>({...order,status:order===__order?__status:order.status,assigned_name:order.assigned_name||(order===__order&&__status==='new'?null:'増田')})))")
+    .replace('product-images/1053_1.jpg', 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==');
+  await page.setContent(staffHtml(enhancedMock), { waitUntil: 'domcontentloaded' });
   await page.fill('#email', 'staff@example.com'); await page.fill('#password', 'password'); await page.click('#loginButton');
   await page.waitForSelector('[data-order-id]');
   await page.evaluate(() => { window.__stableOrderCard = document.querySelector('[data-order-id]'); });
@@ -105,10 +118,13 @@ async function staffFlow(browser) {
   if (!await page.evaluate(() => window.__stableOrderCard === document.querySelector('[data-order-id]'))) throw new Error('無変更の自動更新で注文一覧が再描画されています');
   await page.click('[data-order-id]'); await page.waitForSelector('#detailDialog[open]');
   if (!await page.locator('.detailProductThumb').count()) throw new Error('スタッフ注文詳細に商品画像欄が表示されません');
+  if (await page.inputValue('#editShippingAddress') !== '04524 Seoul Test Address') throw new Error('スタッフ画面に発送先住所が表示されません');
   await page.fill('#editCompany', 'Protected Optical');
+  await page.fill('#editShippingAddress', '04525 Seoul Updated Address');
   await page.evaluate(() => document.querySelector('#refreshButton').click());
   await page.waitForTimeout(250);
   if (await page.inputValue('#editCompany') !== 'Protected Optical') throw new Error('自動更新で編集中の入力が消えました');
+  if (await page.inputValue('#editShippingAddress') !== '04525 Seoul Updated Address') throw new Error('自動更新で編集中の発送先住所が消えました');
   await page.fill('#editCompany', 'Test Optical'); await page.click('#saveEditButton');
   await page.click('#customerQrButton'); await page.waitForSelector('#customerQrDialog[open]');
   if (!await page.locator('#customerQrCode img, #customerQrCode canvas').count()) throw new Error('お客様用QRが生成されません');
@@ -118,7 +134,16 @@ async function staffFlow(browser) {
   const confirmedText = await page.textContent('.confirmedOrderRow');
   if (!confirmedText.includes('Kim') || !confirmedText.includes('増田') || !confirmedText.includes('K260803-001')) throw new Error('注文確定分の一行表示が不正です');
   await page.click('#printButton'); await page.waitForFunction(() => window.__printed === true);
+  if (!(await page.textContent('#printArea')).includes('04525 Seoul Updated Address')) throw new Error('スタッフ注文書に発送先住所が反映されません');
+  await page.evaluate(() => {
+    const card = document.createElement('div');
+    card.className = 'receiptBusinessCard';
+    card.innerHTML = '<div class="receiptBusinessCardLabel">名刺写真 / 명함 사진<small>印刷サイズ検証</small></div><div class="receiptBusinessCardImage"><img src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22600%22 height=%22300%22%3E%3Crect width=%22600%22 height=%22300%22 fill=%22%23ffffff%22/%3E%3C/svg%3E" alt="名刺写真"></div>';
+    document.querySelector('#printArea .receiptShippingAddress')?.after(card);
+  });
   await page.emulateMedia({ media: 'print' });
+  const printedCard = await page.locator('#printArea .receiptBusinessCardImage img').boundingBox();
+  if (!printedCard || printedCard.height < 130) throw new Error('名刺画像が注文書で十分な大きさになっていません');
   const singleOrderPdf = await page.pdf({ format: 'A4', preferCSSPageSize: true, printBackground: true });
   const singleOrderPageCount = (singleOrderPdf.toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length;
   if (singleOrderPageCount !== 1) throw new Error(`注文書が${singleOrderPageCount}ページになっています`);
@@ -128,7 +153,16 @@ async function staffFlow(browser) {
   await page.click('.utilityMenu > summary'); await page.click('#historyButton'); await page.waitForSelector('[data-restore-id]'); await page.click('[data-restore-id]');
   await page.waitForFunction(() => document.querySelector('#completedCount')?.textContent === '1'); await page.click('#historyTopClose');
   await page.evaluate(() => { window.__printed = false; });
-  await page.click('#batchButton'); await page.waitForSelector('#batchDialog[open]'); await page.click('#createBatchPdfButton');
+  await page.evaluate(() => window.__addSecondOrder()); await page.click('#refreshButton');
+  await page.waitForFunction(() => document.querySelector('#completedCount')?.textContent === '2');
+  await page.click('#batchButton'); await page.waitForSelector('#batchDialog[open]');
+  const batchOptions = await page.locator('#batchDateSelect option').evaluateAll((options) => options.map((option) => ({ value: option.value, text: option.textContent })));
+  if (batchOptions.length !== 2 || !batchOptions.some((option) => option.text.includes('2026/08/03')) || !batchOptions.some((option) => option.text.includes('2026/08/04'))) throw new Error('日付別の一括送信選択肢が不正です');
+  await page.selectOption('#batchDateSelect', batchOptions.find((option) => option.text.includes('2026/08/04')).value);
+  if (!(await page.textContent('#batchOrderList')).includes('Day 2 Optical') || (await page.textContent('#batchOrderList')).includes('Test Optical')) throw new Error('別日の注文が一括送信に混在しています');
+  await page.selectOption('#batchDateSelect', batchOptions.find((option) => option.text.includes('2026/08/03')).value);
+  if (!(await page.textContent('#batchOrderList')).includes('Test Optical') || (await page.textContent('#batchOrderList')).includes('Day 2 Optical')) throw new Error('選択した展示会日の注文が表示されません');
+  await page.click('#createBatchPdfButton');
   await page.waitForFunction(() => window.__printed === true); await page.check('#pdfSavedCheck'); await page.check('#mailSentCheck'); await page.click('#markBatchSentButton');
   await page.waitForFunction(() => document.querySelector('#sentCount')?.textContent === '1');
   await page.click('#sentOrdersButton'); await page.waitForSelector('#sentOrdersDialog[open]');
