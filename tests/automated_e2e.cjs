@@ -74,11 +74,13 @@ async function customerFlow(browser) {
   await page.waitForFunction(() => document.querySelector('#receiptPrintArea')?.textContent.includes('K260803-001'));
   const receipt = await page.textContent('#receiptPrintArea');
   if (!receipt.includes('スタッフ確認待ち') || !receipt.includes('1053') || !receipt.includes('04524 Seoul Test Address')) throw new Error('控えの状態・商品・発送先住所が不正です');
-  if (!(await page.textContent('#saveReceiptImage')).includes('画像で保存')) throw new Error('画像保存ボタンが分かりやすく表示されません');
-  await page.evaluate(() => { isMobileLike = () => false; downloadBlob = (blob, filename) => { window.__imageFileName = filename; window.__imageBlobType = blob.type; window.__imageBlobSize = blob.size; }; });
+  await page.waitForSelector('#receiptImagePanel.ready', { timeout: 30000 });
+  const imagePreview = await page.evaluate(() => ({ button: document.querySelector('#saveReceiptImage').textContent, disabled: document.querySelector('#saveReceiptImage').disabled, src: document.querySelector('#receiptImagePreview').src, download: document.querySelector('#downloadReceiptImage').download, fabVisible: getComputedStyle(document.querySelector('#receiptImageDownloadFab')).display }));
+  if (!imagePreview.button.includes('画像を保存') || imagePreview.disabled || !imagePreview.src.startsWith('data:image/png') || imagePreview.src.length < 1000 || !imagePreview.download.endsWith('-order-copy.png') || imagePreview.fabVisible === 'none') throw new Error(`PNGの自動プレビューが不正です: ${JSON.stringify(imagePreview)}`);
+  await page.evaluate(() => { isMobileLike = () => false; document.querySelector('#downloadReceiptImage').onclick = (event) => { event.preventDefault(); window.__imageFileName = event.currentTarget.download; markReceiptImageSaved(); }; });
   await page.click('#saveReceiptImage');
   await page.waitForFunction(() => window.__imageFileName);
-  if (!await page.evaluate(() => window.__imageFileName.endsWith('-order-copy.png') && window.__imageBlobType === 'image/png' && window.__imageBlobSize > 1000)) throw new Error('注文控えがPNGで保存されません');
+  if (!await page.evaluate(() => window.__imageFileName.endsWith('-order-copy.png') && !document.querySelector('#saveReceiptImage').textContent.includes('準備中'))) throw new Error('準備済みPNGを即時保存できません');
   if (errors.length) throw new Error(errors.join('\n'));
   await page.close();
 }

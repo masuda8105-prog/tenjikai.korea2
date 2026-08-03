@@ -75,6 +75,15 @@
     }
     @media(max-width:390px){.appBrandTitle{font-size:10px}.topLang select{min-width:72px}.product{grid-template-columns:64px minmax(0,1fr) auto}.product .thumb{width:64px;height:64px}.clearSearchBtn{min-width:36px}}
 
+    /* 注文控えを先にPNG化して、スマホの種類を問わず保存できるパネル */
+    .receiptImagePanel{max-width:980px;margin:0 auto 14px;padding:14px;background:#fff;border:1px solid #d1d5db;border-radius:18px;box-shadow:var(--shadow)}
+    .receiptImagePanelHead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.receiptImagePanelTitle{font-size:16px;font-weight:950}.receiptImageStatus{display:block;margin-top:3px;color:#64748b;font-size:11px;font-weight:750}.receiptImageStatus.ready{color:#047857}.receiptImageStatus.error{color:#b91c1c}
+    .receiptImagePreviewFrame{position:relative;display:grid;place-items:center;min-height:210px;max-height:68vh;overflow:auto;background:#e5e7eb;border:1px solid #cbd5e1;border-radius:14px;padding:10px}.receiptImagePreparing{display:grid;place-items:center;min-height:180px;color:#475569;font-size:13px;font-weight:850;text-align:center;line-height:1.7}.receiptImagePreparing::before{content:"";width:30px;height:30px;margin-bottom:10px;border:4px solid #cbd5e1;border-top-color:#047857;border-radius:50%;animation:receiptSpin .8s linear infinite}.receiptImagePreview{display:none;width:100%;height:auto;max-height:none;object-fit:contain;background:#fff;box-shadow:0 8px 22px rgba(15,23,42,.18);-webkit-touch-callout:default}.receiptImagePanel.ready .receiptImagePreview{display:block}.receiptImagePanel.ready .receiptImagePreparing{display:none}.receiptImagePanel.error .receiptImagePreparing::before{display:none}.receiptImagePanel.error .receiptImagePreparing{color:#b91c1c}
+    .receiptImageDownloadFab{display:none;position:absolute;right:18px;top:18px;width:52px;height:52px;border-radius:999px;background:#047857;color:#fff;text-decoration:none;align-items:center;justify-content:center;font-size:30px;font-weight:950;box-shadow:0 8px 24px rgba(4,120,87,.35);border:2px solid rgba(255,255,255,.9)}.receiptImagePanel.ready .receiptImageDownloadFab{display:flex}
+    .receiptImageQuickActions{display:grid;grid-template-columns:1.4fr 1fr;gap:8px;margin-top:10px}.receiptImageDownloadButton{display:flex;align-items:center;justify-content:center;gap:10px;min-height:54px;padding:11px 14px;border-radius:14px;background:#047857;color:#fff;text-decoration:none;font-size:15px;font-weight:950}.receiptImageDownloadButton[aria-disabled="true"]{pointer-events:none;opacity:.48}.downloadArrow{font-size:25px;line-height:1}.receiptImageHelp{margin:9px 2px 0;color:#475569;font-size:12px;font-weight:750;line-height:1.6}.receiptImageRetry.hidden,.receiptShareButton.hidden{display:none}.receiptImageRetry{padding:8px 10px;font-size:12px}.receiptCaptureSheet{width:794px!important;max-width:none!important;margin:0!important;padding:26px!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:#fff!important}
+    @keyframes receiptSpin{to{transform:rotate(360deg)}}
+    @media(max-width:760px){.receiptImagePanel{padding:10px;border-radius:15px}.receiptImagePanelTitle{font-size:15px}.receiptImagePreviewFrame{min-height:180px;max-height:64vh;padding:7px}.receiptImageQuickActions{grid-template-columns:1fr}.receiptImageDownloadFab{right:14px;top:14px;width:48px;height:48px}.receiptActions #saveReceiptImage{background:#047857;color:#fff;border-color:#047857}.receiptActions button:disabled{opacity:.58;cursor:wait}}
+
   </style>
 </head>
 <body>
@@ -182,7 +191,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <dialog id="qrDialog" class="orderCompleteDialog"><div class="modalHead"><b>受付番号を発行しました / 접수 번호가 발급되었습니다</b><button class="secondary small" id="closeQr">閉じる</button></div><div class="modalBody qrWrap"><div class="orderCompleteMark" aria-hidden="true">✓</div><div class="orderNumberLabel">受付番号 / 접수 번호</div><div class="qrOrderNo orderNumberLarge" id="handoffOrderNo"></div><div class="handoffCustomer"><b>この受付番号の画面を、近くのスタッフにお見せください。</b><small>이 접수 번호 화면을 가까운 직원에게 보여 주세요.</small></div><div class="customerNextBox"><b>受付完了 / 접수 완료</b><div>注文はスタッフ画面へ自動で反映されています。この画面を閉じても注文内容は保存されます。</div></div><div class="qrActions"><button id="openReceipt" class="ok">注文控えを開く / 주문서 열기</button><button id="newOrder" class="secondary">新しい注文 / 새 주문</button></div><details class="manualLinkBox backupQrBox"><summary>予備QRを表示 / 예비 QR 표시</summary><div id="qrCode"></div><div id="qrWarning" class="notice" style="display:none"></div><div class="mono" id="receiptUrl"></div><button id="copyUrl" class="secondary small" type="button">URLをコピー</button></details></div></dialog>
 
-  <section class="receiptPage"><div id="receiptRoleNotice" class="receiptRoleNotice" aria-live="polite"></div><div class="receiptActions"><select id="receiptLangSelect" style="max-width:180px" aria-label="Receipt language"><option value="ja">日本語</option><option value="ko">한국어</option></select><button id="saveReceiptImage" class="ok">画像で保存（かんたん）</button><button id="printReceipt" class="secondary">PDF保存・印刷</button><button id="backToApp" class="secondary">戻る</button></div><div id="receiptSaveHint" class="mobileSaveHint"></div><div id="receiptPrintArea" class="receiptSheet"></div></section>
+  <section class="receiptPage"><div id="receiptRoleNotice" class="receiptRoleNotice" aria-live="polite"></div><div class="receiptActions"><select id="receiptLangSelect" style="max-width:180px" aria-label="Receipt language"><option value="ja">日本語</option><option value="ko">한국어</option></select><button id="saveReceiptImage" class="ok" disabled>画像を準備中…</button><button id="printReceipt" class="secondary">PDF保存・印刷</button><button id="backToApp" class="secondary">戻る</button></div><div id="receiptSaveHint" class="mobileSaveHint"></div><section id="receiptImagePanel" class="receiptImagePanel preparing" aria-live="polite"><div class="receiptImagePanelHead"><div><div id="receiptImagePanelTitle" class="receiptImagePanelTitle">画像の注文控え</div><span id="receiptImageStatus" class="receiptImageStatus">自動でPNG画像を準備しています</span></div><button id="retryReceiptImage" class="receiptImageRetry secondary small hidden" type="button">もう一度作る</button></div><div class="receiptImagePreviewFrame"><div id="receiptImagePreparing" class="receiptImagePreparing">控え画面はそのまま使えます。<br>画像は自動で準備されます。</div><img id="receiptImagePreview" class="receiptImagePreview" alt="画像で保存できる注文控え"><a id="receiptImageDownloadFab" class="receiptImageDownloadFab" href="#" download aria-label="画像をダウンロード">↓</a></div><div class="receiptImageQuickActions"><a id="downloadReceiptImage" class="receiptImageDownloadButton" href="#" download aria-disabled="true"><span class="downloadArrow">↓</span><span id="downloadReceiptImageLabel">画像をダウンロード</span></a><button id="shareReceiptImage" class="receiptShareButton secondary hidden" type="button">共有して写真に保存</button></div><p id="receiptImageHelp" class="receiptImageHelp">iPhone・iPadは画像を長押しして「写真に保存」。Androidは下向き矢印を押してください。</p></section><div id="receiptPrintArea" class="receiptSheet"></div></section>
 
   <script src="online-config.js"></script>
   <script src="vendor/qrcode.min.js"></script>
@@ -209,6 +218,7 @@
       {code:'1054', names:{ja:'ヤットコ',en:'Twin pad-arm adjustment pliers',ko:'두 갈래 패드 다리 조정 플라이어',zh:'双脚鼻托调整钳'}, descriptions:{ja:'2本ダキ足パッド専用の調整ヤットコです。取付金具とパッドを包み込んで保持し、抱き込み部分の緩みを防ぎながら作業できます。',en:'Dedicated pliers for twin pad-arm pads. They wrap and hold the mounting hardware and pad, helping prevent looseness during adjustment.',ko:'두 갈래 패드 다리 전용 조정 플라이어입니다. 장착 금구와 패드를 감싸 잡아 조정 중 풀림을 줄이며 작업할 수 있습니다.',zh:'双脚鼻托专用调整钳。可包住安装金具和鼻托进行保持，有助于调整时防止抱合部位松动。'}, price:98000, currency:'KRW', packQty:'', catalog:'', image:''}
     ];
     let products = [...sampleProducts], order = [], lastReceiptUrl = '', lastStaffQrUrl = '', pendingReceiptData = null, pendingDraftSignature = '', currentReceiptData = null, keypadInputMode = 'number', keyboardInputEnabled = false, pendingStaffConfirmed = false, isStaffReceiptView = false, receiptPdfReady = false, businessCardImageData = '', businessCardVersion = 0, businessCardOriginalFile = null, businessCardPreviewBlob = null, onlineOrderToken = '', onlineOrderExpiresAt = '', onlineRequestBusy = false, clientSubmissionId = '';
+    let receiptImagePreviewDataUrl='',receiptImagePreviewBlob=null,receiptImagePreviewFilename='',receiptImagePreviewPromise=null,receiptImagePreviewVersion=0;
     const CUSTOMER_DRAFT_KEY = 'koreaExhibitionCustomerDraftV1';
     const $ = id => document.getElementById(id);
     const sanitize = v => String(v ?? '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
@@ -810,41 +820,79 @@
     function fromB64Url(str){ const b64=str.replace(/-/g,'+').replace(/_/g,'/')+'==='.slice((str.length+3)%4), bin=atob(b64); return Uint8Array.from(bin,c=>c.charCodeAt(0)); }
     async function encodeData(obj,forcePlain=false){ const raw=new TextEncoder().encode(JSON.stringify(obj)); if(!forcePlain&&raw.length>420&&typeof CompressionStream==='function'){ const compressed=await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer(); return `z${b64Url(new Uint8Array(compressed))}`; } return `j${b64Url(raw)}`; }
     async function decodeData(str){ let mode=str[0], bytes=fromB64Url(mode==='z'||mode==='j'?str.slice(1):str); if(mode==='z'){ if(typeof DecompressionStream!=='function') throw new Error('Compressed receipt is not supported by this browser.'); bytes=new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()); } return JSON.parse(new TextDecoder().decode(bytes)); }
-    async function waitForReceiptImages(root,timeoutMs=12000){
+    function blobToDataUrl(blob){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(reader.error||new Error('Image read failed'));reader.readAsDataURL(blob);});}
+    async function imageSourceAsDataUrl(src,timeoutMs=3500){
+      if(!src||/^(data:|blob:)/i.test(src))return src;
+      const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
+      try{const response=await fetch(src,{cache:'force-cache',mode:'cors',signal:controller.signal});if(!response.ok)throw new Error(`Image ${response.status}`);return await blobToDataUrl(await response.blob());}
+      finally{clearTimeout(timer);}
+    }
+    async function waitForReceiptImages(root,timeoutMs=1800){
       const images=[...root.querySelectorAll('img')];
       await Promise.all(images.map(img=>new Promise(resolve=>{
         if(img.complete){resolve();return;}
-        const done=()=>{img.removeEventListener('load',done);img.removeEventListener('error',done);resolve();};
-        img.addEventListener('load',done,{once:true});img.addEventListener('error',done,{once:true});setTimeout(done,timeoutMs);
+        let timer;const done=()=>{clearTimeout(timer);img.removeEventListener('load',done);img.removeEventListener('error',done);resolve();};
+        img.addEventListener('load',done,{once:true});img.addEventListener('error',done,{once:true});timer=setTimeout(done,timeoutMs);
       })));
-      if(document.fonts?.ready) await Promise.race([document.fonts.ready,new Promise(resolve=>setTimeout(resolve,3000))]);
+      if(document.fonts?.ready)await Promise.race([document.fonts.ready,new Promise(resolve=>setTimeout(resolve,1200))]);
+    }
+    async function inlineReceiptCloneImages(root){
+      await Promise.all([...root.querySelectorAll('img')].map(async img=>{
+        const src=img.currentSrc||img.getAttribute('src')||'';
+        try{const dataUrl=await imageSourceAsDataUrl(src);if(!dataUrl)throw new Error('Empty image');img.removeAttribute('loading');img.removeAttribute('onerror');img.src=dataUrl;}
+        catch(error){
+          const card=img.closest('.receiptBusinessCardImage');
+          if(card){card.innerHTML='<div style="padding:12px;border:1px solid #f59e0b;background:#fffbeb;color:#92400e;font-size:11px">名刺画像は上の控え画面で確認できます / 명함 이미지는 위 화면에서 확인할 수 있습니다</div>';}
+          else{const placeholder=document.createElement('span');placeholder.style.cssText='display:grid;place-items:center;min-height:32px;color:#94a3b8;font-size:8px';placeholder.textContent=img.classList.contains('receiptBrandLogo')?'SAN NISHIMURA':'Image';img.replaceWith(placeholder);}
+        }
+      }));
     }
     function canvasToPngBlob(canvas){return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('PNG encode failed')),'image/png'));}
-    function downloadBlob(blob,filename){const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=filename;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}
-    async function saveReceiptAsImage(){
-      const button=$('saveReceiptImage'),lang=currentReceiptData?.lang||'ja',source=$('receiptPrintArea');
-      if(!source||!currentReceiptData)return;
-      const originalLabel=button.textContent;button.disabled=true;button.textContent=lang==='ko'?'이미지 만드는 중…':'画像を作成中…';
-      let stage=null;
-      try{
-        if(typeof window.html2canvas!=='function')throw new Error('Image library unavailable');
-        stage=document.createElement('div');stage.setAttribute('aria-hidden','true');stage.style.cssText='position:fixed;left:-12000px;top:0;width:1020px;padding:20px;background:#fff;z-index:-1;pointer-events:none';
-        const sheet=source.cloneNode(true);sheet.removeAttribute('id');sheet.style.cssText='width:980px;max-width:none;margin:0;border-radius:0;box-shadow:none;background:#fff';stage.appendChild(sheet);document.body.appendChild(stage);
-        await waitForReceiptImages(sheet);
-        const canvas=await window.html2canvas(sheet,{backgroundColor:'#ffffff',scale:2,useCORS:true,allowTaint:false,logging:false,imageTimeout:15000,windowWidth:1100,scrollX:0,scrollY:0});
-        const blob=await canvasToPngBlob(canvas),orderNo=String(currentReceiptData.orderNo||'order').replace(/[^0-9A-Za-z_-]+/g,'-'),filename=`${orderNo}-order-copy.png`;
-        let shared=false;
-        if(isMobileLike()&&typeof File==='function'&&navigator.share&&navigator.canShare){
-          const file=new File([blob],filename,{type:'image/png'});
-          if(navigator.canShare({files:[file]})){
-            try{await navigator.share({title:filename,text:receiptUiText('imageSaved',lang),files:[file]});shared=true;}
-            catch(error){if(error?.name==='AbortError')return;throw error;}
-          }
-        }
-        if(!shared)downloadBlob(blob,filename);
-        receiptPdfReady=true;showToast(receiptUiText('imageSaved',lang));
-      }catch(error){console.error('receipt image save failed',error);alert(txt('imageFailed',lang));}
-      finally{stage?.remove();button.disabled=false;button.textContent=originalLabel;}
+    function canShareReceiptImage(){if(!receiptImagePreviewBlob||typeof File!=='function'||!navigator.share||!navigator.canShare)return false;try{return navigator.canShare({files:[new File([receiptImagePreviewBlob],receiptImagePreviewFilename||'order-copy.png',{type:'image/png'})]});}catch{return false;}}
+    function setReceiptImageUi(status,lang=currentReceiptData?.lang||'ja'){
+      const panel=$('receiptImagePanel'),button=$('saveReceiptImage'),statusText=$('receiptImageStatus'),preparing=$('receiptImagePreparing'),retry=$('retryReceiptImage'),download=$('downloadReceiptImage'),fab=$('receiptImageDownloadFab'),share=$('shareReceiptImage');
+      panel.className=`receiptImagePanel ${status}`;$('receiptImagePanelTitle').textContent=receiptUiText('imagePanelTitle',lang);$('downloadReceiptImageLabel').textContent=receiptUiText('imageDownload',lang);$('receiptImageHelp').textContent=receiptUiText('imageHelp',lang);share.textContent=receiptUiText('imageShare',lang);retry.textContent=receiptUiText('imageRetry',lang);
+      if(status==='ready'){
+        statusText.className='receiptImageStatus ready';statusText.textContent=receiptUiText('imageReady',lang);preparing.innerHTML='';button.disabled=false;button.textContent=receiptUiText('image',lang);retry.classList.add('hidden');download.setAttribute('aria-disabled','false');share.classList.toggle('hidden',!canShareReceiptImage());
+      }else if(status==='error'){
+        statusText.className='receiptImageStatus error';statusText.textContent=receiptUiText('imageError',lang);preparing.textContent=receiptUiText('imageErrorHelp',lang);button.disabled=false;button.textContent=receiptUiText('imageRetry',lang);retry.classList.remove('hidden');download.setAttribute('aria-disabled','true');share.classList.add('hidden');
+      }else{
+        statusText.className='receiptImageStatus';statusText.textContent=receiptUiText('imagePreparing',lang);preparing.innerHTML=`${sanitize(receiptUiText('imagePreparingHelp',lang)).replace(/\n/g,'<br>')}`;button.disabled=true;button.textContent=receiptUiText('imagePreparing',lang);retry.classList.add('hidden');download.setAttribute('aria-disabled','true');share.classList.add('hidden');
+      }
+    }
+    async function prepareReceiptImagePreview(force=false){
+      if(receiptImagePreviewPromise&&!force)return receiptImagePreviewPromise;
+      const source=$('receiptPrintArea');if(!source||!currentReceiptData)return null;
+      const version=++receiptImagePreviewVersion,lang=currentReceiptData.lang||'ja';
+      receiptImagePreviewDataUrl='';receiptImagePreviewBlob=null;receiptImagePreviewFilename='';$('receiptImagePreview').removeAttribute('src');setReceiptImageUi('preparing',lang);
+      receiptImagePreviewPromise=(async()=>{
+        let stage=null;
+        try{
+          if(typeof window.html2canvas!=='function')throw new Error('Image library unavailable');
+          stage=document.createElement('div');stage.setAttribute('aria-hidden','true');stage.style.cssText='position:fixed;left:-10000px;top:0;width:834px;padding:20px;background:#fff;z-index:-1;pointer-events:none';
+          const sheet=source.cloneNode(true);sheet.removeAttribute('id');sheet.classList.add('receiptCaptureSheet');stage.appendChild(sheet);document.body.appendChild(stage);
+          await inlineReceiptCloneImages(sheet);await waitForReceiptImages(sheet);
+          const preferredScale=Math.min(1.75,Math.max(1.25,Number(window.devicePixelRatio||1))),pixelSafeScale=Math.sqrt(10000000/Math.max(1,sheet.scrollWidth*sheet.scrollHeight)),scale=Math.max(.85,Math.min(preferredScale,pixelSafeScale));
+          const canvas=await Promise.race([window.html2canvas(sheet,{backgroundColor:'#ffffff',scale,useCORS:true,allowTaint:false,logging:false,imageTimeout:2500,windowWidth:1100,scrollX:0,scrollY:0}),new Promise((_,reject)=>setTimeout(()=>reject(new Error('PNG generation timed out')),15000))]);
+          const blob=await canvasToPngBlob(canvas),dataUrl=await blobToDataUrl(blob),orderNo=String(currentReceiptData.orderNo||'order').replace(/[^0-9A-Za-z_-]+/g,'-'),filename=`${orderNo}-order-copy.png`;
+          if(version!==receiptImagePreviewVersion)return null;
+          receiptImagePreviewBlob=blob;receiptImagePreviewDataUrl=dataUrl;receiptImagePreviewFilename=filename;
+          $('receiptImagePreview').src=dataUrl;['downloadReceiptImage','receiptImageDownloadFab'].forEach(id=>{const link=$(id);link.href=dataUrl;link.download=filename;});setReceiptImageUi('ready',lang);return dataUrl;
+        }catch(error){if(version===receiptImagePreviewVersion){console.error('receipt image preview failed',error);setReceiptImageUi('error',lang);}return null;}
+        finally{stage?.remove();if(version===receiptImagePreviewVersion)receiptImagePreviewPromise=null;}
+      })();
+      return receiptImagePreviewPromise;
+    }
+    function markReceiptImageSaved(){receiptPdfReady=true;showToast(receiptUiText('imageSaved',currentReceiptData?.lang||'ja'));}
+    async function sharePreparedReceiptImage(){
+      if(!canShareReceiptImage()){$('downloadReceiptImage').click();return;}
+      const file=new File([receiptImagePreviewBlob],receiptImagePreviewFilename,{type:'image/png'});
+      try{await navigator.share({title:receiptImagePreviewFilename,text:receiptUiText('imageSaved',currentReceiptData?.lang||'ja'),files:[file]});markReceiptImageSaved();}
+      catch(error){if(error?.name!=='AbortError'){$('downloadReceiptImage').click();}}
+    }
+    function savePreparedReceiptImage(){
+      if(!receiptImagePreviewDataUrl){prepareReceiptImagePreview(true);return;}
+      if(isMobileLike()&&canShareReceiptImage())sharePreparedReceiptImage();else $('downloadReceiptImage').click();
     }
     async function showReceiptFromHash(){
       document.body.classList.add('receiptOnly');
@@ -873,7 +921,11 @@
         $('receiptPrintArea').innerHTML='<div class="notice danger">Receipt data could not be read. Please submit the order again.</div>';
       }
       $('receiptLangSelect').onchange=()=>{ if(currentReceiptData){ currentReceiptData.lang=$('receiptLangSelect').value; receiptPdfReady=false; renderReceipt(currentReceiptData); }};
-      $('saveReceiptImage').onclick=()=>saveReceiptAsImage();
+      $('saveReceiptImage').onclick=savePreparedReceiptImage;
+      $('retryReceiptImage').onclick=()=>prepareReceiptImagePreview(true);
+      $('shareReceiptImage').onclick=sharePreparedReceiptImage;
+      ['downloadReceiptImage','receiptImageDownloadFab'].forEach(id=>$(id).onclick=()=>markReceiptImageSaved());
+      $('receiptImagePreview').oncontextmenu=markReceiptImageSaved;
       $('printReceipt').onclick=()=>{ receiptPdfReady=true; window.print(); };
       $('backToApp').onclick=()=>{ if(isStaffReceiptView){ if(history.length>1) history.back(); else location.href=location.pathname; return; } const lang=currentReceiptData?.lang||'ja'; if(!receiptPdfReady&&!confirm(txt('leaveWithoutPdf',lang)))return; if(receiptPdfReady) localStorage.removeItem('qrDraftOrder'); location.href=location.pathname; };
     }
@@ -881,10 +933,10 @@
     function isInAppBrowser(){ return /Line|Instagram|FBAN|FBAV|KAKAOTALK|Twitter|GSA|CriOS.*GSA|MicroMessenger|QQ\//i.test(navigator.userAgent) || /; wv\)/i.test(navigator.userAgent); }
     function receiptUiText(key, lang){
       const labels={
-        ja:{print:'PDF保存・印刷',image:'画像で保存（かんたん）',back:'戻る',mobileHint:'かんたんな「画像で保存」がおすすめです。PDFが必要な場合だけ「PDF保存・印刷」を使ってください。',imageSaved:'注文控えを画像にしました。'},
-        en:{print:'Save PDF / Print',image:'Save as image (easy)',back:'Back',mobileHint:'“Save as image” is the easiest option. Use “Save PDF / Print” only when you need a PDF.',imageSaved:'The order copy is ready as an image.'},
-        ko:{print:'PDF 저장・인쇄',image:'이미지로 저장 (간편)',back:'뒤로',mobileHint:'간편한 “이미지로 저장”을 권장합니다. PDF가 필요한 경우에만 “PDF 저장・인쇄”를 이용해 주세요.',imageSaved:'주문 확인서를 이미지로 만들었습니다.'},
-        zh:{print:'保存PDF・打印',image:'保存为图片（简单）',back:'返回',mobileHint:'推荐使用简单的“保存为图片”。仅在需要PDF时使用“保存PDF・打印”。',imageSaved:'订单回执已生成为图片。'}
+        ja:{print:'PDF保存・印刷',image:'⬇ 画像を保存',back:'戻る',mobileHint:'PNG画像はすでに下へ準備されます。下向き矢印で保存するか、画像を長押ししてください。',imageSaved:'注文控えの画像を保存しました。',imagePanelTitle:'画像の注文控え',imagePreparing:'画像を準備中…',imagePreparingHelp:'控え画面はそのまま使えます。\n画像は自動で準備されます。',imageReady:'PNG画像の準備ができました',imageError:'画像を準備できませんでした',imageErrorHelp:'「もう一度作る」を押してください。PDF保存・印刷はそのまま使えます。',imageDownload:'画像をダウンロード',imageShare:'共有して写真に保存',imageRetry:'もう一度作る',imageHelp:'iPhone・iPad：画像を長押しして「写真に保存」。Android：下向き矢印を押してください。'},
+        en:{print:'Save PDF / Print',image:'⬇ Save image',back:'Back',mobileHint:'The PNG preview is prepared automatically below. Use the down arrow or press and hold the image.',imageSaved:'The order-copy image was saved.',imagePanelTitle:'Order copy image',imagePreparing:'Preparing image…',imagePreparingHelp:'You can keep using this page.\nThe image is prepared automatically.',imageReady:'Your PNG image is ready',imageError:'The image could not be prepared',imageErrorHelp:'Tap “Try again.” PDF saving and printing remain available.',imageDownload:'Download image',imageShare:'Share or save to Photos',imageRetry:'Try again',imageHelp:'iPhone/iPad: press and hold the image, then choose Save to Photos. Android: tap the down arrow.'},
+        ko:{print:'PDF 저장・인쇄',image:'⬇ 이미지 저장',back:'뒤로',mobileHint:'아래에 PNG 이미지가 자동으로 준비됩니다. 아래쪽 화살표를 누르거나 이미지를 길게 눌러 주세요.',imageSaved:'주문 확인서 이미지를 저장했습니다.',imagePanelTitle:'주문 확인서 이미지',imagePreparing:'이미지 준비 중…',imagePreparingHelp:'이 화면은 그대로 사용할 수 있습니다.\n이미지는 자동으로 준비됩니다.',imageReady:'PNG 이미지가 준비되었습니다',imageError:'이미지를 준비하지 못했습니다',imageErrorHelp:'“다시 만들기”를 눌러 주세요. PDF 저장・인쇄는 그대로 사용할 수 있습니다.',imageDownload:'이미지 다운로드',imageShare:'공유하여 사진에 저장',imageRetry:'다시 만들기',imageHelp:'iPhone·iPad: 이미지를 길게 눌러 사진에 저장해 주세요. Android: 아래쪽 화살표를 눌러 주세요.'},
+        zh:{print:'保存PDF・打印',image:'⬇ 保存图片',back:'返回',mobileHint:'下方会自动准备PNG图片。请点击向下箭头，或长按图片保存。',imageSaved:'订单回执图片已保存。',imagePanelTitle:'订单回执图片',imagePreparing:'正在准备图片…',imagePreparingHelp:'此页面可继续使用。\n图片会自动准备。',imageReady:'PNG图片已准备完成',imageError:'无法准备图片',imageErrorHelp:'请点击“重新生成”。PDF保存和打印仍可使用。',imageDownload:'下载图片',imageShare:'分享并保存到相册',imageRetry:'重新生成',imageHelp:'iPhone/iPad：长按图片并选择保存到照片。Android：点击向下箭头。'}
       };
       return labels[lang]?.[key] || labels.en[key] || '';
     }
@@ -987,6 +1039,7 @@
           <div>${sanitize(RECEIPT_BRAND.distributorName)} | ${sanitize(RECEIPT_BRAND.distributorAddr1)} ${sanitize(RECEIPT_BRAND.distributorAddr2)}</div>
           <div>TEL ${sanitize(RECEIPT_BRAND.tel)} / FAX ${sanitize(RECEIPT_BRAND.fax)}</div>
         </div>`;
+      requestAnimationFrame(()=>prepareReceiptImagePreview(true));
     }
     function saveHistory(auto=false,data=null){ if(!order.length&&!data){alert(txt('noItems'));return;} const receipt=data||buildReceiptData(); const {businessCardImage,...historyReceipt}=receipt; const stored=JSON.parse(localStorage.getItem('qrOrderHistory')||'[]'); const history=stored.filter(h=>h.orderNo!==receipt.orderNo); history.unshift(historyReceipt); localStorage.setItem('qrOrderHistory',JSON.stringify(history.slice(0,100))); renderHistory(); if(!auto)alert(txt('savedDraft')); }
     function renderHistory(){ if(!$('historyList'))return; const history=JSON.parse(localStorage.getItem('qrOrderHistory')||'[]'); if(!history.length){$('historyList').textContent=txt('historyEmpty');return;} $('historyList').innerHTML=history.slice(0,8).map((h,idx)=>`<div style="padding:8px 0;border-bottom:1px solid #e5e7eb"><b>${sanitize(h.orderNo)}</b><br>${sanitize(h.date)} / ${sanitize(h.customerCompany||'-')} / ${sanitize(h.customerName||'-')} / ${sanitize(h.customerPhone||'-')} / ${sanitize(fmt(h.total))}<div style="margin-top:6px"><button class="secondary small" data-history-open="${idx}">${sanitize(txt('openReceipt'))}</button></div></div>`).join(''); $('historyList').querySelectorAll('[data-history-open]').forEach(btn=>btn.onclick=async()=>{ const data=history[Number(btn.dataset.historyOpen)]; if(!data)return; const url=await buildReceiptUrl(data,'receipt'); try{window.history.pushState(null,'',url);}catch(err){location.hash=url.split('#')[1]||'';} await showReceiptFromHash(); }); }
