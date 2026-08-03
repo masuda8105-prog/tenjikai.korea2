@@ -6,7 +6,7 @@ window.ORDER_ONLINE_CONFIG = Object.freeze({
   enabled: true,
   supabaseUrl: 'https://qdexhwgzawisiklekfzm.supabase.co',
   anonKey: 'sb_publishable__mWzF7WQI5BimtlT4Rmglg_9IRh25LV',
-  publicAppUrl: 'https://masuda8105-prog.github.io/korea-exibition-sannishimura/',
+  publicAppUrl: 'https://masuda8105-prog.github.io/tenjikai.korea2/',
   functionName: 'exhibition-order',
   staffPage: 'staff.html',
   orderRetentionDays: 14,

@@ -84,7 +84,7 @@ do update set display_name = excluded.display_name, role = excluded.role, active
 - 許可リスト外のAuthユーザーは注文をSELECT/UPDATEできない。
 - staffは注文を編集、確定、ソフト削除、復元できる。
 - staffは物理DELETEできない。
-- adminでも `status = deleted` 以外は物理DELETEできない。
+- adminを含め、ブラウザーから物理DELETEできない。
 - お客様の注文作成はEdge Functionだけが行う。
 
 ## 6. ロールバック方針
