@@ -22,16 +22,16 @@
     .field input:focus,.editField input:focus,.editField textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.12)}.loginButton{width:100%;min-height:50px;margin-top:8px}.loginMessage{min-height:22px;margin-top:12px;font-size:13px;color:#b91c1c}.loginNote{font-size:11px;color:var(--muted);line-height:1.6;background:#f8fafc;padding:10px;border-radius:11px;margin-top:14px}
     .dashboard{min-height:100vh}.topbar{position:sticky;top:0;z-index:40;background:rgba(16,36,62,.97);color:#fff;padding:11px max(14px,env(safe-area-inset-left));box-shadow:0 4px 18px rgba(15,23,42,.2)}
     .topbarInner{max-width:1320px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:12px}.topbar .brand img{width:58px;height:36px;border-radius:5px}.topbar .brand h1{font-size:16px}.topbar .brand p{color:#cbd5e1}.topActions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}.topActions button{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2)}.topActions .historyButton{background:transparent;color:#cbd5e1;border-color:rgba(255,255,255,.12);font-weight:700}.topActions .historyButton:hover{color:#fff;background:rgba(255,255,255,.08)}.staffIdentity{font-size:11px;color:#cbd5e1;text-align:right}.staffIdentity b{display:block;color:#fff;font-size:12px}
-    .main{max-width:1320px;margin:auto;padding:14px 14px 80px}.summary{display:grid;grid-template-columns:1fr 1fr;gap:10px}.summaryCard{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 18px;box-shadow:var(--shadow);display:flex;justify-content:space-between;align-items:center}.summaryCard span{font-size:13px;font-weight:850;color:var(--muted)}.summaryCard strong{font-size:31px}.summaryCard.new strong{color:var(--new)}.summaryCard.done strong{color:var(--done)}
-    .controlWrap{position:sticky;top:68px;z-index:30;padding-top:10px;background:linear-gradient(var(--bg) 76%,rgba(238,242,246,0))}.controlBar{display:grid;grid-template-columns:minmax(220px,1fr) auto auto;gap:9px;background:#fff;border:1px solid var(--line);border-radius:15px;padding:9px;box-shadow:var(--shadow)}.search{border:1px solid #cbd5e1;border-radius:11px;padding:12px 13px;min-width:0}.syncState{display:flex;align-items:center;gap:7px;padding:0 7px;font-size:11px;color:var(--muted);white-space:nowrap}.dot{width:9px;height:9px;border-radius:50%;background:#94a3b8}.dot.live{background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.14)}.dot.error{background:#ef4444}
-    .statusTabs{display:none}.columns{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px}.statusColumn{min-width:0}.columnHead{display:flex;align-items:end;justify-content:space-between;margin:4px 2px 8px}.columnHead h2{font-size:16px;margin:0}.columnHead span{font-size:11px;color:var(--muted)}.orderList{display:grid;gap:9px}.empty{background:#fff;border:1px dashed #cbd5e1;border-radius:15px;padding:28px 12px;text-align:center;color:var(--muted);font-size:13px}
+    .main{max-width:1320px;margin:auto;padding:14px 14px 80px}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.summaryCard{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 18px;box-shadow:var(--shadow);display:flex;justify-content:space-between;align-items:center}.summaryCard span{font-size:13px;font-weight:850;color:var(--muted)}.summaryCard strong{font-size:31px}.summaryCard.new strong{color:var(--new)}.summaryCard.done strong{color:var(--done)}.summaryCard.sent strong{color:var(--blue)}
+    .controlWrap{position:sticky;top:68px;z-index:30;padding-top:10px;background:linear-gradient(var(--bg) 76%,rgba(238,242,246,0))}.controlBar{display:grid;grid-template-columns:minmax(220px,1fr) auto auto auto;gap:9px;background:#fff;border:1px solid var(--line);border-radius:15px;padding:9px;box-shadow:var(--shadow)}.search{border:1px solid #cbd5e1;border-radius:11px;padding:12px 13px;min-width:0}.syncState{display:flex;align-items:center;gap:7px;padding:0 7px;font-size:11px;color:var(--muted);white-space:nowrap}.dot{width:9px;height:9px;border-radius:50%;background:#94a3b8}.dot.live{background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.14)}.dot.error{background:#ef4444}
+    .statusTabs{display:none}.columns{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:12px}.statusColumn{min-width:0}.columnHead{display:flex;align-items:end;justify-content:space-between;margin:4px 2px 8px}.columnHead h2{font-size:16px;margin:0}.columnHead span{font-size:11px;color:var(--muted)}.orderList{display:grid;gap:9px}.empty{background:#fff;border:1px dashed #cbd5e1;border-radius:15px;padding:28px 12px;text-align:center;color:var(--muted);font-size:13px}
     .orderCard{background:#fff;border:1px solid var(--line);border-left:6px solid #94a3b8;border-radius:15px;padding:13px;box-shadow:0 5px 18px rgba(15,23,42,.055);cursor:pointer;transition:.12s}.orderCard:hover{transform:translateY(-1px);box-shadow:0 9px 24px rgba(15,23,42,.09)}.orderCard.new,.orderCard.in_progress{border-left-color:var(--new)}.orderCard.completed{border-left-color:var(--done)}
     .cardTop{display:flex;justify-content:space-between;gap:9px;align-items:flex-start}.orderNo{font-size:21px;font-weight:950;letter-spacing:.02em}.statusBadge{border-radius:999px;padding:5px 8px;font-size:10px;font-weight:950;white-space:nowrap}.statusBadge.new,.statusBadge.in_progress{background:#fee2e2;color:#991b1b}.statusBadge.completed{background:#dcfce7;color:#166534}.company{font-size:15px;font-weight:900;margin-top:8px}.person{font-size:12px;color:#475569;margin-top:3px}.cardMeta{display:flex;justify-content:space-between;gap:8px;align-items:end;margin-top:11px;border-top:1px solid #edf2f7;padding-top:9px}.time{font-size:11px;color:var(--muted)}.amount{font-size:17px;font-weight:950}.assigned{font-size:11px;color:#475569;font-weight:800;margin-top:5px}.newFlash{animation:newFlash .8s ease 2}@keyframes newFlash{50%{box-shadow:0 0 0 6px rgba(220,38,38,.15)}}
     dialog{border:0;border-radius:20px;padding:0;width:min(980px,calc(100vw - 18px));max-height:94dvh;overflow:hidden;box-shadow:0 30px 90px rgba(0,0,0,.32)}dialog::backdrop{background:rgba(15,23,42,.64)}.modalHead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);background:#fff}.modalHead h2{font-size:18px;margin:0}.modalBody{padding:15px;overflow:auto;max-height:calc(94dvh - 142px)}
     .detailGrid{display:grid;grid-template-columns:.9fr 1.1fr;gap:14px}.infoPanel,.itemsPanel{border:1px solid var(--line);border-radius:15px;padding:13px}.infoGrid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.infoBox{background:#f8fafc;border-radius:10px;padding:9px}.infoBox .label{font-size:10px;font-weight:850;color:var(--muted)}.infoBox .value{font-size:14px;font-weight:850;margin-top:3px;word-break:break-word}.businessCard{margin-top:12px}.businessCard img{display:block;width:100%;max-height:330px;object-fit:contain;border:1px solid var(--line);border-radius:11px;background:#f8fafc;cursor:zoom-in}.noCard{padding:24px;text-align:center;background:#f8fafc;color:var(--muted);border-radius:11px}
     .itemsTable{width:100%;border-collapse:collapse;font-size:12px}.itemsTable th,.itemsTable td{padding:9px 6px;border-bottom:1px solid #e8eef5;text-align:left;vertical-align:middle}.itemsTable th{font-size:10px;color:var(--muted);background:#f8fafc;position:sticky;top:-15px}.itemsTable .num{text-align:right;white-space:nowrap}.qtyControl{display:inline-grid;grid-template-columns:34px 52px 34px;align-items:center;gap:4px}.qtyControl button{padding:7px 4px;border:1px solid var(--line);background:#fff}.qtyControl input{width:52px;text-align:center;padding:7px 3px;border:1px solid var(--line);border-radius:8px}.detailTotal{display:flex;justify-content:space-between;font-size:20px;font-weight:950;padding:13px 4px 3px}.editBlock{margin-top:12px;border-top:1px solid var(--line);padding-top:12px}.editBlock h3{font-size:14px;margin:0 0 8px}.editGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.editField{display:grid;gap:5px}.editField.full{grid-column:1/-1}.editField label{font-size:10px;font-weight:850;color:var(--muted)}.editField textarea{min-height:92px;resize:vertical}.saveRow{display:flex;justify-content:flex-end;margin-top:9px}.saveRow button{min-width:150px}.modalActions{display:grid;grid-template-columns:1.15fr 1fr 1fr 1fr;gap:8px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:#fff}.modalActions button{min-height:47px}.historyList{display:grid;gap:8px}.historyRow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;border:1px solid var(--line);border-radius:13px;padding:12px;background:#fff}.historyMain{min-width:0}.historyNo{font-weight:950}.historyCompany{font-size:13px;font-weight:800;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.historyMeta{font-size:11px;color:var(--muted);margin-top:4px}.historyActions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.historyNote{font-size:12px;color:var(--muted);margin:0 0 12px;line-height:1.6}.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);opacity:0;background:#0f172a;color:#fff;border-radius:999px;padding:11px 16px;font-size:12px;font-weight:800;z-index:100;pointer-events:none;transition:.2s}.toast.show{opacity:1;transform:translate(-50%,0)}#printArea{display:none}
     @media(max-width:900px){.columns{grid-template-columns:1fr}.statusTabs{display:flex;gap:6px;overflow:auto;margin:11px 0}.statusTabs button{flex:1;background:#fff;border:1px solid var(--line);color:var(--ink)}.statusTabs button.active{background:var(--navy);color:#fff}.statusColumn.mobileHidden{display:none}.detailGrid{grid-template-columns:1fr}.summaryCard strong{font-size:26px}}
-    @media(max-width:620px){.topActions .historyButton{font-size:0;padding:8px}.topActions .historyButton::after{content:'履歴';font-size:11px}.historyRow{grid-template-columns:1fr}.historyActions{justify-content:flex-start}.topbarInner{align-items:flex-start}.topbar .brand p,.staffIdentity{display:none}.main{padding:9px 8px 70px}.summary{gap:6px}.summaryCard{padding:10px 12px;border-radius:13px}.summaryCard span{font-size:11px}.summaryCard strong{font-size:24px}.controlWrap{top:59px}.controlBar{grid-template-columns:1fr auto;padding:7px}.controlBar .syncState{grid-column:1/-1;justify-content:center}.controlBar #soundButton{font-size:0}.controlBar #soundButton::after{content:'🔔';font-size:16px}.orderNo{font-size:19px}.modalBody{padding:9px}.infoGrid,.editGrid{grid-template-columns:1fr}.editField.full{grid-column:auto}.modalActions{grid-template-columns:1fr 1fr;padding:9px}.modalActions button{font-size:12px}.modalActions #closeDetail{grid-column:1/-1}}
+    @media(max-width:620px){.topActions .historyButton{font-size:0;padding:8px}.topActions .historyButton::after{content:'履歴';font-size:11px}.historyRow{grid-template-columns:1fr}.historyActions{justify-content:flex-start}.topbarInner{align-items:flex-start}.topbar .brand p,.staffIdentity{display:none}.main{padding:9px 8px 70px}.summary{gap:6px}.summaryCard{padding:10px 12px;border-radius:13px}.summaryCard span{font-size:11px}.summaryCard strong{font-size:24px}.controlWrap{top:59px}.controlBar{grid-template-columns:1fr auto;padding:7px}.controlBar .syncState{grid-column:1/-1;justify-content:center}.controlBar #sendToDistributorButton{grid-column:1/-1}.controlBar #soundButton{font-size:0}.controlBar #soundButton::after{content:'🔔';font-size:16px}.orderNo{font-size:19px}.modalBody{padding:9px}.infoGrid,.editGrid{grid-template-columns:1fr}.editField.full{grid-column:auto}.modalActions{grid-template-columns:1fr 1fr;padding:9px}.modalActions button{font-size:12px}.modalActions #closeDetail{grid-column:1/-1}}
     @media print{body>*:not(#printArea){display:none!important}#printArea{display:block!important;background:#fff;color:#000;padding:0;font-family:"Noto Sans JP",sans-serif}.printHead{display:flex;justify-content:space-between;border-bottom:2px solid #111;padding-bottom:12px}.printHead img{width:120px;height:55px;object-fit:contain}.printTitle{text-align:right}.printTitle h1{font-size:20px;margin:0}.printMeta{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}.printBox{border:1px solid #bbb;padding:8px;font-size:11px}.printBox b{display:block;font-size:9px;color:#555}.printTable{width:100%;border-collapse:collapse;font-size:11px}.printTable th,.printTable td{border:1px solid #aaa;padding:6px}.printTable .num{text-align:right}.printTotal{text-align:right;font-size:20px;font-weight:bold;margin-top:12px}.printCard{margin-top:14px;max-height:280px;max-width:100%;object-fit:contain}.printFooter{font-size:9px;color:#555;margin-top:18px;border-top:1px solid #aaa;padding-top:8px}}
   </style>
 </head>
@@ -56,20 +56,27 @@
 
     <main class="main">
       <section class="summary">
-        <div class="summaryCard new"><span>未完了</span><strong id="newCount">0</strong></div>
-        <div class="summaryCard done"><span>完了</span><strong id="doneCount">0</strong></div>
+        <div class="summaryCard new"><span>確認待ち</span><strong id="newCount">0</strong></div>
+        <div class="summaryCard done"><span>注文確定・送信待ち</span><strong id="doneCount">0</strong></div>
+        <div class="summaryCard sent"><span>代理店送付済み</span><strong id="sentCount">0</strong></div>
       </section>
 
       <div class="controlWrap"><section class="controlBar">
         <input id="searchInput" class="search" type="search" placeholder="受付番号・会社名・氏名・電話番号・品番で検索">
+        <button id="sendToDistributorButton" class="primary" type="button">📤 確定注文をまとめて送る</button>
         <button id="soundButton" class="secondary" type="button">🔕 通知音OFF</button>
         <div class="syncState"><span id="syncDot" class="dot"></span><span id="syncText">接続準備中</span></div>
       </section></div>
 
-      <nav class="statusTabs" aria-label="注文状態"><button data-tab="open" class="active">未完了</button><button data-tab="completed">完了</button></nav>
+      <nav class="statusTabs" aria-label="注文状態">
+        <button data-tab="open" class="active">確認待ち</button>
+        <button data-tab="completed">送信待ち</button>
+        <button data-tab="sent">送付済み</button>
+      </nav>
       <section class="columns">
-        <section id="column-open" class="statusColumn"><div class="columnHead"><h2>未完了</h2><span>確認・編集が必要な注文</span></div><div id="list-open" class="orderList"></div></section>
-        <section id="column-completed" class="statusColumn mobileHidden"><div class="columnHead"><h2>完了</h2><span>処理済み</span></div><div id="list-completed" class="orderList"></div></section>
+        <section id="column-open" class="statusColumn"><div class="columnHead"><h2>確認待ち</h2><span>内容確認が必要な注文</span></div><div id="list-open" class="orderList"></div></section>
+        <section id="column-completed" class="statusColumn mobileHidden"><div class="columnHead"><h2>注文確定・送信待ち</h2><span>代理店へまとめて送る注文</span></div><div id="list-completed" class="orderList"></div></section>
+        <section id="column-sent" class="statusColumn mobileHidden"><div class="columnHead"><h2>代理店送付済み</h2><span>送信処理が完了した注文</span></div><div id="list-sent" class="orderList"></div></section>
       </section>
     </main>
   </section>
@@ -78,11 +85,39 @@
     <div class="modalHead"><h2 id="detailTitle">注文詳細</h2><button id="detailTopClose" class="secondary small">閉じる</button></div>
     <div id="detailBody" class="modalBody"></div>
     <div class="modalActions">
-      <button id="completeButton" class="ok">完了にする</button>
-      <button id="reopenButton" class="secondary">未完了へ戻す</button>
+      <button id="completeButton" class="ok">注文を確定する</button>
+      <button id="reopenButton" class="secondary">確認待ちへ戻す</button>
       <button id="printButton" class="secondary">印刷</button>
       <button id="deleteButton" class="danger">削除履歴へ移す</button>
       <button id="closeDetail" class="secondary">閉じる</button>
+    </div>
+  </dialog>
+
+
+  <dialog id="sendDialog">
+    <div class="modalHead"><h2>代理店へまとめて送る</h2><button id="sendTopClose" class="secondary small">閉じる</button></div>
+    <div class="modalBody">
+      <p class="historyNote"><b>当日の操作：</b> PDFを保存 → メールへ添付して送信 → 「代理店送付済みにする」の順です。</p>
+      <div class="infoGrid">
+        <div class="infoBox"><div class="label">送信対象</div><div id="sendOrderCount" class="value">0件</div></div>
+        <div class="infoBox"><div class="label">合計数量</div><div id="sendTotalQty" class="value">0点</div></div>
+        <div class="infoBox"><div class="label">合計金額</div><div id="sendTotalAmount" class="value">₩0</div></div>
+        <div class="infoBox"><div class="label">送信グループ</div><div id="sendBatchId" class="value">-</div></div>
+      </div>
+      <div class="editBlock">
+        <h3>① 注文PDFを作成</h3>
+        <button id="createPdfButton" class="primary" type="button">注文PDFを作成・保存</button>
+        <p class="historyNote">印刷画面が開きます。「送信先」で「PDFに保存」を選んでください。代理店がそのまま印刷できる形式です。</p>
+      </div>
+      <div class="editBlock">
+        <h3>② メールを作成</h3>
+        <button id="openMailButton" class="secondary" type="button">メール本文を開く</button>
+        <p class="historyNote">作成したPDFをメールへ添付して送信してください。ブラウザの安全仕様上、添付だけは手動です。</p>
+      </div>
+      <div class="editBlock">
+        <h3>③ 送信後に完了登録</h3>
+        <button id="markSentButton" class="ok" type="button">代理店送付済みにする</button>
+      </div>
     </div>
   </dialog>
 
