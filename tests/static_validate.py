@@ -51,6 +51,8 @@ def validate_files() -> None:
         "supabase/functions/cleanup-orders/index.ts",
         "supabase/migrations/20260730090000_korea_staff_dashboard.sql",
         "supabase/migrations/20260803120000_exhibition_order_workflow.sql",
+        "supabase/migrations/20260803150000_lock_browser_order_permissions.sql",
+        "supabase/migrations/20260803151000_remove_legacy_order_policies.sql",
         "supabase/sql/04_secure_cleanup_schedule.sql",
         "AGENTS.md", "README_当日操作.md", "README_Supabase設定.md",
         "01_Supabase更新.ps1", "02_GitHub公開.ps1",
@@ -86,6 +88,7 @@ def check_required_markers() -> None:
     staff_html = (ROOT / "staff.html").read_text(encoding="utf-8")
     migration = (ROOT / "supabase/migrations/20260730090000_korea_staff_dashboard.sql").read_text(encoding="utf-8")
     workflow = (ROOT / "supabase/migrations/20260803120000_exhibition_order_workflow.sql").read_text(encoding="utf-8")
+    permissions = (ROOT / "supabase/migrations/20260803150000_lock_browser_order_permissions.sql").read_text(encoding="utf-8")
     edge = (ROOT / "supabase/functions/exhibition-order/index.ts").read_text(encoding="utf-8")
     cleanup = (ROOT / "supabase/functions/cleanup-orders/index.ts").read_text(encoding="utf-8")
     markers = [
@@ -116,7 +119,7 @@ def check_required_markers() -> None:
         fail("cleanup-ordersが公開用キーを認証に使用しています")
     if "method:'DELETE'" in staff_js or 'method: "DELETE"' in staff_js:
         fail("通常スタッフ画面から物理DELETEを実行しています")
-    if re.search(r"grant\s+delete\s+on\s+(?:table\s+)?public\.exhibition_orders\s+to\s+authenticated", workflow, re.I):
+    if re.search(r"grant\s+delete\s+on\s+(?:table\s+)?public\.exhibition_orders\s+to\s+authenticated", workflow + permissions, re.I):
         fail("ブラウザー利用者へ注文の物理DELETE権限を付与しています")
 
     html_ids = re.findall(r'\bid=["\']([^"\']+)["\']', staff_html, flags=re.I)
