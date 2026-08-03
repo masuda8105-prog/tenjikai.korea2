@@ -14,6 +14,6 @@ window.ORDER_ONLINE_CONFIG = Object.freeze({
   eventName: 'Korea Optical Exhibition 2026',
   eventDate: '',
   eventDay: 1,
-  distributorName: 'KY-S Corporation.',
+  distributorName: 'KY-S Corporation',
   distributorEmail: ''
 });

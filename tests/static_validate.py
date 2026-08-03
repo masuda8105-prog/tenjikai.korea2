@@ -100,6 +100,8 @@ def check_required_markers() -> None:
     for marker in markers:
         if marker not in index:
             fail(f"お客様画面の必須文言がありません: {marker}")
+    if "notesPlaceholder:''" in index:
+        fail("備考欄の翻訳プレースホルダーが空です")
     for marker in ["対応開始", "注文を確定する", "確定注文をまとめて送る", "削除履歴へ移す"]:
         if marker not in staff_html:
             fail(f"スタッフ画面の必須機能がありません: {marker}")
