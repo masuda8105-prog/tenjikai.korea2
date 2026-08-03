@@ -53,6 +53,7 @@
         <input id="searchInput" class="search" type="search" placeholder="受付番号・会社名・氏名・電話番号・品番で検索" aria-label="注文を検索">
         <select id="eventFilter" class="filter" aria-label="展示会で絞り込み"><option value="all">すべての展示会</option></select>
         <select id="dateFilter" class="filter" aria-label="日付で絞り込み"><option value="all">すべての日付</option></select>
+        <button id="sendToDistributorButton" class="primary" type="button">📤 確定注文をまとめて送る</button>
         <button id="soundButton" class="secondary" type="button">🔕 通知音OFF</button>
         <div class="syncState"><span id="syncDot" class="dot"></span><span id="syncText">接続準備中</span></div>
       </section></div>
@@ -77,6 +78,34 @@
     <div class="modalHead"><h2>注文を削除履歴へ移す</h2><button id="deleteTopClose" class="secondary small" type="button">閉じる</button></div>
     <div class="modalBody"><div id="deleteTarget" class="deleteExplain"></div><div class="editField" style="margin-top:12px"><label for="deleteReason">削除理由（必須）</label><select id="deleteReason"><option value="">選択してください</option><option>重複注文</option><option>お客様キャンセル</option><option>テスト注文</option><option>入力間違い</option><option>スタッフによる代理入力のやり直し</option><option value="その他">その他</option></select></div><div id="deleteReasonOtherWrap" class="editField hidden" style="margin-top:10px"><label for="deleteReasonOther">理由を入力</label><textarea id="deleteReasonOther" maxlength="500"></textarea></div></div>
     <div class="modalActions"><button id="confirmDeleteButton" class="danger" type="button">削除履歴へ移す</button><button id="cancelDeleteButton" class="secondary" type="button">キャンセル</button></div>
+  </dialog>
+
+
+  <dialog id="sendDialog">
+    <div class="modalHead"><h2>代理店へまとめて送る</h2><button id="sendTopClose" class="secondary small">閉じる</button></div>
+    <div class="modalBody">
+      <p class="historyNote"><b>当日の操作：</b> PDFを保存 → メールへ添付して送信 → 「代理店送付済みにする」の順です。</p>
+      <div class="infoGrid">
+        <div class="infoBox"><div class="label">送信対象</div><div id="sendOrderCount" class="value">0件</div></div>
+        <div class="infoBox"><div class="label">合計数量</div><div id="sendTotalQty" class="value">0点</div></div>
+        <div class="infoBox"><div class="label">合計金額</div><div id="sendTotalAmount" class="value">₩0</div></div>
+        <div class="infoBox"><div class="label">送信グループ</div><div id="sendBatchId" class="value">-</div></div>
+      </div>
+      <div class="editBlock">
+        <h3>① 注文PDFを作成</h3>
+        <button id="createPdfButton" class="primary" type="button">注文PDFを作成・保存</button>
+        <p class="historyNote">印刷画面が開きます。「送信先」で「PDFに保存」を選んでください。代理店がそのまま印刷できる形式です。</p>
+      </div>
+      <div class="editBlock">
+        <h3>② メールを作成</h3>
+        <button id="openMailButton" class="secondary" type="button">メール本文を開く</button>
+        <p class="historyNote">作成したPDFをメールへ添付して送信してください。ブラウザの安全仕様上、添付だけは手動です。</p>
+      </div>
+      <div class="editBlock">
+        <h3>③ 送信後に完了登録</h3>
+        <button id="markSentButton" class="ok" type="button">代理店送付済みにする</button>
+      </div>
+    </div>
   </dialog>
 
   <dialog id="historyDialog">
