@@ -25,6 +25,7 @@ function staffHtml(mock) {
   new Function(mock);
   let html = read('staff.html');
   html = html.replace('<script src="online-config.js"></script>', `<script>${storageShim}${mock}</script><script>${read('online-config.js')}</script>`);
+  html = html.replace('<script src="vendor/qrcode.min.js"></script>', `<script>${read('vendor/qrcode.min.js')}</script>`);
   html = html.replace('<script src="staff.js"></script>', `<script>${read('staff.js').replace("await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4/+esm')", "({createClient(){throw new Error('offline test')}})")}</script>`);
   return html;
 }
@@ -86,16 +87,24 @@ async function staffFlow(browser) {
   const errors = [];
   page.on('pageerror', (error) => errors.push(String(error)));
   page.on('dialog', async (dialog) => dialog.accept());
-  const mock = `let __status='new',__updated=1,__batch=null;window.print=()=>{window.__printed=true};const __order={id:'00000000-0000-0000-0000-000000000001',order_no:'K260803-001',status:'new',assigned_to:null,assigned_name:null,business_card_original_path:null,business_card_preview_path:null,expires_at:'2026-08-17T08:00:00.000Z',created_at:'2026-08-03T08:00:00.000Z',updated_at:'2026-08-03T08:00:01.000Z',printed_at:null,completed_at:null,event_id:'korea-exhibition-2026',event_name:'Korea Optical Exhibition 2026',event_date:'2026-08-03',event_day:1,revision_count:0,requires_resend:false,pending_batch_id:null,order_data:{customerCompany:'Test Optical',customerName:'Kim',customerPhone:'010-1234',notes:'',eventId:'korea-exhibition-2026',eventName:'Korea Optical Exhibition 2026',eventDate:'2026-08-03',total:120000,items:[{c:'1053',n:['ヤットコ','플라이어'],q:1,p:120000}]}};window.fetch=async(input,init={})=>{const url=String(input),method=(init.method||'GET').toUpperCase();if(url.includes('/auth/v1/token'))return new Response(JSON.stringify({access_token:'test-access',refresh_token:'test-refresh',expires_in:3600,user:{id:'11111111-1111-1111-1111-111111111111',email:'staff@example.com',user_metadata:{full_name:'増田'}}}),{status:200,headers:{'Content-Type':'application/json'}});if(url.includes('/rest/v1/exhibition_staff'))return new Response(JSON.stringify([{display_name:'増田',role:'staff',active:true}]),{status:200,headers:{'Content-Type':'application/json'}});if(url.includes('/rest/v1/rpc/create_exhibition_order_batch')){__batch='KY-20260803-01';__order.pending_batch_id=__batch;return new Response(JSON.stringify([{batch_id:__batch,order_count:1,total_quantity:1,total_amount:120000}]),{status:200,headers:{'Content-Type':'application/json'}})}if(url.includes('/rest/v1/rpc/mark_exhibition_order_batch_sent')){__status='sent';__order.status='sent';__order.pending_batch_id=null;__order.batch_id=__batch;return new Response('1',{status:200,headers:{'Content-Type':'application/json'}})}if(url.includes('/rest/v1/rpc/cancel_exhibition_order_batch')){__order.pending_batch_id=null;return new Response('1',{status:200,headers:{'Content-Type':'application/json'}})}if(url.includes('/rest/v1/order_activity_logs')||url.includes('/rest/v1/order_revisions'))return new Response('',{status:201,headers:{'Content-Type':'application/json'}});if(url.includes('/rest/v1/exhibition_orders')&&method==='PATCH'){const data=JSON.parse(init.body||'{}');Object.assign(__order,data);if(data.status)__status=data.status;__updated+=1;__order.updated_at='2026-08-03T08:00:'+String(__updated).padStart(2,'0')+'.000Z';return new Response(JSON.stringify([{...__order,status:__status}]),{status:200,headers:{'Content-Type':'application/json'}})}if(url.includes('/rest/v1/exhibition_orders'))return new Response(JSON.stringify([{...__order,status:__status,assigned_name:__status==='new'?null:'増田'}]),{status:200,headers:{'Content-Type':'application/json'}});if(url.includes('/rest/v1/order_batches'))return new Response('[]',{status:200,headers:{'Content-Type':'application/json'}});if(url.includes('/auth/v1/logout'))return new Response('',{status:204});throw new Error('unexpected fetch '+url)};`;
+  const mock = `let __status='new',__updated=1,__batch=null;window.print=()=>{window.__printed=true};const __order={id:'00000000-0000-0000-0000-000000000001',public_token:'${'A'.repeat(43)}',order_no:'K260803-001',status:'new',assigned_to:null,assigned_name:null,business_card_original_path:null,business_card_preview_path:null,expires_at:'2026-08-17T08:00:00.000Z',created_at:'2026-08-03T08:00:00.000Z',updated_at:'2026-08-03T08:00:01.000Z',printed_at:null,completed_at:null,event_id:'korea-exhibition-2026',event_name:'Korea Optical Exhibition 2026',event_date:'2026-08-03',event_day:1,revision_count:0,requires_resend:false,pending_batch_id:null,order_data:{customerCompany:'Test Optical',customerName:'Kim',customerPhone:'010-1234',notes:'',eventId:'korea-exhibition-2026',eventName:'Korea Optical Exhibition 2026',eventDate:'2026-08-03',total:120000,items:[{c:'1053',n:['ヤットコ','플라이어'],q:1,p:120000}]}};window.fetch=async(input,init={})=>{const url=String(input),method=(init.method||'GET').toUpperCase();if(url.includes('/auth/v1/token'))return new Response(JSON.stringify({access_token:'test-access',refresh_token:'test-refresh',expires_in:3600,user:{id:'11111111-1111-1111-1111-111111111111',email:'staff@example.com',user_metadata:{full_name:'増田'}}}),{status:200,headers:{'Content-Type':'application/json'}});if(url.includes('/rest/v1/exhibition_staff'))return new Response(JSON.stringify([{display_name:'増田',role:'staff',active:true}]),{status:200,headers:{'Content-Type':'application/json'}});if(url.includes('/rest/v1/rpc/create_exhibition_order_batch')){__batch='KY-20260803-01';__order.pending_batch_id=__batch;return new Response(JSON.stringify([{batch_id:__batch,order_count:1,total_quantity:1,total_amount:120000}]),{status:200,headers:{'Content-Type':'application/json'}})}if(url.includes('/rest/v1/rpc/mark_exhibition_order_batch_sent')){__status='sent';__order.status='sent';__order.pending_batch_id=null;__order.batch_id=__batch;return new Response('1',{status:200,headers:{'Content-Type':'application/json'}})}if(url.includes('/rest/v1/rpc/cancel_exhibition_order_batch')){__order.pending_batch_id=null;return new Response('1',{status:200,headers:{'Content-Type':'application/json'}})}if(url.includes('/rest/v1/order_activity_logs')||url.includes('/rest/v1/order_revisions'))return new Response('',{status:201,headers:{'Content-Type':'application/json'}});if(url.includes('/rest/v1/exhibition_orders')&&method==='PATCH'){const data=JSON.parse(init.body||'{}');Object.assign(__order,data);if(data.status)__status=data.status;__updated+=1;__order.updated_at='2026-08-03T08:00:'+String(__updated).padStart(2,'0')+'.000Z';return new Response(JSON.stringify([{...__order,status:__status}]),{status:200,headers:{'Content-Type':'application/json'}})}if(url.includes('/rest/v1/exhibition_orders'))return new Response(JSON.stringify([{...__order,status:__status,assigned_name:__status==='new'?null:'増田'}]),{status:200,headers:{'Content-Type':'application/json'}});if(url.includes('/rest/v1/order_batches'))return new Response('[]',{status:200,headers:{'Content-Type':'application/json'}});if(url.includes('/auth/v1/logout'))return new Response('',{status:204});throw new Error('unexpected fetch '+url)};`;
   await page.setContent(staffHtml(mock), { waitUntil: 'domcontentloaded' });
   await page.fill('#email', 'staff@example.com'); await page.fill('#password', 'password'); await page.click('#loginButton');
   await page.waitForSelector('[data-order-id]');
   await page.click('[data-order-id]'); await page.waitForSelector('#detailDialog[open]');
+  await page.fill('#editCompany', 'Protected Optical');
+  await page.evaluate(() => document.querySelector('#refreshButton').click());
+  await page.waitForTimeout(250);
+  if (await page.inputValue('#editCompany') !== 'Protected Optical') throw new Error('自動更新で編集中の入力が消えました');
+  await page.fill('#editCompany', 'Test Optical'); await page.click('#saveEditButton');
+  await page.click('#customerQrButton'); await page.waitForSelector('#customerQrDialog[open]');
+  if (!await page.locator('#customerQrCode img, #customerQrCode canvas').count()) throw new Error('お客様用QRが生成されません');
+  await page.click('#customerQrTopClose');
   await page.click('#startButton'); await page.waitForFunction(() => document.querySelector('#progressCount')?.textContent === '1');
   await page.click('#completeButton'); await page.waitForFunction(() => document.querySelector('#completedCount')?.textContent === '1');
   await page.click('#deleteButton'); await page.selectOption('#deleteReason', { label: 'テスト注文' }); await page.click('#confirmDeleteButton');
   await page.waitForFunction(() => !document.querySelector('#detailDialog').open);
-  await page.click('#historyButton'); await page.waitForSelector('[data-restore-id]'); await page.click('[data-restore-id]');
+  await page.click('.utilityMenu > summary'); await page.click('#historyButton'); await page.waitForSelector('[data-restore-id]'); await page.click('[data-restore-id]');
   await page.waitForFunction(() => document.querySelector('#completedCount')?.textContent === '1'); await page.click('#historyTopClose');
   await page.click('#batchButton'); await page.waitForSelector('#batchDialog[open]'); await page.click('#createBatchPdfButton');
   await page.waitForFunction(() => window.__printed === true); await page.check('#pdfSavedCheck'); await page.check('#mailSentCheck'); await page.click('#markBatchSentButton');
@@ -105,7 +114,7 @@ async function staffFlow(browser) {
 }
 
 async function responsiveSmoke(browser) {
-  const customer = await browser.newPage({ viewport: { width: 820, height: 1180 } });
+  const customer = await browser.newPage({ viewport: { width: 1280, height: 700 } });
   const customerErrors = [];
   customer.on('pageerror', (error) => customerErrors.push(String(error)));
   const customerMock = `const __nativeFetch=window.fetch.bind(window);window.fetch=(input,init={})=>__nativeFetch(input,init);`;
@@ -113,6 +122,13 @@ async function responsiveSmoke(browser) {
   await customer.waitForFunction(() => /\d/.test(document.querySelector('#searchResultStatus')?.textContent || ''), null, { timeout: 30000 });
   await customer.fill('#searchInput', '1053'); await customer.click('[data-add="1053"]'); await customer.click('#quickCheckout');
   if (!await customer.locator('#customerCompany').isVisible() || await customer.locator('#businessCardInput').count() !== 1) throw new Error('タブレット注文画面の表示が不正です');
+  const checkoutLayout = await customer.evaluate(() => {
+    const dialog = document.querySelector('#customerDialog').getBoundingClientRect();
+    const button = document.querySelector('#createQr').getBoundingClientRect();
+    const body = document.querySelector('.customerSheetBody');
+    return { buttonVisible: button.top >= dialog.top && button.bottom <= dialog.bottom + 1, rows: getComputedStyle(document.querySelector('#customerDialog')).gridTemplateRows.split(' ').length, bodyScrollable: body.scrollHeight >= body.clientHeight };
+  });
+  if (!checkoutLayout.buttonVisible || checkoutLayout.rows !== 3 || !checkoutLayout.bodyScrollable) throw new Error(`PC注文画面の送信欄レイアウトが不正です: ${JSON.stringify(checkoutLayout)}`);
   if (customerErrors.length) throw new Error(customerErrors.join('\n'));
   await customer.close();
 

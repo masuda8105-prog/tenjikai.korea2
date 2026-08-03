@@ -47,6 +47,7 @@ def inline_staff_html(mock_js: str):
     html=(ROOT/'staff.html').read_text(encoding='utf-8')
     mock_js=storage_shim()+mock_js
     html=html.replace('<script src="online-config.js"></script>', f'<script>{mock_js}</script><script>{(ROOT/"online-config.js").read_text()}</script>')
+    html=html.replace('<script src="vendor/qrcode.min.js"></script>', f'<script>{(ROOT/"vendor/qrcode.min.js").read_text()}</script>')
     html=html.replace('<script src="staff.js"></script>', f'<script>{(ROOT/"staff.js").read_text()}</script>')
     return html
 
@@ -140,7 +141,7 @@ async def staff_flow(browser):
     await page.click('#completeButton'); await page.wait_for_timeout(250); assert await page.text_content('#completedCount')=='1'
     await page.click('#printButton'); await page.wait_for_timeout(350); assert await page.evaluate('window.__printed===true')
     await page.click('#deleteButton'); await page.wait_for_selector('#deleteDialog[open]'); await page.select_option('#deleteReason',label='テスト注文'); await page.click('#confirmDeleteButton'); await page.wait_for_timeout(300)
-    await page.click('#historyButton'); await page.wait_for_selector('[data-restore-id]'); await page.click('[data-restore-id]'); await page.wait_for_timeout(300); assert await page.text_content('#completedCount')=='1'; await page.click('#historyTopClose')
+    await page.click('.utilityMenu > summary'); await page.click('#historyButton'); await page.wait_for_selector('[data-restore-id]'); await page.click('[data-restore-id]'); await page.wait_for_timeout(300); assert await page.text_content('#completedCount')=='1'; await page.click('#historyTopClose')
     await page.click('#batchButton'); await page.wait_for_selector('#batchDialog[open]'); await page.click('#createBatchPdfButton'); await page.wait_for_timeout(350); assert await page.evaluate('window.__printed===true')
     await page.check('#pdfSavedCheck'); await page.check('#mailSentCheck'); await page.click('#markBatchSentButton'); await page.wait_for_timeout(350); assert await page.text_content('#sentCount')=='1'
     assert not errors, errors
