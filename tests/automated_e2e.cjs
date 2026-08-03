@@ -40,7 +40,7 @@ async function customerFlow(browser) {
   const errors = [];
   page.on('pageerror', (error) => errors.push(String(error)));
   const order = { v: 10, status: 'new', lang: 'ja', orderNo: 'K260803-001', createdAt: '2026-08-03T08:00:00.000Z', eventName: 'Korea Optical Exhibition 2026', customerCompany: 'Test Optical', customerName: 'Kim', customerPhone: '010-1234-5678', total: 120000, items: [{ c: '1053', n: ['ヤットコ', '플라이어'], q: 1, p: 120000 }] };
-  const mock = `window.__postCount=0;const __nativeFetch=window.fetch.bind(window);window.fetch=async(input,init={})=>{const url=String(input);if(url.includes('/functions/v1/exhibition-order')){if((init.method||'GET').toUpperCase()==='POST'){window.__postCount+=1;return new Response(JSON.stringify({id:'1',token:'${'A'.repeat(43)}',orderNo:'K260803-001',status:'new',createdAt:'2026-08-03T08:00:00.000Z',expiresAt:'2026-08-17T08:00:00.000Z'}),{status:201,headers:{'Content-Type':'application/json'}})}return new Response(JSON.stringify({order:${JSON.stringify(order)},status:'new',expiresAt:'2026-08-17T08:00:00.000Z',businessCardOriginalUrl:'',businessCardPreviewUrl:''}),{status:200,headers:{'Content-Type':'application/json'}})}return __nativeFetch(input,init)};`;
+  const mock = `window.__postCount=0;window.__cardParts=null;const __nativeFetch=window.fetch.bind(window);window.fetch=async(input,init={})=>{const url=String(input);if(url.includes('/functions/v1/exhibition-order')){if((init.method||'GET').toUpperCase()==='POST'){window.__postCount+=1;window.__cardParts={original:init.body.get('businessCardOriginal')?.size||0,preview:init.body.get('businessCardPreview')?.size||0};return new Response(JSON.stringify({id:'1',token:'${'A'.repeat(43)}',orderNo:'K260803-001',status:'new',createdAt:'2026-08-03T08:00:00.000Z',expiresAt:'2026-08-17T08:00:00.000Z'}),{status:201,headers:{'Content-Type':'application/json'}})}return new Response(JSON.stringify({order:${JSON.stringify(order)},status:'new',expiresAt:'2026-08-17T08:00:00.000Z',businessCardOriginalUrl:'',businessCardPreviewUrl:''}),{status:200,headers:{'Content-Type':'application/json'}})}return __nativeFetch(input,init)};`;
   await page.setContent(customerHtml(mock), { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => /\d/.test(document.querySelector('#searchResultStatus')?.textContent || ''), null, { timeout: 30000 });
   await page.fill('#searchInput', '1053');
@@ -49,12 +49,15 @@ async function customerFlow(browser) {
   await page.fill('#customerCompany', 'Test Optical');
   await page.fill('#customerName', 'Kim');
   await page.fill('#customerPhone', '010-1234-5678');
+  await page.setInputFiles('#businessCardInput', path.join(ROOT, 'assets', 'sun_nishimura_logo.jpg'));
+  await page.waitForSelector('#businessCardPreview.show');
   await page.click('#createQr');
   await page.waitForSelector('#qrDialog[open]');
   if (await page.textContent('#handoffOrderNo') !== 'K260803-001') throw new Error('受付番号が表示されません');
   await page.click('#closeQr'); await page.click('#quickCheckout'); await page.click('#createQr');
   await page.waitForSelector('#qrDialog[open]');
   if (await page.evaluate(() => window.__postCount) !== 1) throw new Error('同じ注文が二重送信されました');
+  if (!await page.evaluate(() => window.__cardParts?.original > 0 && window.__cardParts?.preview > 0)) throw new Error('名刺の原本とプレビューが分離されていません');
   await page.click('#openReceipt');
   await page.waitForFunction(() => document.querySelector('#receiptPrintArea')?.textContent.includes('K260803-001'));
   const receipt = await page.textContent('#receiptPrintArea');
@@ -101,12 +104,37 @@ async function staffFlow(browser) {
   await page.close();
 }
 
+async function responsiveSmoke(browser) {
+  const customer = await browser.newPage({ viewport: { width: 820, height: 1180 } });
+  const customerErrors = [];
+  customer.on('pageerror', (error) => customerErrors.push(String(error)));
+  const customerMock = `const __nativeFetch=window.fetch.bind(window);window.fetch=(input,init={})=>__nativeFetch(input,init);`;
+  await customer.setContent(customerHtml(customerMock), { waitUntil: 'domcontentloaded' });
+  await customer.waitForFunction(() => /\d/.test(document.querySelector('#searchResultStatus')?.textContent || ''), null, { timeout: 30000 });
+  await customer.fill('#searchInput', '1053'); await customer.click('[data-add="1053"]'); await customer.click('#quickCheckout');
+  if (!await customer.locator('#customerCompany').isVisible() || await customer.locator('#businessCardInput').count() !== 1) throw new Error('タブレット注文画面の表示が不正です');
+  if (customerErrors.length) throw new Error(customerErrors.join('\n'));
+  await customer.close();
+
+  const staff = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const staffErrors = [];
+  staff.on('pageerror', (error) => staffErrors.push(String(error)));
+  const staffMock = `window.fetch=async(input,init={})=>{const url=String(input);if(url.includes('/auth/v1/token'))return new Response(JSON.stringify({access_token:'mobile-access',refresh_token:'mobile-refresh',expires_in:3600,user:{id:'22222222-2222-2222-2222-222222222222',email:'mobile@example.com',user_metadata:{full_name:'Mobile Staff'}}}),{status:200,headers:{'Content-Type':'application/json'}});if(url.includes('/rest/v1/exhibition_staff'))return new Response(JSON.stringify([{display_name:'Mobile Staff',role:'staff',active:true}]),{status:200,headers:{'Content-Type':'application/json'}});if(url.includes('/rest/v1/exhibition_orders')||url.includes('/rest/v1/order_batches'))return new Response('[]',{status:200,headers:{'Content-Type':'application/json'}});throw new Error('unexpected fetch '+url)};`;
+  await staff.setContent(staffHtml(staffMock), { waitUntil: 'domcontentloaded' });
+  await staff.fill('#email', 'mobile@example.com'); await staff.fill('#password', 'password'); await staff.click('#loginButton');
+  await staff.waitForSelector('#dashboardView:not(.hidden)');
+  if (!await staff.locator('.summary').isVisible() || await staff.locator('[data-tab]').count() !== 4) throw new Error('スマホスタッフ画面の表示が不正です');
+  if (staffErrors.length) throw new Error(staffErrors.join('\n'));
+  await staff.close();
+}
+
 (async () => {
   const browser = await chromium.launch(launchOptions());
   try {
     await customerFlow(browser);
     await customerFailure(browser);
     await staffFlow(browser);
+    await responsiveSmoke(browser);
   } finally {
     await browser.close();
   }

@@ -116,6 +116,18 @@ def check_required_markers() -> None:
         fail("cleanup-ordersが公開用キーを認証に使用しています")
     if "method:'DELETE'" in staff_js or 'method: "DELETE"' in staff_js:
         fail("通常スタッフ画面から物理DELETEを実行しています")
+    if re.search(r"grant\s+delete\s+on\s+(?:table\s+)?public\.exhibition_orders\s+to\s+authenticated", workflow, re.I):
+        fail("ブラウザー利用者へ注文の物理DELETE権限を付与しています")
+
+    html_ids = re.findall(r'\bid=["\']([^"\']+)["\']', staff_html, flags=re.I)
+    duplicate_ids = [name for name, count in Counter(html_ids).items() if count > 1]
+    if duplicate_ids:
+        fail(f"staff.htmlに重複IDがあります: {duplicate_ids}")
+    referenced_ids = set(re.findall(r'\$\(\s*["\']([^"\']+)["\']\s*\)', staff_js))
+    dynamic_ids = set(re.findall(r'\bid=["\']([^"\'\\$<>]+)["\']', staff_js, flags=re.I))
+    missing_ids = sorted(referenced_ids - set(html_ids) - dynamic_ids)
+    if missing_ids:
+        fail(f"staff.jsが存在しない画面IDを参照しています: {missing_ids}")
 
 
 def main() -> None:
