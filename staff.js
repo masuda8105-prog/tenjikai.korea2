@@ -34,7 +34,11 @@
     '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
   }[char]));
   const formatMoney = (value) => `₩${Math.round(Number(value || 0)).toLocaleString('ko-KR')}`;
-  const itemName = (item) => Array.isArray(item?.n) ? (item.n[0] || item.n[1] || item.c || '') : String(item?.n || item?.c || '');
+  const itemName = (item) => {
+    if (!Array.isArray(item?.n)) return String(item?.n || item?.c || '');
+    const names = item.n.slice(0, 2).map((name) => String(name || '').trim()).filter(Boolean);
+    return [...new Set(names)].join('\n') || String(item?.c || '');
+  };
   const orderTotal = (order) => Number(order?.order_data?.total ?? (order?.order_data?.items || []).reduce((sum, item) => sum + Number(item.p || 0) * Number(item.q || 0), 0));
   const totalQty = (order) => (order?.order_data?.items || []).reduce((sum, item) => sum + Number(item.q || 0), 0);
   const isDeleted = (order) => order?.status === 'deleted';
@@ -347,10 +351,20 @@
     return `<article class="orderCard ${escapeHtml(klass)}" data-order-id="${escapeHtml(order.id)}" tabindex="0" role="button" aria-label="${escapeHtml(order.order_no)} を開く"><div class="cardTop"><div class="orderNo">${escapeHtml(order.order_no)}</div><span class="statusBadge ${escapeHtml(klass)}">${statusLabel(order.status)}</span></div><div class="company">${escapeHtml(data.customerCompany || '-')}</div><div class="person">${escapeHtml(data.customerName || '')}${data.customerPhone ? ` / ${escapeHtml(data.customerPhone)}` : ''}</div><div class="eventMeta">${escapeHtml(eventNameOf(order))} / ${escapeHtml(dateOf(order))}</div>${revised}${order.assigned_name ? `<div class="assigned">最終担当：${escapeHtml(order.assigned_name)}</div>` : ''}<div class="cardMeta"><div class="time">${escapeHtml(relativeTime(order.created_at))}<br>${totalQty(order)}点</div><div class="amount">${formatMoney(orderTotal(order))}</div></div></article>`;
   }
 
+  function confirmedOrderRow(order) {
+    const data = order.order_data || {};
+    const time = new Date(order.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+    const customer = data.customerName || data.customerCompany || '-';
+    const assigned = order.assigned_name || data.staffName || '-';
+    const revised = order.status === 'resend_required' ? ' revised' : '';
+    return `<article class="confirmedOrderRow${revised}" data-order-id="${escapeHtml(order.id)}" tabindex="0" role="button" aria-label="${escapeHtml(order.order_no)} ${escapeHtml(customer)} を開く"><span class="confirmedTime">${escapeHtml(time)}</span><span class="confirmedCustomer" title="${escapeHtml(customer)}">${escapeHtml(customer)}</span><span class="confirmedStaff" title="${escapeHtml(assigned)}">${escapeHtml(assigned)}</span><strong class="confirmedOrderNo">${escapeHtml(order.order_no)}</strong></article>`;
+  }
+
   function renderList(group) {
     const rows = filteredOrders(group);
     const list = $(`list-${group}`);
-    list.innerHTML = rows.length ? rows.map(orderCard).join('') : '<div class="empty">該当する注文はありません。</div>';
+    const renderer = group === 'completed' ? confirmedOrderRow : orderCard;
+    list.innerHTML = rows.length ? rows.map(renderer).join('') : '<div class="empty">該当する注文はありません。</div>';
   }
 
   function render() {
@@ -449,7 +463,7 @@
       state.editRefreshPending = false;
     }
     state.editItems = edit.items.map((item) => ({ ...item }));
-    $('detailTitle').textContent = `${order.order_no}　${data.customerCompany || ''}`;
+    $('detailTitle').textContent = `${order.order_no}　注文内容`;
     let previewUrl = '', originalUrl = '';
     try {
       [previewUrl, originalUrl] = await Promise.all([createSignedUrl(order.business_card_preview_path), createSignedUrl(order.business_card_original_path)]);
