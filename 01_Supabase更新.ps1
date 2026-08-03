@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Stop"
 
 Write-Host "=== SAN NISHIMURA 韓国展示会：Supabase更新 ===" -ForegroundColor Cyan
 

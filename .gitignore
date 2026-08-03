@@ -3,5 +3,3 @@ supabase/.env.production
 .env.*
 !.env.example
 !supabase/.env.production.example
-
-korea-exibition-sannishimura/
