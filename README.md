@@ -1,62 +1,28 @@
-# SAN NISHIMURA 韓国展示会専用受注システム v2.0
+# SAN NISHIMURA 韓国展示会 受注管理システム v3.0
 
-韓国の展示会で使用する、**韓国ウォン価格専用**の受注システムです。
+GitHub Pages と Supabase を使う、展示会場向けの注文受付・スタッフ確認・代理店送付ツールです。韓国語を初期表示とし、日本語へ切り替えられます。
 
-## 画面
+## 画面と基本操作
 
-- `index.html`：お客様用注文画面
-- `staff.html`：スタッフ用注文管理画面（Supabase Authログイン必須）
+- `index.html`：お客様用。商品検索 → カート確認 → お客様情報・注文送信の3ステップです。
+- `staff.html`：スタッフ用。Supabase Authログイン後、確認・修正・確定・一括送付を行います。
 
-## お客様側
+お客様の注文はEdge Function経由で `public.exhibition_orders` に保存されます。送信ごとにクライアント冪等IDを持つため、通信断後に再送しても同じ注文を重複登録しません。入力途中のカートとお客様情報は端末内の下書きとして保持され、送信失敗時にも消えません。
 
-1. 商品を検索してカートへ追加
-2. 会社名・氏名・電話番号を入力
-3. 必要に応じて名刺を撮影
-4. 注文を送信
-5. 受付番号（例：`K260730-001`）を表示
+## 注文状態
 
-注文はSupabaseへ保存され、スタッフ画面へ反映されます。QRは通常運用では使わず、受付完了画面の「予備QR」にだけ残しています。
+```text
+new              確認待ち
+in_progress      確認中
+completed        注文確定・代理店送付待ち
+sent             代理店送付済み
+resend_required  修正版・再送待ち
+deleted          削除履歴（復元可能）
+```
 
-## スタッフ側
+通常削除は物理DELETEではなく、`status = deleted` へのPATCHです。削除理由・担当・削除前状態を保存し、削除履歴から復元できます。完全削除は通常スタッフ画面に表示しません。
 
-- スタッフログイン
-- `NEW → 対応中 → 完了`
-- 受付番号・会社名・氏名・電話番号・品番検索
-- Realtime受信（接続できない場合は10秒ごとの自動更新）
-- 通知音ON／OFF
-- 名刺プレビューと原寸画像
-- 担当者表示
-- A4印刷
-
-## 名刺画像
-
-- 元画像：高画質のまま非公開Storageへ保存
-- プレビュー：画面表示用の軽量画像
-- スタッフ画面：プレビューをタップすると原寸画像を表示
-- 名刺付き注文の送信に失敗した場合：受付番号を発行せず、再試行を案内
-
-## セキュリティ
-
-- ブラウザにはPublishable keyだけを配置
-- Secret key / service_role keyはGitHubへ保存しない
-- お客様の注文作成はEdge Function経由
-- スタッフ一覧はSupabase Auth＋`exhibition_staff`許可リストで保護
-- 名刺Storageは非公開
-- 注文と名刺は14日後に削除対象となり、Cronが毎日処理
-
-## 本番設定
-
-- Supabase Project Ref：`qdexhwgzawisiklekfzm`
-- お客様画面：`https://masuda8105-prog.github.io/korea-exibition-sannishimura/`
-- スタッフ画面：`https://masuda8105-prog.github.io/korea-exibition-sannishimura/staff.html`
-
-`online-config.js` は本番Project URLとPublishable keyを設定済みです。
-
-## 明日の反映
-
-最初に **`明日_本番反映手順.md`** を開いてください。
-
-新しいスタッフ画面にはDB列・RLS・Realtime・自動削除Cronが必要です。GitHubへpushする前に、`01_Supabase更新.ps1`を1回実行します。
+確定注文は日付単位で一つのA4印刷用PDFへまとめ、メール本文を開き、PDF添付・メール送信のチェック後に送付済みへ登録します。送信時点の注文スナップショットを `order_batch_items` に残します。送付済み注文を修正すると `resend_required` へ移り、元の送信情報を保持します。
 
 ## 主なファイル
 
@@ -69,9 +35,39 @@ product_master_korea.csv
 product-images/
 assets/
 vendor/
-supabase/
-01_Supabase更新.ps1
-02_GitHub公開.ps1
-明日_本番反映手順.md
-テスト結果.md
+supabase/functions/
+supabase/migrations/
+supabase/sql/
+AGENTS.md
+README_当日操作.md
+README_Supabase設定.md
+tests/
 ```
+
+## セキュリティ
+
+- ブラウザにはPublishable keyだけを配置します。
+- Secret key / service_role keyをフロントエンドやGitへ保存しません。
+- お客様の注文作成はEdge Function経由です。
+- 注文一覧・更新・名刺閲覧はAuth＋`exhibition_staff`＋RLSで保護します。
+- ブラウザーからの完全削除権限は付与しません。保存期限後の物理削除は、サーバー側のcleanup関数だけが行います。
+- 期限cleanupは公開キーでは起動できず、`CLEANUP_SECRET` 専用です。
+
+## 初回・更新時の設定
+
+[README_Supabase設定.md](README_Supabase設定.md) の順序で、DBマイグレーション → Edge Functions → cleanup secret/Cron → スタッフ登録を行います。DBを更新する前に新しいスタッフ画面だけを公開すると、追加statusや列が拒否されます。
+
+会場当日の操作は [README_当日操作.md](README_当日操作.md) を使用してください。
+
+## 検証
+
+この環境でPython/NodeがPATHにある場合：
+
+```powershell
+python tests/static_validate.py
+python tests/automated_e2e.py
+node --check staff.js
+node --check online-config.js
+```
+
+公開前には、お客様送信（名刺あり・なし・失敗・再試行）、スタッフの全status遷移、編集、競合、ソフト削除・復元、バッチPDF・メール・送付済み、390px/820px/PC表示を確認します。

@@ -85,6 +85,14 @@ function cleanFileName(name: string): string {
   return name.normalize("NFKC").replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 100) || "business-card";
 }
 
+function cleanPathSegment(value: unknown, fallback: string): string {
+  return String(value ?? "")
+    .normalize("NFKC")
+    .replace(/[^A-Za-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || fallback;
+}
+
 function extensionFor(file: File): string {
   const byMime: Record<string, string> = {
     "image/jpeg": "jpg",
@@ -113,6 +121,20 @@ function validateOrder(order: any): string | null {
     if (!Number.isFinite(unitPrice) || unitPrice < 0) return "価格が不正です。";
   }
   return null;
+}
+
+function validSubmissionId(value: unknown): string {
+  const id = String(value ?? "").trim().toLowerCase();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(id) ? id : "";
+}
+
+function cleanText(value: unknown, maxLength: number): string {
+  return String(value ?? "").trim().slice(0, maxLength);
+}
+
+function validEventDate(value: unknown): string | null {
+  const date = String(value ?? "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
 }
 
 async function uploadFile(path: string, file: File): Promise<void> {
@@ -166,6 +188,29 @@ async function createOrder(req: Request): Promise<Response> {
 
   const validationError = validateOrder(clientOrder);
   if (validationError) return json(req, { error: validationError }, 400);
+  const clientSubmissionId = validSubmissionId(clientOrder.clientSubmissionId);
+  if (!clientSubmissionId) return json(req, { error: "client_submission_id_invalid" }, 400);
+
+  const { data: existing, error: existingError } = await supabase
+    .from("exhibition_orders")
+    .select("id, public_token, order_no, status, created_at, expires_at, business_card_original_path, business_card_preview_path")
+    .eq("client_submission_id", clientSubmissionId)
+    .maybeSingle();
+  if (existingError && existingError.code !== "42703") {
+    return json(req, { error: existingError.message }, 500);
+  }
+  if (existing) {
+    return json(req, {
+      id: existing.id,
+      token: existing.public_token,
+      orderNo: existing.order_no,
+      status: existing.status,
+      createdAt: existing.created_at,
+      expiresAt: existing.expires_at,
+      hasBusinessCard: Boolean(existing.business_card_original_path || existing.business_card_preview_path),
+      duplicatePrevented: true,
+    });
+  }
 
   const original = form.get("businessCardOriginal");
   const preview = form.get("businessCardPreview");
@@ -185,13 +230,19 @@ async function createOrder(req: Request): Promise<Response> {
   const createdAt = new Date().toISOString();
   const order = {
     ...clientOrder,
-    v: 9,
+    v: 10,
+    clientSubmissionId,
+    eventId: cleanText(clientOrder.eventId, 120) || "korea-exhibition",
+    eventName: cleanText(clientOrder.eventName, 240),
+    eventDate: validEventDate(clientOrder.eventDate),
+    eventDay: Math.max(1, Math.min(99, Number(clientOrder.eventDay) || 1)),
     orderNo,
     status: "new",
     createdAt,
     date: createdAt,
   };
-  const basePath = id;
+  const storageDate = order.eventDate || createdAt.slice(0, 10);
+  const basePath = `${cleanPathSegment(order.eventId, "korea-exhibition")}/${storageDate}/${id}`;
   const originalPath = originalFile
     ? `${basePath}/original-${cleanFileName(originalFile.name).replace(/\.[^.]+$/, "")}.${extensionFor(originalFile)}`
     : null;
@@ -215,10 +266,35 @@ async function createOrder(req: Request): Promise<Response> {
       order_no: orderNo,
       order_data: order,
       status: "new",
+      client_submission_id: clientSubmissionId,
+      event_id: order.eventId,
+      event_name: order.eventName || null,
+      event_date: order.eventDate,
+      event_day: order.eventDay,
       business_card_original_path: originalPath,
       business_card_preview_path: previewPath,
       expires_at: expiresAt,
     });
+    if (error?.code === "23505") {
+      if (uploaded.length) await supabase.storage.from(BUCKET).remove(uploaded);
+      const { data: raced } = await supabase
+        .from("exhibition_orders")
+        .select("id, public_token, order_no, status, created_at, expires_at, business_card_original_path, business_card_preview_path")
+        .eq("client_submission_id", clientSubmissionId)
+        .maybeSingle();
+      if (raced) {
+        return json(req, {
+          id: raced.id,
+          token: raced.public_token,
+          orderNo: raced.order_no,
+          status: raced.status,
+          createdAt: raced.created_at,
+          expiresAt: raced.expires_at,
+          hasBusinessCard: Boolean(raced.business_card_original_path || raced.business_card_preview_path),
+          duplicatePrevented: true,
+        });
+      }
+    }
     if (error) throw new Error(`database insert failed: ${error.message}`);
 
     return json(req, {

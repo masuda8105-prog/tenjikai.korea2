@@ -8,9 +8,15 @@ python tests/static_validate.py
 
 商品件数、KRW価格、100ウォン丸め、重複品番、画像参照、必須ファイル、JavaScript構文を確認します。
 
-## ブラウザE2E（任意）
+## ブラウザE2E
 
-Python Playwrightが入っている環境で実行します。
+同梱Node.jsにPlaywrightがある環境では、次を優先します。
+
+```powershell
+node tests/automated_e2e.cjs
+```
+
+Python Playwrightが入っている環境では、同じシナリオをPython版でも実行できます。
 
 ```powershell
 python tests/automated_e2e.py

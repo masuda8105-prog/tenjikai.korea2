@@ -26,6 +26,7 @@
     .grid{display:grid;grid-template-columns:1.08fr .92fr;gap:14px}@media(max-width:820px){.grid{grid-template-columns:1fr}.hero{grid-template-columns:1fr auto}.total{font-size:31px}}
     .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px;margin-bottom:14px}.card h2{font-size:17px;margin:0 0 12px;display:flex;align-items:center;gap:8px}.hint{color:var(--muted);font-size:12px;line-height:1.6}.row{display:flex;gap:10px;align-items:center}.row.wrap{flex-wrap:wrap}.row>*{min-width:0}.systemControls{display:none!important}.staffTools{display:none!important}
     .flowBanner{background:linear-gradient(135deg,#eff6ff,#ecfdf5);border:1px solid #bfdbfe;border-radius:16px;padding:11px 13px;margin-bottom:12px;box-shadow:var(--shadow)}.flowBannerTitle{font-size:13px;font-weight:950;margin-bottom:7px}.flowSteps{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.flowStep{display:flex;gap:7px;align-items:flex-start;font-size:12px;line-height:1.4;color:#1f2937}.stepNo{display:inline-flex;align-items:center;justify-content:center;flex:0 0 22px;width:22px;height:22px;border-radius:50%;background:#111827;color:#fff;font-size:11px;font-weight:950}.flowStep b{display:block;font-size:12px;margin-bottom:1px}.checkoutGuide{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:14px;padding:11px 12px;margin:12px 0}.checkoutGuideTitle{font-size:14px;font-weight:950;color:#166534;margin-bottom:6px}.checkoutGuideText{font-size:13px;line-height:1.6;color:#14532d}.primaryCheckout{width:100%;min-height:54px;font-size:16px}.checkoutCtaHint{text-align:center;margin-top:7px}.staffTools{padding:0;overflow:hidden}.staffTools summary{padding:12px 14px;font-weight:900;cursor:pointer;color:#4b5563}.staffToolsBody{padding:0 14px 14px}
+    .venueFlow{margin:10px 0 8px;padding:10px 12px;background:#fff;border:1px solid var(--line);border-radius:15px;box-shadow:var(--shadow)}.venueFlowTitle{font-size:11px;font-weight:950;color:#64748b;margin-bottom:7px}.venueFlowSteps{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.venueFlowStep{display:flex;align-items:center;gap:7px;min-width:0;font-size:12px;font-weight:900;line-height:1.35}.venueFlowStep span:first-child{display:grid;place-items:center;flex:0 0 25px;width:25px;height:25px;border-radius:50%;background:#111827;color:#fff}.venueFlowStep small{display:block;color:#64748b;font-size:9px;font-weight:700}
     .searchCardSpacer{display:none;height:0}
     .searchCard{padding:10px 10px 12px;position:sticky;top:76px;z-index:14;display:flex;flex-direction:column;max-height:calc(100vh - 92px);overflow:hidden;transition:opacity .18s ease,transform .18s ease,box-shadow .18s ease,max-height .22s ease,padding .22s ease,margin .22s ease}.searchCard.searchCompact{box-shadow:0 14px 32px rgba(15,23,42,.14)}.searchHead{font-size:15px!important;margin:0 0 7px!important;justify-content:space-between}.searchLine{display:grid;grid-template-columns:1fr auto auto;gap:5px;margin-bottom:7px}.searchInput{font-size:20px;font-weight:900;letter-spacing:.08em;text-align:center;padding:8px 9px;background:#f9fafb;caret-color:transparent;cursor:default;border-radius:12px;min-height:42px}.searchInput[readonly]{user-select:none;-webkit-user-select:none}.searchLine .compactBtn{min-width:46px}.resultList{flex:1;max-height:none;min-height:0;padding-right:4px}.searchCard .empty{padding:18px 10px}.searchCard .resultList::-webkit-scrollbar{width:10px}.searchCard .resultList::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:999px;border:2px solid #fff}.showSearchFab{display:none;position:fixed;right:18px;bottom:max(18px,env(safe-area-inset-bottom));z-index:90;border-radius:999px;padding:11px 15px;background:#111827;color:#fff;box-shadow:0 12px 30px rgba(15,23,42,.28);font-size:13px;font-weight:900}.showSearchFab.show{display:inline-flex;align-items:center;justify-content:center}.searchCard.searchCardHidden{opacity:0;visibility:hidden;transform:translateY(-12px);pointer-events:none}
     @media(max-width:820px){.searchCardSpacer{display:block;height:var(--mobile-search-space,0px);transition:height .2s ease}.searchCard{position:fixed;left:10px;right:10px;top:var(--search-fixed-top,76px);width:auto;max-height:calc(100dvh - var(--search-fixed-top,76px) - 10px);margin:0;z-index:18;box-shadow:0 14px 34px rgba(15,23,42,.18);background:#fff}.searchCard .resultList{max-height:42dvh;min-height:54px}.searchCard.searchCardHidden{opacity:0;visibility:hidden;transform:translateY(-14px);pointer-events:none}.topbar{z-index:30}}
@@ -68,7 +69,7 @@
     .systemControls{display:none!important}.staffTools{display:none!important}
     @media(max-width:1020px){.workspace{grid-template-columns:minmax(0,1fr) 330px}.productGrid{grid-template-columns:1fr}}
     @media(max-width:760px){
-      .newApp{padding:0 9px 174px}.appTopbarInner{height:58px;padding:0 10px}.appBrandTitle{font-size:11px}.appBrandSub{display:none}.appBrandMark{width:30px;height:30px}.topLang span{display:none}.topLang select{min-width:80px;padding:6px 24px 6px 8px}.searchDock{top:58px;padding:8px 9px}.searchTitleRow{margin-bottom:5px}.searchTip{display:none}.searchResultStatus{display:block;margin:2px 0 0}.nativeSearchRow{height:50px;border-radius:14px}.workspace{display:block;padding-top:calc(var(--fixed-stack-bottom,134px) + 10px)}.productGrid{grid-template-columns:1fr;gap:8px}.product{grid-template-columns:74px minmax(0,1fr) auto;padding:9px}.product .thumb{width:74px;height:74px}.product .code{font-size:17px}.product .name{font-size:12px}.productActions button{min-width:62px;padding:8px 7px;font-size:11px}
+      .newApp{padding:0 9px 174px}.appTopbarInner{height:58px;padding:0 10px}.appBrandTitle{font-size:11px}.appBrandSub{display:none}.appBrandMark{width:30px;height:30px}.topLang span{display:none}.topLang select{min-width:80px;padding:6px 24px 6px 8px}.venueFlow{margin:7px 0;padding:8px}.venueFlowTitle{display:none}.venueFlowSteps{gap:4px}.venueFlowStep{gap:4px;font-size:10px}.venueFlowStep span:first-child{width:22px;height:22px;flex-basis:22px}.venueFlowStep small{display:none}.searchDock{top:58px;padding:8px 9px}.searchTitleRow{margin-bottom:5px}.searchTip{display:none}.searchResultStatus{display:block;margin:2px 0 0}.nativeSearchRow{height:50px;border-radius:14px}.workspace{display:block;padding-top:calc(var(--fixed-stack-bottom,134px) + 10px)}.productGrid{grid-template-columns:1fr;gap:8px}.product{grid-template-columns:74px minmax(0,1fr) auto;padding:9px}.product .thumb{width:74px;height:74px}.product .code{font-size:17px}.product .name{font-size:12px}.productActions button{min-width:62px;padding:8px 7px;font-size:11px}
       .cartPanel{position:fixed;left:8px;right:8px;bottom:8px;top:auto;z-index:80;max-height:none;border-radius:18px;box-shadow:0 14px 38px rgba(15,23,42,.26)}.cartPeek{padding:10px 12px}.cartPeek b{font-size:13px}.cartPeekRight strong{font-size:16px}.cartPeekRight small{font-weight:900;color:#fff;background:rgba(255,255,255,.14);padding:3px 7px;border-radius:999px;white-space:nowrap}.miniCartItems{padding:6px 8px;min-height:42px}.miniCartChip{font-size:10px;padding:5px 8px}.cartExpandedBody{display:none;max-height:calc(72dvh - 122px);padding:9px}.cartPanel.expanded .cartExpandedBody{display:block}.cartPanel.expanded{max-height:72dvh}.cartPanel.expanded .cartPanelHead #collapseCart{display:inline-flex}.lineItem{grid-template-columns:52px minmax(0,1fr)!important}.lineItem .right{grid-column:1/-1!important;display:flex!important;justify-content:space-between;align-items:center;gap:10px}.lineItem .right button{width:auto!important;min-width:82px}.lineItem .subtotal{margin:0 0 0 auto}.cartPrimaryActions{padding:8px;gap:6px}.checkoutAction{min-height:50px}.checkoutAction span{font-size:13px}.checkoutAction small{font-size:9px}.staffTools{display:none}
       .customerSheet{position:fixed;left:0;right:0;bottom:0;margin:0;width:100%;max-width:none;height:92dvh;max-height:92dvh;border-radius:24px 24px 0 0;grid-template-rows:auto auto minmax(0,1fr) auto}.sheetHandle{display:block;width:44px;height:5px;border-radius:99px;background:#d1d5db;margin:8px auto 0}.customerSheetHead{padding:10px 14px 12px}.customerSheetBody{padding:12px 14px 34px}.customerRequiredGrid,.customerOptionalGrid{grid-template-columns:1fr}.customerOptionalGrid{margin-top:10px}.businessCardCaptureHead{display:block}.businessCardPreview{grid-template-columns:1fr}.businessCardPreviewFrame img{max-height:220px}.customerSheetActions{padding:10px 12px calc(10px + env(safe-area-inset-bottom))}
     }
@@ -89,6 +90,15 @@
         </div>
       </div>
     </header>
+
+    <section class="venueFlow" aria-label="注文の流れ">
+      <div class="venueFlowTitle">3 STEP ORDER / 3ステップで注文完了</div>
+      <div class="venueFlowSteps">
+        <div class="venueFlowStep"><span>1</span><div>商品を検索<small>상품 검색</small></div></div>
+        <div class="venueFlowStep"><span>2</span><div>カートを確認<small>카트 확인</small></div></div>
+        <div class="venueFlowStep"><span>3</span><div>注文を送信<small>주문 전송</small></div></div>
+      </div>
+    </section>
 
     <section class="searchDock" id="searchCard" aria-label="商品検索">
       <div class="searchDockInner">
@@ -142,8 +152,8 @@
     <div class="customerSheetHead"><div><b id="customerSheetTitle">고객 정보</b><p id="customerSheetHint">주문 접수에 필요한 정보만 입력해 주세요.</p></div><button id="closeCustomerDialog" class="secondary small" type="button">닫기</button></div>
     <div class="customerSheetBody" id="customerInfoCard">
       <div class="customerRequiredGrid">
-        <label class="requiredFull"><span data-i18n="companyLabel">会社名</span><span class="requiredBadge" data-i18n="requiredBadge">必須</span><input id="customerCompany" class="requiredInput" required aria-required="true" data-i18n-placeholder="companyPlaceholder" placeholder="会社名を入力" /></label>
-        <label class="requiredFull"><span data-i18n="customerNameLabel">氏名</span><span class="requiredBadge" data-i18n="requiredBadge">必須</span><input id="customerName" class="requiredInput" required aria-required="true" autocomplete="name" data-i18n-placeholder="namePlaceholder" placeholder="氏名を入力" /></label>
+        <label class="requiredFull"><span data-i18n="companyLabel">会社名</span><span class="requiredBadge" data-i18n="requiredBadge">必須</span><input id="customerCompany" class="requiredInput" maxlength="160" required aria-required="true" data-i18n-placeholder="companyPlaceholder" placeholder="会社名を入力" /></label>
+        <label class="requiredFull"><span data-i18n="customerNameLabel">氏名</span><span class="requiredBadge" data-i18n="requiredBadge">必須</span><input id="customerName" class="requiredInput" maxlength="120" required aria-required="true" autocomplete="name" data-i18n-placeholder="namePlaceholder" placeholder="氏名を入力" /></label>
         <label class="requiredFull"><span data-i18n="phoneLabel">電話番号</span><span class="requiredBadge" data-i18n="requiredBadge">必須</span><input id="customerPhone" class="requiredInput" type="tel" inputmode="tel" maxlength="30" required aria-required="true" autocomplete="tel" data-i18n-placeholder="phonePlaceholder" placeholder="電話番号を入力" /></label>
       </div>
       <div class="businessCardCapture">
@@ -159,11 +169,12 @@
         <label><span data-i18n="staffLabel">担当スタッフ名</span><input id="staffName" data-i18n-placeholder="ifKnownPlaceholder" /></label>
         <label><span data-i18n="eventLabel">展示会名</span><input id="eventName" data-i18n-placeholder="optionalPlaceholder" /></label>
       </div>
-      <label class="notesField"><span data-i18n="notesLabel">備考</span><textarea id="notes" data-i18n-placeholder="notesPlaceholder" placeholder=""></textarea></label>
+      <label class="notesField"><span data-i18n="notesLabel">備考</span><textarea id="notes" maxlength="2000" data-i18n-placeholder="notesPlaceholder" placeholder=""></textarea></label>
+      <div id="checkoutSummary" class="checkoutGuide" aria-live="polite"></div>
       <div id="requiredCustomerError" class="notice danger" role="alert" data-i18n="requiredCustomerInfo" style="display:none">会社名・氏名・電話番号を入力してください。</div>
       <div class="customerPrivacy" data-i18n="privacyNotice">会社名・氏名・電話番号は必須です。メール・SNSの入力は不要です。</div>
     </div>
-    <div class="customerSheetActions"><button id="saveCustomerInfo" class="secondary" type="button">저장하고 돌아가기</button><button id="createQr" class="ok primaryCheckout" type="button">주문 정보 전송</button></div>
+    <div class="customerSheetActions"><button id="saveCustomerInfo" class="secondary" type="button">저장하고 돌아가기</button><button id="createQr" class="ok primaryCheckout" type="button">注文を送信 / 주문 전송</button></div>
   </dialog>
 
   <dialog id="detailDialog"><div class="modalHead"><b data-i18n="productDetail">商品詳細</b><button class="secondary small" id="closeDetail" data-i18n="close">閉じる</button></div><div id="detailBody" class="modalBody"></div></dialog>
@@ -195,7 +206,8 @@
       {code:'1053', names:{ja:'ヤットコ',en:'Push-lock pad adjustment pliers',ko:'푸시록 패드 조정 플라이어',zh:'推锁式鼻托调整钳'}, descriptions:{ja:'プッシュロックパッド専用の調整ヤットコです。金具を面で挟み、カラー剥げや傷を抑えながら狭い場所でも調整しやすくします。',en:'Dedicated pliers for push-lock pad adjustment. They hold the hardware by surface contact, helping reduce scratches and color loss in narrow spaces.',ko:'푸시록 패드 전용 조정 플라이어입니다. 금구를 면으로 잡아 좁은 공간에서도 흠집과 도장 벗겨짐을 줄이며 조정하기 쉽습니다.',zh:'推锁式鼻托专用调整钳。以面接触夹持金具，有助于在狭窄位置减少划伤和掉色。'}, price:120000, currency:'KRW', packQty:'', catalog:'', image:''},
       {code:'1054', names:{ja:'ヤットコ',en:'Twin pad-arm adjustment pliers',ko:'두 갈래 패드 다리 조정 플라이어',zh:'双脚鼻托调整钳'}, descriptions:{ja:'2本ダキ足パッド専用の調整ヤットコです。取付金具とパッドを包み込んで保持し、抱き込み部分の緩みを防ぎながら作業できます。',en:'Dedicated pliers for twin pad-arm pads. They wrap and hold the mounting hardware and pad, helping prevent looseness during adjustment.',ko:'두 갈래 패드 다리 전용 조정 플라이어입니다. 장착 금구와 패드를 감싸 잡아 조정 중 풀림을 줄이며 작업할 수 있습니다.',zh:'双脚鼻托专用调整钳。可包住安装金具和鼻托进行保持，有助于调整时防止抱合部位松动。'}, price:98000, currency:'KRW', packQty:'', catalog:'', image:''}
     ];
-    let products = [...sampleProducts], order = [], lastReceiptUrl = '', lastStaffQrUrl = '', pendingReceiptData = null, pendingDraftSignature = '', currentReceiptData = null, keypadInputMode = 'number', keyboardInputEnabled = false, pendingStaffConfirmed = false, isStaffReceiptView = false, receiptPdfReady = false, businessCardImageData = '', businessCardVersion = 0, businessCardOriginalFile = null, businessCardPreviewBlob = null, onlineOrderToken = '', onlineOrderExpiresAt = '', onlineRequestBusy = false;
+    let products = [...sampleProducts], order = [], lastReceiptUrl = '', lastStaffQrUrl = '', pendingReceiptData = null, pendingDraftSignature = '', currentReceiptData = null, keypadInputMode = 'number', keyboardInputEnabled = false, pendingStaffConfirmed = false, isStaffReceiptView = false, receiptPdfReady = false, businessCardImageData = '', businessCardVersion = 0, businessCardOriginalFile = null, businessCardPreviewBlob = null, onlineOrderToken = '', onlineOrderExpiresAt = '', onlineRequestBusy = false, clientSubmissionId = '';
+    const CUSTOMER_DRAFT_KEY = 'koreaExhibitionCustomerDraftV1';
     const $ = id => document.getElementById(id);
     const sanitize = v => String(v ?? '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
     const currentLang = () => $('langSelect')?.value || 'ko';
@@ -254,7 +266,7 @@
     function init(){
       if(location.hash.startsWith('#receipt=')||location.hash.startsWith('#staff=')||location.hash.startsWith('#online-receipt=')||location.hash.startsWith('#online-staff=')){ showReceiptFromHash(); return; }
       const savedLang=localStorage.getItem('qrDisplayLang'); if(savedLang&&['ja','ko'].includes(savedLang)) $('langSelect').value=savedLang;
-      attachEvents(); initPriceMode(); applyI18n(); initFixedStackLayout();
+      restoreCustomerDraft(); attachEvents(); initPriceMode(); applyI18n(); initFixedStackLayout();
       $('results').innerHTML=`<div class="empty">${sanitize(txt('loading'))}</div>`;
       loadDefaultCsv(); renderOrder(); renderHistory();
     }
@@ -401,7 +413,7 @@
       $('businessCardInput').addEventListener('change',handleBusinessCardSelection);
       $('removeBusinessCard').onclick=clearBusinessCardImage;
       $('createQr').onclick=createQrReceipt;
-      ['customerCompany','customerName','customerPhone','distributor','staffName','eventName','notes'].forEach(id=>$(id)?.addEventListener('input',()=>{updateCustomerStatus();if(['customerCompany','customerName','customerPhone'].includes(id))$(id).classList.remove('invalid');}));
+      ['customerCompany','customerName','customerPhone','distributor','staffName','eventName','notes'].forEach(id=>$(id)?.addEventListener('input',()=>{saveCustomerDraft();updateCustomerStatus();if(['customerCompany','customerName','customerPhone'].includes(id))$(id).classList.remove('invalid');}));
       $('closeQr').onclick=()=>{$('qrDialog').close();};
       $('closeDetail').onclick=()=>$('detailDialog').close();
       $('openReceipt').onclick=openCustomerReceipt;
@@ -432,6 +444,25 @@
       setTimeout(updateFixedStackLayout,150);
     }
     function customerInfoComplete(){return !!($('customerCompany')?.value.trim()&&$('customerName')?.value.trim()&&$('customerPhone')?.value.trim());}
+    function newSubmissionId(){
+      if(crypto.randomUUID)return crypto.randomUUID();
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,char=>{const value=Math.random()*16|0;return (char==='x'?value:(value&3|8)).toString(16);});
+    }
+    function saveCustomerDraft(){
+      try{
+        const draft={};
+        ['customerCompany','customerName','customerPhone','distributor','staffName','eventName','notes'].forEach(id=>{draft[id]=$(id)?.value||'';});
+        localStorage.setItem(CUSTOMER_DRAFT_KEY,JSON.stringify(draft));
+      }catch(err){console.warn('customer draft save failed',err);}
+    }
+    function restoreCustomerDraft(){
+      try{
+        const draft=JSON.parse(localStorage.getItem(CUSTOMER_DRAFT_KEY)||'{}');
+        ['customerCompany','customerName','customerPhone','distributor','staffName','eventName','notes'].forEach(id=>{if($(id)&&typeof draft[id]==='string'&&draft[id])$(id).value=draft[id];});
+      }catch(err){localStorage.removeItem(CUSTOMER_DRAFT_KEY);}
+      if($('eventName')&&!$('eventName').value&&ONLINE_CONFIG.eventName)$('eventName').value=String(ONLINE_CONFIG.eventName);
+      if($('distributor')&&!$('distributor').value&&ONLINE_CONFIG.distributorName)$('distributor').value=String(ONLINE_CONFIG.distributorName);
+    }
     function onlineConfigured(){
       return !!(ONLINE_CONFIG.enabled && /^https:\/\//i.test(String(ONLINE_CONFIG.supabaseUrl||'')) && String(ONLINE_CONFIG.anonKey||'').trim() && /^https:\/\//i.test(String(ONLINE_CONFIG.publicAppUrl||'')));
     }
@@ -460,7 +491,7 @@
     function loadImageFile(file){
       return new Promise((resolve,reject)=>{const url=URL.createObjectURL(file),img=new Image();img.onload=()=>{URL.revokeObjectURL(url);resolve(img)};img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('image decode failed'))};img.src=url;});
     }
-    async function createBusinessCardPreview(file,maxSide=2200,quality=.90){
+    async function createBusinessCardPreview(file,maxSide=1200,quality=.84){
       const img=await loadImageFile(file),scale=Math.min(1,maxSide/Math.max(img.naturalWidth||1,img.naturalHeight||1));
       const w=Math.max(1,Math.round(img.naturalWidth*scale)),h=Math.max(1,Math.round(img.naturalHeight*scale));
       const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;const ctx=canvas.getContext('2d',{alpha:false});ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
@@ -475,7 +506,7 @@
       try{
         setOnlineStatus(currentLang()==='ko'?'명함 이미지를 최적화하고 있습니다…':'名刺画像を最適化しています…','info');
         const preview=await createBusinessCardPreview(file);
-        businessCardOriginalFile=new File([preview.blob],`business-card-${Date.now()}.jpg`,{type:'image/jpeg'});businessCardPreviewBlob=null;businessCardImageData=preview.dataUrl;businessCardVersion++;pendingReceiptData=null;onlineOrderToken='';updateBusinessCardPreview();
+        businessCardOriginalFile=file;businessCardPreviewBlob=preview.blob;businessCardImageData=preview.dataUrl;businessCardVersion++;pendingReceiptData=null;onlineOrderToken='';updateBusinessCardPreview();
       }catch(err){ console.error(err); alert('名刺写真を読み込めませんでした。JPEG・PNG形式で撮り直してください。 / 명함 사진을 불러올 수 없습니다. JPEG 또는 PNG 형식으로 다시 촬영해 주세요.'); }
     }
     function businessCardStorageKey(orderNo){return `koreaOrderBusinessCard:${String(orderNo||'')}`;}
@@ -483,7 +514,13 @@
     function loadBusinessCardForReceipt(orderNo){try{return sessionStorage.getItem(businessCardStorageKey(orderNo))||'';}catch(err){return '';}}
     function openCustomerSheet(focusMissing=false){
       const d=$('customerDialog'); if(!d.open)d.showModal();
+      renderCheckoutSummary();
       if(focusMissing)setTimeout(()=>{const target=['customerCompany','customerName','customerPhone'].map($).find(x=>!x.value.trim());target?.focus();},120);
+    }
+    function renderCheckoutSummary(){
+      const el=$('checkoutSummary'); if(!el)return;
+      const qty=order.reduce((sum,item)=>sum+Number(item.qty||0),0),total=order.reduce((sum,item)=>sum+Number(item.price||0)*Number(item.qty||0),0),ko=currentLang()==='ko';
+      el.innerHTML=`<div class="checkoutGuideTitle">${ko?'전송 전 확인':'送信前の確認'}</div><div class="checkoutGuideText">${ko?`${order.length}개 품번 / ${qty}점 / 합계 ${sanitize(fmt(total))}`:`${order.length}品番・${qty}点・合計 ${sanitize(fmt(total))}`}<br>${ko?'회사명':'会社名'}：${sanitize($('customerCompany')?.value.trim()||'-')}　${ko?'명함':'名刺'}：${businessCardOriginalFile?(ko?'있음':'あり'):(ko?'없음':'なし')}</div>`;
     }
     function updateCustomerStatus(){
       const complete=customerInfoComplete(),name=$('customerCompany')?.value.trim()||'',status=$('cartCustomerStatus');
@@ -498,8 +535,8 @@
     }
     function toggleCartPanel(){if(window.innerWidth<=760)setCartExpanded(!$('cartPanel').classList.contains('expanded'));}
     function prepareProducts(list){ return list.map(p=>{ p._codeSearch=normalizeProductCodeSearch(p.code); p._search=normalizeKeywordText([...Object.values(p.names||{}),...Object.values(p.usages||{}),...Object.values(p.benefits||{}),p.catalog].join(' ')); return p; }); }
-    function restoreOrder(){ try{ const saved=JSON.parse(localStorage.getItem('qrDraftOrder')||'[]'); order=saved.map(s=>{ const p=products.find(x=>String(x.code)===String(s.code)); return p?{...p,qty:Math.max(1,Number(s.qty)||1)}:null; }).filter(Boolean); }catch(err){ order=[]; } }
-    async function loadDefaultCsv(){ try{ const res = await fetch(DATA_FILE, {cache:'default'}); if(!res.ok) throw new Error('no default csv'); const text = await res.text(); products=prepareProducts(parseCsv(text).map(normalizeRow).filter(p=>p.code)); restoreOrder(); if($('autoLoadNotice')) $('autoLoadNotice').innerHTML=`<b>${products.length.toLocaleString('ja-JP')}件</b>の商品マスターを読み込みました。`; renderResults(); renderOrder(); }catch(err){ products=[]; order=[]; if($('autoLoadNotice')) $('autoLoadNotice').textContent=txt('loadFailed'); $('results').innerHTML=`<div class="empty loadError">${sanitize(txt('loadFailed'))}</div>`; renderOrder(); }}
+    function restoreOrder(){ try{ const saved=JSON.parse(localStorage.getItem('qrDraftOrder')||'[]'); order=saved.map(s=>{ const p=products.find(x=>String(x.code)===String(s.code))||s.snapshot; return p?{...p,qty:Math.max(1,Number(s.qty)||1),_draftFallback:!products.some(x=>String(x.code)===String(s.code))}:null; }).filter(Boolean); }catch(err){ order=[]; } }
+    async function loadDefaultCsv(){ try{ const res = await fetch(DATA_FILE, {cache:'default'}); if(!res.ok) throw new Error('no default csv'); const text = await res.text(); products=prepareProducts(parseCsv(text).map(normalizeRow).filter(p=>p.code)); restoreOrder(); if($('autoLoadNotice')) $('autoLoadNotice').innerHTML=`<b>${products.length.toLocaleString('ja-JP')}件</b>の商品マスターを読み込みました。`; renderResults(); renderOrder(); }catch(err){ restoreOrder(); if($('autoLoadNotice')) $('autoLoadNotice').textContent=txt('loadFailed'); $('results').innerHTML=`<div class="empty loadError">${sanitize(txt('loadFailed'))}<br><button type="button" class="secondary small" onclick="loadDefaultCsv()">再読み込み / 다시 불러오기</button></div>`; renderOrder(); }}
     function cleanProductCode(raw){
       let v=String(raw||'').trim();
       const months={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
@@ -591,19 +628,19 @@
     function renderOrder(){
       if(!$('orderItems'))return;
       const lang=currentLang(),showPrices=pricesVisible();
-      $('orderItems').innerHTML=order.length?order.map((item,idx)=>`<article class="lineItem">${thumbHtml(item)}<div><div class="code">${sanitize(item.code)}</div><div class="name">${sanitize(nameOf(item,lang))}</div><div class="qtyCtl"><button data-minus="${idx}">−</button><input data-qty="${idx}" value="${item.qty}" inputmode="numeric"/><button data-plus="${idx}">＋</button></div></div><div class="right"><button class="danger small" data-del="${idx}">${sanitize(txt('delete',lang))}</button><div class="subtotal">${sanitize(showPrices?fmt(item.price*item.qty):txt('priceHidden',lang))}</div></div></article>`).join(''):`<div class="empty">${txt('empty')}</div>`;
+      $('orderItems').innerHTML=order.length?order.map((item,idx)=>`<article class="lineItem">${thumbHtml(item)}<div><div class="code">${sanitize(item.code)}</div><div class="name">${sanitize(nameOf(item,lang))}${item._draftFallback?` <span class="badge matchPartial">要確認 / 확인 필요</span>`:''}</div><div class="qtyCtl"><button data-minus="${idx}" type="button" aria-label="数量を減らす">−</button><input data-qty="${idx}" type="number" min="1" max="9999" step="1" value="${item.qty}" inputmode="numeric" aria-label="数量"/><button data-plus="${idx}" type="button" aria-label="数量を増やす">＋</button></div></div><div class="right"><button class="danger small" data-del="${idx}">${sanitize(txt('delete',lang))}</button><div class="subtotal">${sanitize(showPrices?fmt(item.price*item.qty):txt('priceHidden',lang))}</div></div></article>`).join(''):`<div class="empty">${txt('empty')}</div>`;
       $('orderItems').querySelectorAll('[data-minus]').forEach(b=>b.onclick=()=>changeQty(+b.dataset.minus,-1));
       $('orderItems').querySelectorAll('[data-plus]').forEach(b=>b.onclick=()=>changeQty(+b.dataset.plus,1));
       $('orderItems').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{order.splice(+b.dataset.del,1);renderOrder();});
-      $('orderItems').querySelectorAll('[data-qty]').forEach(input=>input.onchange=()=>{const i=+input.dataset.qty;order[i].qty=Math.max(1,parseInt(input.value||'1',10));renderOrder();});
+      $('orderItems').querySelectorAll('[data-qty]').forEach(input=>input.onchange=()=>{const i=+input.dataset.qty;order[i].qty=Math.min(9999,Math.max(1,parseInt(input.value||'1',10)||1));renderOrder();});
       const total=order.reduce((sum,item)=>sum+Number(item.price||0)*Number(item.qty||0),0),qty=order.reduce((sum,item)=>sum+Number(item.qty||0),0);
       if($('grandTotal'))$('grandTotal').textContent=fmt(total);
       $('cartDockTotal').textContent=fmt(total);
       $('cartItemCount').textContent=currentLang()==='ko'?`주문 카트: ${qty}점 · ${order.length}품번`:`注文カート：${qty}点・${order.length}品番`;
       $('miniCartItems').innerHTML=order.length?order.slice(-6).reverse().map(i=>`<span class="miniCartChip">${sanitize(i.code)} × ${sanitize(i.qty)}</span>`).join(''):`<span class="miniCartEmpty">商品を追加するとここに表示されます</span>`;
-      localStorage.setItem('qrDraftOrder',JSON.stringify(order.map(i=>({code:i.code,qty:i.qty}))));updateCustomerStatus();
+      localStorage.setItem('qrDraftOrder',JSON.stringify(order.map(i=>({code:i.code,qty:i.qty,snapshot:{code:i.code,names:i.names,price:i.price,currency:i.currency||'KRW',packQty:i.packQty||'',image:i.image||'',catalog:i.catalog||''}}))));updateCustomerStatus();renderCheckoutSummary();
     }
-    function changeQty(idx,delta){ order[idx].qty=Math.max(1,Number(order[idx].qty||1)+delta); renderOrder(); }
+    function changeQty(idx,delta){ order[idx].qty=Math.min(9999,Math.max(1,Number(order[idx].qty||1)+delta)); renderOrder(); }
     async function handleFile(e){ const file=e.target.files?.[0]; if(!file)return; const ext=file.name.split('.').pop().toLowerCase(); try{ if(ext==='csv'){ products=prepareProducts(parseCsv(await file.text()).map(normalizeRow).filter(p=>p.code)); }else{ if(!(await ensureLib('XLSX'))) throw new Error('XLSX library is not loaded. Please try CSV.'); const buf=await file.arrayBuffer(); const wb=XLSX.read(buf,{type:'array'}); const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}); products=prepareProducts(rows.map(normalizeRow).filter(p=>p.code)); } restoreOrder(); alert(`${products.length} products loaded`); renderResults(); renderOrder(); }catch(err){ alert('Import error: '+err.message); } }
     function parseCsv(text){ const rows=[]; let row=[], cell='', q=false; for(let i=0;i<text.length;i++){ const c=text[i], n=text[i+1]; if(c==='"'&&q&&n==='"'){cell+='"';i++;continue;} if(c==='"'){q=!q;continue;} if(c===','&&!q){row.push(cell);cell='';continue;} if((c==='\n'||c==='\r')&&!q){ if(cell||row.length){row.push(cell);rows.push(row);row=[];cell='';} if(c==='\r'&&n==='\n')i++; continue;} cell+=c; } if(cell||row.length){row.push(cell);rows.push(row);} const headers=rows.shift()?.map(h=>h.trim().replace(/^\uFEFF/,''))||[]; return rows.map(r=>Object.fromEntries(headers.map((h,i)=>[h,r[i]??'']))); }
     function get(row, names){ const keys=Object.keys(row); for(const n of names){ const direct=keys.find(k=>k.trim().toLowerCase()===n.toLowerCase()); if(direct) return row[direct]; } const hit=keys.find(k=>names.some(n=>k.toLowerCase().replace(/\s/g,'').includes(n.toLowerCase()))); return hit?row[hit]:''; }
@@ -652,7 +689,7 @@
     }
     function currentDraftSignature(){ return JSON.stringify({lang:currentLang(),event:$('eventName').value.trim(),distributor:$('distributor').value.trim(),staff:$('staffName').value.trim(),customer:$('customerCompany').value.trim(),customerName:$('customerName').value.trim(),customerPhone:$('customerPhone').value.trim(),notes:$('notes').value.trim(),businessCardVersion,items:order.map(i=>[i.code,Number(i.qty||1)])}); }
     function validateRequiredCustomer(){ const fields=[$('customerCompany'),$('customerName'),$('customerPhone')], missing=fields.filter(field=>!field.value.trim()), error=$('requiredCustomerError'); fields.forEach(field=>field.classList.toggle('invalid',missing.includes(field))); error.style.display=missing.length?'block':'none'; if(!missing.length)return true; missing[0].focus(); return false; }
-    function buildReceiptData(){ const lang=currentLang(), total=order.reduce((sum,item)=>sum+Number(item.price||0)*Number(item.qty||0),0), now=new Date(); return {v:9,status:'new',lang,orderNo:'PENDING',createdAt:now.toISOString(),date:now.toLocaleString(lang==='ko'?'ko-KR':'ja-JP'),eventName:$('eventName').value.trim(),distributor:$('distributor').value.trim(),staffName:$('staffName').value.trim(),customerCompany:$('customerCompany').value.trim(),customerName:$('customerName').value.trim(),customerPhone:$('customerPhone').value.trim(),notes:$('notes').value.trim(),businessCardImage:businessCardImageData,priceMode:'with',currency:'KRW',total,items:order.map(i=>({c:i.code,n:[nameOf(i,'ja'),nameOf(i,'ko')],q:Number(i.qty||1),p:Number(i.price||0),img:imageOf(i)}))}; }
+    function buildReceiptData(){ const lang=currentLang(), total=order.reduce((sum,item)=>sum+Number(item.price||0)*Number(item.qty||0),0), now=new Date(), eventDate=String(ONLINE_CONFIG.eventDate||new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(now)); return {v:10,status:'new',clientSubmissionId:clientSubmissionId||newSubmissionId(),lang,orderNo:'PENDING',createdAt:now.toISOString(),date:now.toLocaleString(lang==='ko'?'ko-KR':'ja-JP'),eventId:String(ONLINE_CONFIG.eventId||'korea-exhibition'),eventName:$('eventName').value.trim()||String(ONLINE_CONFIG.eventName||''),eventDate,eventDay:Number(ONLINE_CONFIG.eventDay||1),distributor:$('distributor').value.trim(),staffName:$('staffName').value.trim(),customerCompany:$('customerCompany').value.trim(),customerName:$('customerName').value.trim(),customerPhone:$('customerPhone').value.trim(),notes:$('notes').value.trim(),businessCardImage:businessCardImageData,priceMode:'with',currency:'KRW',total,items:order.map(i=>({c:i.code,n:[nameOf(i,'ja'),nameOf(i,'ko')],q:Number(i.qty||1),p:Number(i.price||0),img:imageOf(i)}))}; }
     function buildStaffCheckData(data){ const {businessCardImage,...safeData}=data||{}; return {...safeData,view:'staff',status:'pending_staff_check'}; }
     function compactReceiptPayload(data,mode='receipt'){
       if(mode==='staff'){
@@ -730,7 +767,12 @@
         return;
       }
       const signature=currentDraftSignature();
-      if(!pendingReceiptData||pendingDraftSignature!==signature){pendingReceiptData=buildReceiptData();pendingDraftSignature=signature;}
+      if(onlineOrderToken&&pendingReceiptData&&pendingDraftSignature===signature){
+        await showQrForCurrentOrder();
+        if(!$('qrDialog').open)$('qrDialog').showModal();
+        return;
+      }
+      if(!pendingReceiptData||pendingDraftSignature!==signature){clientSubmissionId=newSubmissionId();pendingReceiptData=buildReceiptData();pendingDraftSignature=signature;}
       pendingReceiptData.status='new';
       try{
         setOnlineBusy(true,businessCardOriginalFile?'名刺画像と注文を送信しています… / 명함 이미지와 주문을 전송하고 있습니다…':'注文を送信しています… / 주문을 전송하고 있습니다…');
@@ -750,9 +792,11 @@
         $('qrDialog').showModal();
       }catch(err){
         console.error(err);
-        const cardError=Boolean(businessCardOriginalFile);
-        const message=cardError?'名刺画像を送信できませんでした。再試行してください。':'注文を送信できませんでした。通信状況を確認して再試行してください。';
-        setOnlineStatus(`${message} / 전송에 실패했습니다. 다시 시도해 주세요.`,'error');
+        const detail=String(err?.message||'');
+        const cardError=/storage|image|名刺|preview/i.test(detail);
+        const offline=!navigator.onLine||/AbortError|timed? ?out|Failed to fetch|NetworkError/i.test(`${err?.name||''} ${detail}`);
+        const message=cardError?'名刺画像を送信できませんでした。再試行してください。':offline?'通信できませんでした。入力内容は保存されています。ネット接続を確認して、もう一度送信してください。':'注文を送信できませんでした。入力内容は保存されています。もう一度送信してください。';
+        setOnlineStatus(`${message} / 입력 내용은 저장되어 있습니다. 다시 시도해 주세요.`,'error');
         alert(message);
       }finally{setOnlineBusy(false);}
     }
@@ -775,7 +819,8 @@
       order=[];renderOrder();
       $('searchInput').value='';renderResults();
       ['customerCompany','customerName','customerPhone','staffName','notes'].forEach(id=>{if($(id))$(id).value='';});
-      pendingReceiptData=null;pendingDraftSignature='';lastReceiptUrl='';lastStaffQrUrl='';onlineOrderToken='';onlineOrderExpiresAt='';
+      pendingReceiptData=null;pendingDraftSignature='';lastReceiptUrl='';lastStaffQrUrl='';onlineOrderToken='';onlineOrderExpiresAt='';clientSubmissionId='';
+      localStorage.removeItem(CUSTOMER_DRAFT_KEY);
       clearBusinessCardImage();updateCustomerStatus();
       showToast('新しい注文を開始しました。 / 새 주문을 시작했습니다.');
     }
@@ -823,6 +868,13 @@
       };
       return labels[lang]?.[key] || labels.en[key] || '';
     }
+    function receiptStatusText(status,lang){
+      const labels={
+        ja:{new:'受付済み・スタッフ確認待ち',in_progress:'スタッフ確認中',completed:'注文確定・代理店送付待ち',sent:'代理店送付済み',resend_required:'修正版・再送待ち',deleted:'削除履歴'},
+        ko:{new:'접수 완료 · 직원 확인 대기',in_progress:'직원 확인 중',completed:'주문 확정 · 대리점 전송 대기',sent:'대리점 전송 완료',resend_required:'수정본 · 재전송 대기',deleted:'삭제 이력'}
+      };
+      return labels[lang]?.[status]||labels.ja[status]||String(status||'new');
+    }
     function updateReceiptSaveHint(lang){
       const hint=$('receiptSaveHint');
       if(!hint) return;
@@ -841,8 +893,8 @@
       $('receiptLangSelect').setAttribute('aria-label',txt('receiptLanguage',lang));
       $('printReceipt').textContent=receiptUiText('print',lang);
       $('backToApp').textContent=receiptUiText('back',lang);
-      const roleTitle=isStaffReceiptView ? txt('staffReceiptTitle',lang) : txt('customerReceiptTitle',lang);
-      const roleText=isStaffReceiptView ? txt('staffReceiptText',lang) : txt('customerReceiptText',lang);
+      const roleTitle=isStaffReceiptView ? txt('staffReceiptTitle',lang) : receiptStatusText(data.status,lang);
+      const roleText=isStaffReceiptView ? txt('staffReceiptText',lang) : (['new','in_progress'].includes(data.status)?(lang==='ko'?'주문은 접수되었습니다. 직원이 내용을 확인한 뒤 확정됩니다.':'注文は受け付け済みです。スタッフ確認後に確定します。'):txt('customerReceiptText',lang));
       role.className=`receiptRoleNotice show ${isStaffReceiptView?'staff':'customer'}`;
       role.innerHTML=`<b>${sanitize(roleTitle)}</b><span>${sanitize(roleText)}</span>${isStaffReceiptView?`<small>${sanitize(txt('staffReceiptEnglish','en'))}</small>`:''}`;
       currentReceiptData=data;
@@ -861,7 +913,7 @@
           <div class="receiptDocMeta">
             <div class="receiptDocTitle">仮注文書控え / 임시 주문서</div>
             <div class="receiptDocSub">Simple provisional order sheet for exhibition use</div>
-            <div class="receiptMetaLine"><b>注文番号 / 주문번호</b> ${sanitize(data.orderNo)}<br><b>作成日時 / 작성일시</b> ${sanitize(receiptDateText(data,lang))}</div>
+            <div class="receiptMetaLine"><b>注文番号 / 주문번호</b> ${sanitize(data.orderNo)}<br><b>状態 / 상태</b> ${sanitize(receiptStatusText(data.status,lang))}<br><b>作成日時 / 작성일시</b> ${sanitize(receiptDateText(data,lang))}</div>
           </div>
         </div>
         <div class="receiptInfoBand">

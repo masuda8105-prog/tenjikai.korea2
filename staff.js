@@ -1,115 +1,856 @@
 (() => {
   'use strict';
+
   const config = window.ORDER_ONLINE_CONFIG || {};
   const SUPABASE_URL = String(config.supabaseUrl || '').replace(/\/$/, '');
   const ANON_KEY = String(config.anonKey || '');
-  const SESSION_KEY = 'koreaExhibitionStaffSessionV2';
+  const SESSION_KEY = 'koreaExhibitionStaffSessionV3';
   const $ = (id) => document.getElementById(id);
-  const state = { session:null,user:null,orders:[],current:null,realtimeClient:null,realtimeChannel:null,pollTimer:null,soundEnabled:false,audioContext:null,knownIds:new Set(),firstLoad:true,activeTab:'open' };
+  const state = {
+    session: null,
+    user: null,
+    staff: null,
+    orders: [],
+    current: null,
+    editItems: [],
+    productMaster: null,
+    realtimeClient: null,
+    realtimeChannel: null,
+    pollTimer: null,
+    soundEnabled: false,
+    audioContext: null,
+    knownIds: new Set(),
+    firstLoad: true,
+    activeTab: 'open',
+    loadVersion: 0,
+    workflowReady: true,
+    batch: null,
+  };
 
-  const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
+  }[char]));
   const formatMoney = (value) => `₩${Math.round(Number(value || 0)).toLocaleString('ko-KR')}`;
   const itemName = (item) => Array.isArray(item?.n) ? (item.n[0] || item.n[1] || item.c || '') : String(item?.n || item?.c || '');
-  const orderTotal = (order) => Number(order.order_data?.total ?? (order.order_data?.items || []).reduce((sum,item) => sum + Number(item.p || 0) * Number(item.q || 0), 0));
-  const totalQty = (order) => (order.order_data?.items || []).reduce((sum,item) => sum + Number(item.q || 0), 0);
-  const isCompleted = (order) => order.status === 'completed';
-  const isDeleted = (order) => order.status === 'deleted';
-  const statusLabel = (status) => status === 'completed' ? '完了' : status === 'deleted' ? '削除済み' : '未完了';
-  const staffName = () => { const meta = state.user?.user_metadata || {}; return String(meta.full_name || meta.name || state.user?.email?.split('@')[0] || 'Staff'); };
-  function relativeTime(iso){ const diff=Date.now()-new Date(iso).getTime(); if(!Number.isFinite(diff))return''; const sec=Math.max(0,Math.floor(diff/1000)); if(sec<60)return`${sec}秒前`; const min=Math.floor(sec/60); if(min<60)return`${min}分前`; const hour=Math.floor(min/60); if(hour<24)return`${hour}時間前`; return new Date(iso).toLocaleDateString('ja-JP'); }
-  function showToast(message){ const el=$('toast'); el.textContent=message; el.classList.add('show'); clearTimeout(showToast.timer); showToast.timer=setTimeout(()=>el.classList.remove('show'),2600); }
-  function setSync(mode,text){ $('syncDot').className=`dot${mode?` ${mode}`:''}`; $('syncText').textContent=text; }
-  function saveSession(session){ state.session=session; state.user=session?.user||null; session?localStorage.setItem(SESSION_KEY,JSON.stringify(session)):localStorage.removeItem(SESSION_KEY); }
-  function loadStoredSession(){ try{ const parsed=JSON.parse(localStorage.getItem(SESSION_KEY)||'null'); if(parsed?.access_token&&parsed?.refresh_token)saveSession(parsed); }catch{ localStorage.removeItem(SESSION_KEY); } }
-  function tokenExpiredSoon(){ if(!state.session)return true; const expiresAt=Number(state.session.expires_at||0)*1000; return !expiresAt||expiresAt-Date.now()<90000; }
+  const orderTotal = (order) => Number(order?.order_data?.total ?? (order?.order_data?.items || []).reduce((sum, item) => sum + Number(item.p || 0) * Number(item.q || 0), 0));
+  const totalQty = (order) => (order?.order_data?.items || []).reduce((sum, item) => sum + Number(item.q || 0), 0);
+  const isDeleted = (order) => order?.status === 'deleted';
+  const groupForStatus = (status) => {
+    if (status === 'new') return 'open';
+    if (status === 'in_progress') return 'progress';
+    if (status === 'completed' || status === 'resend_required') return 'completed';
+    if (status === 'sent') return 'sent';
+    return 'open';
+  };
+  const statusLabel = (status) => ({
+    new: '確認待ち', in_progress: '確認中', completed: '送信待ち', sent: '送付済み',
+    resend_required: '修正版・再送待ち', deleted: '削除済み',
+  }[status] || '確認待ち');
+  const staffName = () => String(state.staff?.display_name || state.user?.user_metadata?.full_name || state.user?.email?.split('@')[0] || 'Staff');
+  const staffRole = () => String(state.staff?.role || 'staff');
+  const eventIdOf = (order) => String(order?.event_id || order?.order_data?.eventId || config.eventId || 'korea-exhibition');
+  const eventNameOf = (order) => String(order?.event_name || order?.order_data?.eventName || config.eventName || '韓国展示会');
+  const dateOf = (order) => String(order?.event_date || order?.order_data?.eventDate || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date(order?.created_at || Date.now())));
 
-  async function authRequest(grantType,body){ const response=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=${grantType}`,{method:'POST',headers:{apikey:ANON_KEY,'Content-Type':'application/json'},body:JSON.stringify(body)}); const json=await response.json().catch(()=>({})); if(!response.ok)throw new Error(json.error_description||json.msg||json.message||`AUTH_${response.status}`); const session={...json,expires_at:Math.floor(Date.now()/1000)+Number(json.expires_in||3600)}; saveSession(session); return session; }
-  async function ensureToken(){ if(!state.session)throw new Error('LOGIN_REQUIRED'); if(!tokenExpiredSoon())return state.session.access_token; const session=await authRequest('refresh_token',{refresh_token:state.session.refresh_token}); await startRealtime(); return session.access_token; }
-  async function apiFetch(path,options={}){ const token=await ensureToken(); const headers={apikey:ANON_KEY,Authorization:`Bearer ${token}`,...(options.headers||{})}; const response=await fetch(`${SUPABASE_URL}${path}`,{...options,headers}); if(response.status===401){ saveSession(null); showLogin('ログインの有効期限が切れました。もう一度ログインしてください。'); throw new Error('SESSION_EXPIRED'); } return response; }
-  async function signIn(email,password){ return authRequest('password',{email,password}); }
-  async function signOut(){ try{ if(state.session)await fetch(`${SUPABASE_URL}/auth/v1/logout`,{method:'POST',headers:{apikey:ANON_KEY,Authorization:`Bearer ${state.session.access_token}`}}); }catch{} stopRealtime(); saveSession(null); state.orders=[]; showLogin(''); }
-  function showLogin(message=''){ $('loginView').classList.remove('hidden'); $('dashboardView').classList.add('hidden'); $('loginMessage').textContent=message; }
-  function showDashboard(){ $('loginView').classList.add('hidden'); $('dashboardView').classList.remove('hidden'); $('staffIdentity').innerHTML=`<b>${escapeHtml(staffName())}</b>${escapeHtml(state.user?.email||'')}`; }
-
-  async function loadOrders({notify=false}={}){
-    if(!state.session)return; setSync('','更新中…');
-    const now=encodeURIComponent(new Date().toISOString());
-    const select='id,order_no,order_data,status,assigned_to,assigned_name,business_card_original_path,business_card_preview_path,expires_at,created_at,updated_at,printed_at,completed_at';
-    const response=await apiFetch(`/rest/v1/exhibition_orders?select=${encodeURIComponent(select)}&expires_at=gt.${now}&order=created_at.desc&limit=500`,{headers:{Accept:'application/json'}});
-    const json=await response.json().catch(()=>[]); if(!response.ok)throw new Error(json.message||json.error||`ORDERS_${response.status}`);
-    const incomingIds=new Set(json.map(order=>order.id)); const newRows=state.firstLoad?[]:json.filter(order=>!state.knownIds.has(order.id));
-    state.orders=json; state.knownIds=incomingIds; state.firstLoad=false; render();
-    setSync(state.realtimeChannel?'live':'',state.realtimeChannel?'リアルタイム接続中':'10秒ごとに自動更新'); if(notify&&newRows.length)notifyNewOrder(newRows[0]);
-  }
-  async function updateOrder(id,patch){ const response=await apiFetch(`/rest/v1/exhibition_orders?id=eq.${encodeURIComponent(id)}`,{method:'PATCH',headers:{'Content-Type':'application/json',Prefer:'return=representation'},body:JSON.stringify(patch)}); const json=await response.json().catch(()=>[]); if(!response.ok)throw new Error(json.message||json.error||`UPDATE_${response.status}`); await loadOrders(); const updated=state.orders.find(row=>row.id===id); if(updated){state.current=updated;await renderDetail(updated);} return updated; }
-  async function deleteOrder(id){ const response=await apiFetch(`/rest/v1/exhibition_orders?id=eq.${encodeURIComponent(id)}`,{method:'DELETE',headers:{Prefer:'return=representation'}}); const json=await response.json().catch(()=>[]); if(!response.ok)throw new Error(json.message||json.error||`DELETE_${response.status}`); state.current=null; await loadOrders(); }
-
-  function filteredOrders(group){ const query=$('searchInput').value.trim().toLowerCase(); return state.orders.filter(order=>{ if(isDeleted(order))return false; if(group==='completed'&&!isCompleted(order))return false; if(group==='open'&&isCompleted(order))return false; if(!query)return true; const data=order.order_data||{}; const searchable=[order.order_no,data.customerCompany,data.customerName,data.customerPhone,data.notes,order.assigned_name,...(data.items||[]).flatMap(item=>[item.c,itemName(item)])].join(' ').toLowerCase(); return searchable.includes(query); }); }
-  function orderCard(order){ const data=order.order_data||{}; const klass=isCompleted(order)?'completed':'new'; return `<article class="orderCard ${klass}" data-order-id="${escapeHtml(order.id)}"><div class="cardTop"><div class="orderNo">${escapeHtml(order.order_no)}</div><span class="statusBadge ${klass}">${statusLabel(order.status)}</span></div><div class="company">${escapeHtml(data.customerCompany||'-')}</div><div class="person">${escapeHtml(data.customerName||'')}${data.customerPhone?` / ${escapeHtml(data.customerPhone)}`:''}</div>${order.assigned_name?`<div class="assigned">最終担当：${escapeHtml(order.assigned_name)}</div>`:''}<div class="cardMeta"><div class="time">${escapeHtml(relativeTime(order.created_at))}<br>${totalQty(order)}点</div><div class="amount">${formatMoney(orderTotal(order))}</div></div></article>`; }
-  function renderList(group){ const rows=filteredOrders(group); const list=$(`list-${group}`); list.innerHTML=rows.length?rows.map(orderCard).join(''):'<div class="empty">該当する注文はありません。</div>'; }
-  function render(){ $('newCount').textContent=state.orders.filter(order=>!isDeleted(order)&&!isCompleted(order)).length; $('doneCount').textContent=state.orders.filter(order=>!isDeleted(order)&&isCompleted(order)).length; ['open','completed'].forEach(renderList); document.querySelectorAll('[data-order-id]').forEach(card=>card.addEventListener('click',()=>openDetail(card.dataset.orderId))); }
-
-  async function createSignedUrl(path){ if(!path)return''; const encodedPath=String(path).split('/').map(encodeURIComponent).join('/'); const response=await apiFetch(`/storage/v1/object/sign/business-cards/${encodedPath}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expiresIn:3600})}); const json=await response.json().catch(()=>({})); if(!response.ok)throw new Error(json.message||json.error||`SIGN_${response.status}`); const signed=json.signedURL||json.signedUrl||''; return signed?(signed.startsWith('http')?signed:`${SUPABASE_URL}/storage/v1${signed.startsWith('/')?'':'/'}${signed}`):''; }
-  async function openDetail(id){ const order=state.orders.find(row=>row.id===id); if(!order)return; state.current=order; await renderDetail(order); $('detailDialog').showModal(); }
-  async function renderDetail(order){
-    const data=order.order_data||{}; $('detailTitle').textContent=`${order.order_no}　${data.customerCompany||''}`;
-    let previewUrl='',originalUrl=''; try{[previewUrl,originalUrl]=await Promise.all([createSignedUrl(order.business_card_preview_path),createSignedUrl(order.business_card_original_path)]);}catch(error){console.warn(error);}
-    const items=data.items||[];
-    $('detailBody').innerHTML=`<div class="detailGrid"><section class="infoPanel"><div class="infoGrid"><div class="infoBox"><div class="label">受付番号</div><div class="value">${escapeHtml(order.order_no)}</div></div><div class="infoBox"><div class="label">状態</div><div class="value">${statusLabel(order.status)}</div></div><div class="infoBox"><div class="label">受付日時</div><div class="value">${escapeHtml(new Date(order.created_at).toLocaleString('ja-JP'))}</div></div><div class="infoBox"><div class="label">最終担当</div><div class="value">${escapeHtml(order.assigned_name||'-')}</div></div></div><div class="editBlock"><h3>お客様情報・備考を編集</h3><div class="editGrid"><div class="editField"><label>会社名</label><input id="editCompany" value="${escapeHtml(data.customerCompany||'')}"></div><div class="editField"><label>氏名</label><input id="editName" value="${escapeHtml(data.customerName||'')}"></div><div class="editField full"><label>電話番号</label><input id="editPhone" value="${escapeHtml(data.customerPhone||'')}"></div><div class="editField full"><label>備考</label><textarea id="editNotes">${escapeHtml(data.notes||'')}</textarea></div></div></div><div class="businessCard"><h3>名刺</h3>${previewUrl||originalUrl?`<a href="${escapeHtml(originalUrl||previewUrl)}" target="_blank" rel="noopener"><img src="${escapeHtml(previewUrl||originalUrl)}" alt="名刺画像"></a>`:'<div class="noCard">名刺画像なし</div>'}</div></section><section class="itemsPanel"><table class="itemsTable"><thead><tr><th>品番</th><th>商品名</th><th class="num">数量</th><th class="num">単価</th><th class="num">小計</th></tr></thead><tbody>${items.map((item,index)=>`<tr><td><b>${escapeHtml(item.c)}</b></td><td>${escapeHtml(itemName(item))}</td><td class="num"><div class="qtyControl"><button type="button" data-qty-minus="${index}">−</button><input data-qty-input="${index}" type="number" min="0" step="1" value="${Number(item.q||0)}"><button type="button" data-qty-plus="${index}">＋</button></div></td><td class="num">${formatMoney(item.p)}</td><td class="num" data-subtotal="${index}"><b>${formatMoney(Number(item.p||0)*Number(item.q||0))}</b></td></tr>`).join('')}</tbody></table><div class="detailTotal"><span>合計</span><span id="editedTotal">${formatMoney(orderTotal(order))}</span></div><div class="saveRow"><button id="saveEditButton" class="primary" type="button">変更を保存</button></div></section></div>`;
-    const refreshEditedTotal=()=>{ let total=0; document.querySelectorAll('[data-qty-input]').forEach(input=>{ const index=Number(input.dataset.qtyInput); const qty=Math.max(0,Number(input.value||0)); total+=Number(items[index]?.p||0)*qty; const subtotal=document.querySelector(`[data-subtotal="${index}"]`); if(subtotal)subtotal.innerHTML=`<b>${formatMoney(Number(items[index]?.p||0)*qty)}</b>`; }); $('editedTotal').textContent=formatMoney(total); };
-    document.querySelectorAll('[data-qty-minus]').forEach(button=>button.addEventListener('click',()=>{const input=document.querySelector(`[data-qty-input="${button.dataset.qtyMinus}"]`);input.value=Math.max(0,Number(input.value||0)-1);refreshEditedTotal();}));
-    document.querySelectorAll('[data-qty-plus]').forEach(button=>button.addEventListener('click',()=>{const input=document.querySelector(`[data-qty-input="${button.dataset.qtyPlus}"]`);input.value=Number(input.value||0)+1;refreshEditedTotal();}));
-    document.querySelectorAll('[data-qty-input]').forEach(input=>input.addEventListener('input',refreshEditedTotal));
-    $('saveEditButton').addEventListener('click',()=>saveEditedOrder().catch(error=>showToast(`保存失敗：${error.message}`)));
-    $('completeButton').classList.toggle('hidden',isCompleted(order)); $('reopenButton').classList.toggle('hidden',!isCompleted(order));
-  }
-  async function saveEditedOrder(){ if(!state.current)return; const oldData=state.current.order_data||{}; const items=(oldData.items||[]).map((item,index)=>({...item,q:Math.max(0,Math.floor(Number(document.querySelector(`[data-qty-input="${index}"]`)?.value||0)))})).filter(item=>item.q>0); const total=items.reduce((sum,item)=>sum+Number(item.p||0)*Number(item.q||0),0); const orderData={...oldData,customerCompany:$('editCompany').value.trim(),customerName:$('editName').value.trim(),customerPhone:$('editPhone').value.trim(),notes:$('editNotes').value.trim(),items,total}; await updateOrder(state.current.id,{order_data:orderData,assigned_to:state.user.id,assigned_name:staffName()}); showToast(`${state.current.order_no} を保存しました。`); }
-  async function completeOrder(){ if(!state.current)return; await updateOrder(state.current.id,{status:'completed',completed_at:new Date().toISOString(),assigned_to:state.user.id,assigned_name:staffName()}); showToast(`${state.current.order_no} を完了にしました。`); }
-  async function reopenOrder(){ if(!state.current)return; await updateOrder(state.current.id,{status:'new',completed_at:null,assigned_to:state.user.id,assigned_name:staffName()}); showToast(`${state.current.order_no} を未完了へ戻しました。`); }
-  async function removeCurrent(){
-    if(!state.current)return;
-    const order=state.current;
-    const label=`${order.order_no}（${order.order_data?.customerCompany||''}）`;
-    if(!window.confirm(`${label} を削除履歴へ移します。\n通常の注文一覧には表示されなくなります。`))return;
-    const orderData={...(order.order_data||{}),_deletedAt:new Date().toISOString(),_deletedBy:staffName(),_statusBeforeDelete:order.status||'new'};
-    const response=await apiFetch(`/rest/v1/exhibition_orders?id=eq.${encodeURIComponent(order.id)}`,{method:'PATCH',headers:{'Content-Type':'application/json',Prefer:'return=representation'},body:JSON.stringify({status:'deleted',order_data:orderData,assigned_to:state.user.id,assigned_name:staffName()})});
-    const json=await response.json().catch(()=>[]); if(!response.ok)throw new Error(json.message||json.error||`DELETE_HISTORY_${response.status}`);
-    state.current=null; $('detailDialog').close(); await loadOrders(); showToast(`${label} を削除履歴へ移しました。`);
-  }
-  function deletedOrders(){ return state.orders.filter(isDeleted).sort((a,b)=>new Date(b.order_data?._deletedAt||b.updated_at)-new Date(a.order_data?._deletedAt||a.updated_at)); }
-  function renderHistory(){
-    const rows=deletedOrders();
-    $('historyList').innerHTML=rows.length?rows.map(order=>{const data=order.order_data||{};return `<article class="historyRow"><div class="historyMain"><div class="historyNo">${escapeHtml(order.order_no)}</div><div class="historyCompany">${escapeHtml(data.customerCompany||'-')}　${escapeHtml(data.customerName||'')}</div><div class="historyMeta">削除：${escapeHtml(data._deletedAt?new Date(data._deletedAt).toLocaleString('ja-JP'):'-')} / ${escapeHtml(data._deletedBy||order.assigned_name||'-')}</div></div><div class="historyActions"><button class="secondary small" data-restore-id="${escapeHtml(order.id)}">元に戻す</button><button class="danger small" data-purge-id="${escapeHtml(order.id)}">完全削除</button></div></article>`}).join(''):'<div class="empty">削除履歴はありません。</div>';
-  }
-  function openHistory(){ renderHistory(); $('historyDialog').showModal(); }
-  async function restoreDeleted(id){
-    const order=state.orders.find(row=>row.id===id); if(!order)return;
-    const data={...(order.order_data||{})}; const restoreStatus=data._statusBeforeDelete==='completed'?'completed':'new'; delete data._deletedAt; delete data._deletedBy; delete data._statusBeforeDelete;
-    const response=await apiFetch(`/rest/v1/exhibition_orders?id=eq.${encodeURIComponent(id)}`,{method:'PATCH',headers:{'Content-Type':'application/json',Prefer:'return=representation'},body:JSON.stringify({status:restoreStatus,order_data:data,assigned_to:state.user.id,assigned_name:staffName()})});
-    const json=await response.json().catch(()=>[]); if(!response.ok)throw new Error(json.message||json.error||`RESTORE_${response.status}`);
-    await loadOrders(); renderHistory(); showToast(`${order.order_no} を元に戻しました。`);
-  }
-  async function purgeDeleted(id){
-    const order=state.orders.find(row=>row.id===id); if(!order)return;
-    if(!window.confirm(`${order.order_no} を完全に削除します。\nこの操作は元に戻せません。`))return;
-    await deleteOrder(id); $('detailDialog').close(); renderHistory(); showToast(`${order.order_no} を完全に削除しました。`);
+  function relativeTime(iso) {
+    const diff = Date.now() - new Date(iso).getTime();
+    if (!Number.isFinite(diff)) return '';
+    const sec = Math.max(0, Math.floor(diff / 1000));
+    if (sec < 60) return `${sec}秒前`;
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min}分前`;
+    const hour = Math.floor(min / 60);
+    if (hour < 24) return `${hour}時間前`;
+    return new Date(iso).toLocaleDateString('ja-JP');
   }
 
-  function buildPrint(order,cardUrl=''){ const data=order.order_data||{},items=data.items||[]; return `<div class="printHead"><img src="assets/sun_nishimura_logo.jpg" alt="SAN NISHIMURA"><div class="printTitle"><h1>韓国展示会 仮注文書</h1><div>Korea Exhibition Provisional Order</div><b>${escapeHtml(order.order_no)}</b></div></div><div class="printMeta"><div class="printBox"><b>会社名</b>${escapeHtml(data.customerCompany||'-')}</div><div class="printBox"><b>氏名</b>${escapeHtml(data.customerName||'-')}</div><div class="printBox"><b>電話番号</b>${escapeHtml(data.customerPhone||'-')}</div><div class="printBox"><b>受付日時</b>${escapeHtml(new Date(order.created_at).toLocaleString('ja-JP'))}</div><div class="printBox"><b>担当</b>${escapeHtml(order.assigned_name||staffName())}</div><div class="printBox"><b>状態</b>${statusLabel(order.status)}</div></div><table class="printTable"><thead><tr><th>品番</th><th>商品名</th><th class="num">数量</th><th class="num">単価</th><th class="num">小計</th></tr></thead><tbody>${items.map(item=>`<tr><td>${escapeHtml(item.c)}</td><td>${escapeHtml(itemName(item))}</td><td class="num">${escapeHtml(item.q)}</td><td class="num">${formatMoney(item.p)}</td><td class="num">${formatMoney(Number(item.p||0)*Number(item.q||0))}</td></tr>`).join('')}</tbody></table><div class="printTotal">合計 ${formatMoney(orderTotal(order))}</div>${data.notes?`<div><b>備考</b><br>${escapeHtml(data.notes)}</div>`:''}${cardUrl?`<img class="printCard" src="${escapeHtml(cardUrl)}" alt="名刺">`:''}<div class="printFooter">SAN NISHIMURA CO., LTD. / Korea Distributor: KY-S Corporation.</div>`; }
-  async function printCurrent(){ if(!state.current)return; let card=''; try{card=await createSignedUrl(state.current.business_card_preview_path||state.current.business_card_original_path);}catch{} $('printArea').innerHTML=buildPrint(state.current,card); await updateOrder(state.current.id,{printed_at:new Date().toISOString()}); setTimeout(()=>window.print(),100); }
-  function beep(){ if(!state.soundEnabled)return; try{const Ctx=window.AudioContext||window.webkitAudioContext;state.audioContext||=new Ctx();const osc=state.audioContext.createOscillator(),gain=state.audioContext.createGain();osc.frequency.value=880;gain.gain.setValueAtTime(.0001,state.audioContext.currentTime);gain.gain.exponentialRampToValueAtTime(.18,state.audioContext.currentTime+.02);gain.gain.exponentialRampToValueAtTime(.0001,state.audioContext.currentTime+.28);osc.connect(gain).connect(state.audioContext.destination);osc.start();osc.stop(state.audioContext.currentTime+.3);}catch{}}
-  function notifyNewOrder(order){beep();showToast(`新しい注文 ${order.order_no}`);document.title=`🔴 ${order.order_no} 新規注文`;setTimeout(()=>{document.title='韓国展示会 スタッフ注文管理 | SAN NISHIMURA';},6000);document.querySelector(`[data-order-id="${CSS.escape(order.id)}"]`)?.classList.add('newFlash');}
-  function stopRealtime(){if(state.realtimeChannel&&state.realtimeClient)state.realtimeClient.removeChannel(state.realtimeChannel).catch(()=>{});state.realtimeChannel=null;state.realtimeClient=null;clearInterval(state.pollTimer);}
-  async function startRealtime(){stopRealtime();state.pollTimer=setInterval(()=>loadOrders().catch(error=>{console.warn(error);setSync('error','自動更新エラー');}),10000);try{const module=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4/+esm');const client=module.createClient(SUPABASE_URL,ANON_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});client.realtime.setAuth(state.session.access_token);const channel=client.channel('korea-exhibition-orders').on('postgres_changes',{event:'*',schema:'public',table:'exhibition_orders'},payload=>loadOrders({notify:payload.eventType==='INSERT'}).catch(console.error)).subscribe(status=>{if(status==='SUBSCRIBED')setSync('live','リアルタイム接続中');else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT')setSync('error','自動更新へ切替');});state.realtimeClient=client;state.realtimeChannel=channel;}catch(error){console.warn('Realtime unavailable',error);setSync('','10秒ごとに自動更新');}}
-
-  function attachEvents(){
-    $('loginForm').addEventListener('submit',async event=>{event.preventDefault();const button=$('loginButton');button.disabled=true;$('loginMessage').textContent='ログイン中…';try{await signIn($('email').value.trim(),$('password').value);$('password').value='';showDashboard();await loadOrders();await startRealtime();}catch(error){$('loginMessage').textContent=error.message.includes('Invalid login')?'メールアドレスまたはパスワードが違います。':`ログインできませんでした：${error.message}`;}finally{button.disabled=false;}});
-    $('logoutButton').addEventListener('click',signOut);$('refreshButton').addEventListener('click',()=>loadOrders().catch(error=>showToast(`更新失敗：${error.message}`)));$('historyButton').addEventListener('click',openHistory);$('historyTopClose').addEventListener('click',()=>$('historyDialog').close());$('historyList').addEventListener('click',event=>{const restore=event.target.closest('[data-restore-id]');const purge=event.target.closest('[data-purge-id]');if(restore)restoreDeleted(restore.dataset.restoreId).catch(error=>showToast(`復元失敗：${error.message}`));if(purge)purgeDeleted(purge.dataset.purgeId).catch(error=>showToast(`完全削除失敗：${error.message}`));});$('searchInput').addEventListener('input',render);
-    $('soundButton').addEventListener('click',()=>{state.soundEnabled=!state.soundEnabled;if(state.soundEnabled){beep();$('soundButton').textContent='🔔 通知音ON';}else $('soundButton').textContent='🔕 通知音OFF';});
-    document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{state.activeTab=button.dataset.tab;document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b===button));document.querySelectorAll('.statusColumn').forEach(column=>column.classList.toggle('mobileHidden',column.id!==`column-${state.activeTab}`));}));
-    $('detailTopClose').addEventListener('click',()=>$('detailDialog').close());$('closeDetail').addEventListener('click',()=>$('detailDialog').close());
-    $('completeButton').addEventListener('click',()=>completeOrder().catch(error=>showToast(`更新失敗：${error.message}`)));$('reopenButton').addEventListener('click',()=>reopenOrder().catch(error=>showToast(`更新失敗：${error.message}`)));$('deleteButton').addEventListener('click',()=>removeCurrent().catch(error=>showToast(`削除失敗：${error.message}`)));$('printButton').addEventListener('click',()=>printCurrent().catch(error=>showToast(`印刷準備失敗：${error.message}`)));
+  function showToast(message, duration = 3000) {
+    const el = $('toast');
+    el.textContent = message;
+    el.classList.add('show');
+    clearTimeout(showToast.timer);
+    showToast.timer = setTimeout(() => el.classList.remove('show'), duration);
   }
-  async function init(){attachEvents();if(!SUPABASE_URL||!ANON_KEY||!config.enabled){showLogin('Supabase本番設定が未完了です。online-config.jsを確認してください。');return;}loadStoredSession();if(!state.session){showLogin('');return;}try{await ensureToken();showDashboard();await loadOrders();await startRealtime();}catch(error){console.warn(error);saveSession(null);showLogin('ログインの有効期限が切れました。');}}
-  window.addEventListener('DOMContentLoaded',init);
+
+  function setSync(mode, text) {
+    $('syncDot').className = `dot${mode ? ` ${mode}` : ''}`;
+    $('syncText').textContent = text;
+  }
+
+  function saveSession(session) {
+    state.session = session;
+    state.user = session?.user || null;
+    if (session) localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    else localStorage.removeItem(SESSION_KEY);
+  }
+
+  function loadStoredSession() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+      if (parsed?.access_token && parsed?.refresh_token) saveSession(parsed);
+    } catch {
+      localStorage.removeItem(SESSION_KEY);
+    }
+  }
+
+  function tokenExpiredSoon() {
+    if (!state.session) return true;
+    const expiresAt = Number(state.session.expires_at || 0) * 1000;
+    return !expiresAt || expiresAt - Date.now() < 90000;
+  }
+
+  async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...options, signal: options.signal || controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function authRequest(grantType, body) {
+    const response = await fetchWithTimeout(`${SUPABASE_URL}/auth/v1/token?grant_type=${grantType}`, {
+      method: 'POST',
+      headers: { apikey: ANON_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const json = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(json.error_description || json.msg || json.message || `AUTH_${response.status}`);
+    const session = { ...json, expires_at: Math.floor(Date.now() / 1000) + Number(json.expires_in || 3600) };
+    saveSession(session);
+    return session;
+  }
+
+  async function ensureToken() {
+    if (!state.session) throw new Error('LOGIN_REQUIRED');
+    if (!tokenExpiredSoon()) return state.session.access_token;
+    const session = await authRequest('refresh_token', { refresh_token: state.session.refresh_token });
+    await startRealtime();
+    return session.access_token;
+  }
+
+  async function apiFetch(path, options = {}) {
+    const token = await ensureToken();
+    const headers = { apikey: ANON_KEY, Authorization: `Bearer ${token}`, ...(options.headers || {}) };
+    const response = await fetchWithTimeout(`${SUPABASE_URL}${path}`, { ...options, headers }, options.timeoutMs || 30000);
+    if (response.status === 401) {
+      saveSession(null);
+      state.staff = null;
+      showLogin('ログインの有効期限が切れました。もう一度ログインしてください。');
+      throw new Error('SESSION_EXPIRED');
+    }
+    return response;
+  }
+
+  async function apiJson(path, options = {}) {
+    const response = await apiFetch(path, options);
+    const json = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(json?.message || json?.error || `API_${response.status}`);
+    return json;
+  }
+
+  async function rpc(name, body) {
+    return apiJson(`/rest/v1/rpc/${encodeURIComponent(name)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  async function signIn(email, password) {
+    return authRequest('password', { email, password });
+  }
+
+  async function signOut() {
+    try {
+      if (state.session) await fetchWithTimeout(`${SUPABASE_URL}/auth/v1/logout`, {
+        method: 'POST', headers: { apikey: ANON_KEY, Authorization: `Bearer ${state.session.access_token}` },
+      }, 10000);
+    } catch {}
+    stopRealtime();
+    saveSession(null);
+    state.staff = null;
+    state.orders = [];
+    showLogin('');
+  }
+
+  function showLogin(message = '') {
+    $('loginView').classList.remove('hidden');
+    $('dashboardView').classList.add('hidden');
+    $('loginMessage').textContent = message;
+  }
+
+  function showDashboard() {
+    $('loginView').classList.add('hidden');
+    $('dashboardView').classList.remove('hidden');
+    $('staffIdentity').innerHTML = `<b>${escapeHtml(staffName())}</b>${escapeHtml(state.user?.email || '')} / ${staffRole() === 'admin' ? '管理者' : 'スタッフ'}`;
+  }
+
+  async function loadStaffProfile() {
+    const id = state.user?.id;
+    if (!id) throw new Error('LOGIN_REQUIRED');
+    let rows;
+    try {
+      rows = await apiJson(`/rest/v1/exhibition_staff?select=display_name,role,active&user_id=eq.${encodeURIComponent(id)}&active=is.true&limit=1`, { headers: { Accept: 'application/json' } });
+    } catch (error) {
+      if (/role|column/i.test(error.message)) {
+        rows = await apiJson(`/rest/v1/exhibition_staff?select=display_name,active&user_id=eq.${encodeURIComponent(id)}&active=is.true&limit=1`, { headers: { Accept: 'application/json' } });
+      } else throw error;
+    }
+    if (!Array.isArray(rows) || !rows[0]) throw new Error('このアカウントにはスタッフ権限がありません。管理者へ連絡してください。');
+    state.staff = { role: 'staff', ...rows[0] };
+  }
+
+  const legacySelect = 'id,order_no,order_data,status,assigned_to,assigned_name,business_card_original_path,business_card_preview_path,expires_at,created_at,updated_at,printed_at,completed_at';
+  const workflowSelect = `${legacySelect},event_id,event_name,event_date,event_day,updated_by,updated_by_name,revision_count,revision_reason,requires_resend,sent_at,sent_by,sent_by_name,batch_id,pending_batch_id,deleted_at,deleted_by,deleted_by_name,delete_reason,status_before_delete`;
+
+  async function fetchOrders(select) {
+    const now = encodeURIComponent(new Date().toISOString());
+    return apiJson(`/rest/v1/exhibition_orders?select=${encodeURIComponent(select)}&expires_at=gt.${now}&order=created_at.desc&limit=1000`, { headers: { Accept: 'application/json' } });
+  }
+
+  async function loadOrders({ notify = false } = {}) {
+    if (!state.session) return;
+    const version = ++state.loadVersion;
+    setSync('', '更新中…');
+    let json;
+    try {
+      json = await fetchOrders(workflowSelect);
+      state.workflowReady = true;
+    } catch (error) {
+      if (!/column|schema cache|42703|PGRST204/i.test(error.message)) throw error;
+      json = await fetchOrders(legacySelect);
+      state.workflowReady = false;
+    }
+    if (version !== state.loadVersion) return;
+    const incomingIds = new Set(json.map((order) => order.id));
+    const newRows = state.firstLoad ? [] : json.filter((order) => !state.knownIds.has(order.id));
+    state.orders = json;
+    state.knownIds = incomingIds;
+    state.firstLoad = false;
+    populateFilters();
+    render();
+    if (state.current) {
+      const fresh = state.orders.find((row) => row.id === state.current.id);
+      if (fresh && $('detailDialog').open) {
+        state.current = fresh;
+        await renderDetail(fresh);
+      }
+    }
+    if (!state.workflowReady) setSync('error', 'DB更新が必要です');
+    else setSync(state.realtimeChannel ? 'live' : '', state.realtimeChannel ? 'リアルタイム接続中' : '10秒ごとに自動更新');
+    if (notify && newRows.length) notifyNewOrder(newRows[0]);
+  }
+
+  async function updateOrder(order, patch) {
+    const expected = order.updated_at;
+    const lock = expected ? `&updated_at=eq.${encodeURIComponent(expected)}` : '';
+    const response = await apiFetch(`/rest/v1/exhibition_orders?id=eq.${encodeURIComponent(order.id)}${lock}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' },
+      body: JSON.stringify(patch),
+    });
+    const json = await response.json().catch(() => []);
+    if (!response.ok) throw new Error(json.message || json.error || `UPDATE_${response.status}`);
+    if (!Array.isArray(json) || json.length !== 1) throw new Error('CONFLICT');
+    await loadOrders();
+    const updated = state.orders.find((row) => row.id === order.id);
+    if (updated) state.current = updated;
+    return updated;
+  }
+
+  async function logActivity(order, action, details = {}) {
+    try {
+      await apiJson('/rest/v1/order_activity_logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({ order_id: order?.id || null, event_id: eventIdOf(order), action, performed_by: state.user.id, performed_by_name: staffName(), details }),
+      });
+    } catch (error) {
+      console.warn('activity log unavailable', error);
+    }
+  }
+
+  function humanError(error) {
+    const message = String(error?.message || error || '不明なエラー');
+    if (message === 'CONFLICT') return '別のスタッフがこの注文を更新しました。最新内容を読み込み直してください。';
+    if (/AbortError|Failed to fetch|NetworkError/i.test(`${error?.name || ''} ${message}`)) return '通信できませんでした。入力内容は画面に残っています。接続を確認して再試行してください。';
+    if (/check constraint|status/i.test(message)) return 'DBのワークフローマイグレーションが未適用です。Supabase設定手順を確認してください。';
+    if (/permission|privilege|row-level|policy/i.test(message)) return 'この操作の権限がありません。スタッフ登録とRLS設定を確認してください。';
+    return message;
+  }
+
+  async function withBusy(buttonIds, task) {
+    const buttons = buttonIds.map($).filter(Boolean);
+    if (buttons.some((button) => button.disabled)) return;
+    buttons.forEach((button) => { button.disabled = true; button.setAttribute('aria-busy', 'true'); });
+    try {
+      return await task();
+    } finally {
+      buttons.forEach((button) => { button.disabled = false; button.removeAttribute('aria-busy'); });
+    }
+  }
+
+  function populateFilters() {
+    const currentEvent = $('eventFilter').value;
+    const currentDate = $('dateFilter').value;
+    const events = [...new Map(state.orders.filter((o) => !isDeleted(o)).map((o) => [eventIdOf(o), eventNameOf(o)])).entries()].sort((a, b) => a[1].localeCompare(b[1], 'ja'));
+    $('eventFilter').innerHTML = '<option value="all">すべての展示会</option>' + events.map(([id, name]) => `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`).join('');
+    if ([...$('eventFilter').options].some((option) => option.value === currentEvent)) $('eventFilter').value = currentEvent;
+    const eventFilter = $('eventFilter').value;
+    const dates = [...new Set(state.orders.filter((o) => !isDeleted(o) && (eventFilter === 'all' || eventIdOf(o) === eventFilter)).map(dateOf))].sort();
+    $('dateFilter').innerHTML = '<option value="all">すべての日付</option>' + dates.map((date, index) => `<option value="${escapeHtml(date)}">${index + 1}日目　${escapeHtml(new Date(`${date}T00:00:00`).toLocaleDateString('ja-JP'))}</option>`).join('');
+    if ([...$('dateFilter').options].some((option) => option.value === currentDate)) $('dateFilter').value = currentDate;
+  }
+
+  function filteredBase({ includeDeleted = false } = {}) {
+    const query = $('searchInput').value.trim().toLowerCase();
+    const eventFilter = $('eventFilter').value;
+    const dateFilter = $('dateFilter').value;
+    return state.orders.filter((order) => {
+      if (!includeDeleted && isDeleted(order)) return false;
+      if (includeDeleted && !isDeleted(order)) return false;
+      if (eventFilter !== 'all' && eventIdOf(order) !== eventFilter) return false;
+      if (dateFilter !== 'all' && dateOf(order) !== dateFilter) return false;
+      if (!query) return true;
+      const data = order.order_data || {};
+      const searchable = [order.order_no, data.customerCompany, data.customerName, data.customerPhone, data.notes, order.assigned_name, eventNameOf(order), dateOf(order), ...(data.items || []).flatMap((item) => [item.c, itemName(item)])].join(' ').toLowerCase();
+      return searchable.includes(query);
+    });
+  }
+
+  function filteredOrders(group) {
+    return filteredBase().filter((order) => groupForStatus(order.status) === group);
+  }
+
+  function orderCard(order) {
+    const data = order.order_data || {};
+    const klass = order.status === 'in_progress' ? 'progress' : order.status;
+    const revised = order.status === 'resend_required' ? '<div class="eventMeta">⚠ 修正理由あり・再送が必要</div>' : '';
+    return `<article class="orderCard ${escapeHtml(klass)}" data-order-id="${escapeHtml(order.id)}" tabindex="0" role="button" aria-label="${escapeHtml(order.order_no)} を開く"><div class="cardTop"><div class="orderNo">${escapeHtml(order.order_no)}</div><span class="statusBadge ${escapeHtml(klass)}">${statusLabel(order.status)}</span></div><div class="company">${escapeHtml(data.customerCompany || '-')}</div><div class="person">${escapeHtml(data.customerName || '')}${data.customerPhone ? ` / ${escapeHtml(data.customerPhone)}` : ''}</div><div class="eventMeta">${escapeHtml(eventNameOf(order))} / ${escapeHtml(dateOf(order))}</div>${revised}${order.assigned_name ? `<div class="assigned">最終担当：${escapeHtml(order.assigned_name)}</div>` : ''}<div class="cardMeta"><div class="time">${escapeHtml(relativeTime(order.created_at))}<br>${totalQty(order)}点</div><div class="amount">${formatMoney(orderTotal(order))}</div></div></article>`;
+  }
+
+  function renderList(group) {
+    const rows = filteredOrders(group);
+    const list = $(`list-${group}`);
+    list.innerHTML = rows.length ? rows.map(orderCard).join('') : '<div class="empty">該当する注文はありません。</div>';
+  }
+
+  function render() {
+    const base = filteredBase();
+    $('newCount').textContent = base.filter((o) => o.status === 'new').length;
+    $('progressCount').textContent = base.filter((o) => o.status === 'in_progress').length;
+    $('completedCount').textContent = base.filter((o) => ['completed', 'resend_required'].includes(o.status)).length;
+    $('sentCount').textContent = base.filter((o) => o.status === 'sent').length;
+    $('visibleCount').textContent = base.length;
+    $('visibleQty').textContent = base.reduce((sum, order) => sum + totalQty(order), 0);
+    $('visibleAmount').textContent = formatMoney(base.reduce((sum, order) => sum + orderTotal(order), 0));
+    ['open', 'progress', 'completed', 'sent'].forEach(renderList);
+    document.querySelectorAll('[data-order-id]').forEach((card) => {
+      const open = () => openDetail(card.dataset.orderId).catch((error) => showToast(`表示失敗：${humanError(error)}`));
+      card.addEventListener('click', open);
+      card.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
+    });
+    renderUnsentAlert(base);
+  }
+
+  function renderUnsentAlert(base) {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
+    const old = base.filter((order) => ['completed', 'resend_required'].includes(order.status) && dateOf(order) < today);
+    $('unsentAlert').classList.toggle('hidden', old.length === 0);
+    $('unsentAlertText').textContent = `前日までの代理店未送信注文が${old.length}件あります。`;
+  }
+
+  async function createSignedUrl(path) {
+    if (!path) return '';
+    const encodedPath = String(path).split('/').map(encodeURIComponent).join('/');
+    const json = await apiJson(`/storage/v1/object/sign/business-cards/${encodedPath}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresIn: 3600 }),
+    });
+    const signed = json.signedURL || json.signedUrl || '';
+    return signed ? (signed.startsWith('http') ? signed : `${SUPABASE_URL}/storage/v1${signed.startsWith('/') ? '' : '/'}${signed}`) : '';
+  }
+
+  async function openDetail(id) {
+    const order = state.orders.find((row) => row.id === id);
+    if (!order) return;
+    state.current = order;
+    await renderDetail(order);
+    $('detailDialog').showModal();
+  }
+
+  function editDraftFromOrder(order) {
+    const data = order.order_data || {};
+    return { customerCompany: data.customerCompany || '', customerName: data.customerName || '', customerPhone: data.customerPhone || '', notes: data.notes || '', items: (data.items || []).map((item) => ({ ...item })) };
+  }
+
+  function currentEditDraft() {
+    if (!$('editCompany')) return editDraftFromOrder(state.current);
+    const items = state.editItems.map((item, index) => ({ ...item, q: Math.max(0, Math.min(9999, Math.floor(Number(document.querySelector(`[data-qty-input="${index}"]`)?.value || 0)))) }));
+    return { customerCompany: $('editCompany').value.trim(), customerName: $('editName').value.trim(), customerPhone: $('editPhone').value.trim(), notes: $('editNotes').value.trim(), items };
+  }
+
+  async function renderDetail(order, draft = null) {
+    const data = order.order_data || {};
+    const edit = draft || editDraftFromOrder(order);
+    state.editItems = edit.items.map((item) => ({ ...item }));
+    $('detailTitle').textContent = `${order.order_no}　${data.customerCompany || ''}`;
+    let previewUrl = '', originalUrl = '';
+    try {
+      [previewUrl, originalUrl] = await Promise.all([createSignedUrl(order.business_card_preview_path), createSignedUrl(order.business_card_original_path)]);
+    } catch (error) {
+      console.warn(error);
+    }
+    const sentWarning = order.status === 'sent' ? '<div class="revisionNotice"><b>この注文は代理店送付済みです。</b><br>変更すると修正版・再送待ちへ移動し、修正理由が必要です。</div>' : '';
+    const resendWarning = order.status === 'resend_required' ? `<div class="revisionNotice"><b>修正版・再送待ち</b><br>${escapeHtml(order.revision_reason || data._lastRevisionReason || '')}</div>` : '';
+    $('detailBody').innerHTML = `${sentWarning}${resendWarning}<div class="detailGrid"><section class="infoPanel"><div class="infoGrid"><div class="infoBox"><div class="label">受付番号</div><div class="value">${escapeHtml(order.order_no)}</div></div><div class="infoBox"><div class="label">状態</div><div class="value">${statusLabel(order.status)}</div></div><div class="infoBox"><div class="label">受付日時</div><div class="value">${escapeHtml(new Date(order.created_at).toLocaleString('ja-JP'))}</div></div><div class="infoBox"><div class="label">展示会日</div><div class="value">${escapeHtml(dateOf(order))}</div></div><div class="infoBox"><div class="label">最終担当</div><div class="value">${escapeHtml(order.assigned_name || '-')}</div></div><div class="infoBox"><div class="label">改訂</div><div class="value">Revision ${Number(order.revision_count || data._revisionCount || 0)}</div></div></div><div class="editBlock"><h3>お客様情報・備考を編集</h3><div class="editGrid"><div class="editField"><label for="editCompany">会社名</label><input id="editCompany" maxlength="160" value="${escapeHtml(edit.customerCompany)}"></div><div class="editField"><label for="editName">氏名</label><input id="editName" maxlength="120" value="${escapeHtml(edit.customerName)}"></div><div class="editField full"><label for="editPhone">電話番号</label><input id="editPhone" maxlength="30" value="${escapeHtml(edit.customerPhone)}"></div><div class="editField full"><label for="editNotes">備考</label><textarea id="editNotes" maxlength="2000">${escapeHtml(edit.notes)}</textarea></div></div></div><div class="businessCard"><h3>名刺</h3>${previewUrl || originalUrl ? `<a href="${escapeHtml(originalUrl || previewUrl)}" target="_blank" rel="noopener"><img src="${escapeHtml(previewUrl || originalUrl)}" alt="名刺画像"></a>` : '<div class="noCard">名刺画像なし</div>'}</div></section><section class="itemsPanel"><h3>商品・数量</h3><table class="itemsTable"><thead><tr><th>品番</th><th>商品名</th><th class="num">数量</th><th class="num">単価</th><th class="num">小計</th></tr></thead><tbody>${state.editItems.map((item, index) => `<tr><td><b>${escapeHtml(item.c)}</b></td><td>${escapeHtml(itemName(item))}</td><td class="num"><div class="qtyControl"><button type="button" data-qty-minus="${index}" aria-label="数量を減らす">−</button><input data-qty-input="${index}" type="number" min="0" max="9999" step="1" value="${Number(item.q || 0)}" aria-label="${escapeHtml(item.c)}の数量"><button type="button" data-qty-plus="${index}" aria-label="数量を増やす">＋</button></div></td><td class="num">${formatMoney(item.p)}</td><td class="num" data-subtotal="${index}"><b>${formatMoney(Number(item.p || 0) * Number(item.q || 0))}</b></td></tr>`).join('')}</tbody></table><div class="detailTotal"><span>合計</span><span id="editedTotal">${formatMoney(orderTotal(order))}</span></div><div class="productAdder"><input id="addProductCode" type="text" placeholder="追加する品番を入力（例 1053）" aria-label="追加する品番"><button id="addProductButton" class="secondary" type="button">商品を追加</button><div id="productSuggest" class="productSuggest">品番を完全一致で入力してください。商品マスターから名称・価格を取得します。</div></div><div class="saveRow"><button id="saveEditButton" class="primary" type="button">変更を保存</button></div></section></div>`;
+    const refreshEditedTotal = () => {
+      let total = 0;
+      document.querySelectorAll('[data-qty-input]').forEach((input) => {
+        const index = Number(input.dataset.qtyInput);
+        const qty = Math.max(0, Math.min(9999, Number(input.value || 0)));
+        total += Number(state.editItems[index]?.p || 0) * qty;
+        const subtotal = document.querySelector(`[data-subtotal="${index}"]`);
+        if (subtotal) subtotal.innerHTML = `<b>${formatMoney(Number(state.editItems[index]?.p || 0) * qty)}</b>`;
+      });
+      $('editedTotal').textContent = formatMoney(total);
+    };
+    document.querySelectorAll('[data-qty-minus]').forEach((button) => button.addEventListener('click', () => { const input = document.querySelector(`[data-qty-input="${button.dataset.qtyMinus}"]`); input.value = Math.max(0, Number(input.value || 0) - 1); refreshEditedTotal(); }));
+    document.querySelectorAll('[data-qty-plus]').forEach((button) => button.addEventListener('click', () => { const input = document.querySelector(`[data-qty-input="${button.dataset.qtyPlus}"]`); input.value = Math.min(9999, Number(input.value || 0) + 1); refreshEditedTotal(); }));
+    document.querySelectorAll('[data-qty-input]').forEach((input) => input.addEventListener('input', refreshEditedTotal));
+    $('saveEditButton').addEventListener('click', () => withBusy(['saveEditButton'], saveEditedOrder).catch((error) => showToast(`保存失敗：${humanError(error)}`, 6000)));
+    $('addProductButton').addEventListener('click', () => withBusy(['addProductButton'], addProductToCurrent).catch((error) => showToast(`商品追加失敗：${humanError(error)}`)));
+    refreshEditedTotal();
+    $('startButton').classList.toggle('hidden', order.status !== 'new');
+    $('completeButton').classList.toggle('hidden', !['new', 'in_progress'].includes(order.status));
+    $('reopenButton').classList.toggle('hidden', !['completed', 'resend_required'].includes(order.status));
+  }
+
+  function parseCsv(text) {
+    const rows = [];
+    let row = [], cell = '', quoted = false;
+    for (let i = 0; i < text.length; i += 1) {
+      const char = text[i], next = text[i + 1];
+      if (char === '"' && quoted && next === '"') { cell += '"'; i += 1; continue; }
+      if (char === '"') { quoted = !quoted; continue; }
+      if (char === ',' && !quoted) { row.push(cell); cell = ''; continue; }
+      if ((char === '\n' || char === '\r') && !quoted) { if (cell || row.length) { row.push(cell); rows.push(row); row = []; cell = ''; } if (char === '\r' && next === '\n') i += 1; continue; }
+      cell += char;
+    }
+    if (cell || row.length) { row.push(cell); rows.push(row); }
+    const headers = (rows.shift() || []).map((value) => value.trim().replace(/^\uFEFF/, ''));
+    return rows.map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ''])));
+  }
+
+  async function loadProductMaster() {
+    if (state.productMaster) return state.productMaster;
+    const response = await fetchWithTimeout('product_master_korea.csv', { cache: 'default' }, 20000);
+    if (!response.ok) throw new Error('商品マスターを読み込めません。');
+    const rows = parseCsv(await response.text());
+    state.productMaster = new Map(rows.map((row) => [String(row['品番'] || '').trim().toUpperCase(), {
+      c: String(row['品番'] || '').trim(), n: [String(row['商品名_JA'] || ''), String(row['商品名_KO'] || '')], q: 1,
+      p: Number(row['韓国眼鏡店への販売価格（KRW）'] || 0), img: String(row['画像ファイル名'] || '') ? `product-images/${row['画像ファイル名']}` : '',
+    }]));
+    return state.productMaster;
+  }
+
+  async function addProductToCurrent() {
+    const code = $('addProductCode').value.trim().toUpperCase();
+    if (!code) throw new Error('品番を入力してください。');
+    const draft = currentEditDraft();
+    const master = await loadProductMaster();
+    const product = master.get(code);
+    if (!product) throw new Error('商品マスターに一致する品番がありません。');
+    const existing = draft.items.find((item) => String(item.c).trim().toUpperCase() === code);
+    if (existing) existing.q = Math.min(9999, Number(existing.q || 0) + 1);
+    else draft.items.push({ ...product });
+    await renderDetail(state.current, draft);
+    showToast(`${product.c} を追加しました。`);
+  }
+
+  async function saveEditedOrder() {
+    if (!state.current) return;
+    const order = state.current;
+    const oldData = order.order_data || {};
+    const draft = currentEditDraft();
+    const items = draft.items.filter((item) => Number(item.q || 0) > 0);
+    if (!draft.customerCompany || !draft.customerName || !draft.customerPhone) throw new Error('会社名・氏名・電話番号は必須です。');
+    if (!items.length) throw new Error('商品を1点以上残してください。');
+    const total = items.reduce((sum, item) => sum + Number(item.p || 0) * Number(item.q || 0), 0);
+    const changed = JSON.stringify({ ...draft, items }) !== JSON.stringify({ customerCompany: oldData.customerCompany || '', customerName: oldData.customerName || '', customerPhone: oldData.customerPhone || '', notes: oldData.notes || '', items: oldData.items || [] });
+    if (!changed) { showToast('変更はありません。'); return; }
+    let reason = 'スタッフによる内容確認・修正';
+    let nextStatus = order.status;
+    let requiresResend = Boolean(order.requires_resend || oldData._requiresResend);
+    if (order.status === 'sent') {
+      if (!window.confirm('この注文は代理店送付済みです。\n内容を変更すると修正版を再送する必要があります。')) return;
+      reason = window.prompt('修正理由を入力してください。', '')?.trim() || '';
+      if (!reason) throw new Error('送付済み注文の修正理由は必須です。');
+      nextStatus = 'resend_required';
+      requiresResend = true;
+    } else if (['completed', 'resend_required'].includes(order.status)) {
+      if (!window.confirm('この注文は確定済みです。変更内容は代理店へ送る注文書にも反映されます。保存しますか？')) return;
+      reason = window.prompt('修正理由を入力してください。', order.revision_reason || '')?.trim() || '';
+      if (!reason) throw new Error('確定済み注文の修正理由は必須です。');
+    }
+    const revisionCount = Number(order.revision_count || oldData._revisionCount || 0) + 1;
+    const now = new Date().toISOString();
+    const orderData = { ...oldData, customerCompany: draft.customerCompany, customerName: draft.customerName, customerPhone: draft.customerPhone, notes: draft.notes, items, total, status: nextStatus, _revisionCount: revisionCount, _lastRevisionAt: now, _lastRevisionBy: staffName(), _lastRevisionReason: reason, _requiresResend: requiresResend };
+    if (order.status === 'sent') {
+      orderData._previousBatchId = order.batch_id || oldData._batchId || '';
+      orderData._previousSentAt = order.sent_at || oldData._sentAt || '';
+      orderData._previousSentBy = order.sent_by_name || oldData._sentBy || '';
+    }
+    const patch = { order_data: orderData, status: nextStatus, revision_count: revisionCount, revision_reason: reason, requires_resend: requiresResend };
+    const updated = await updateOrder(order, patch);
+    try {
+      await apiJson('/rest/v1/order_revisions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({ order_id: order.id, event_id: eventIdOf(order), revision_number: revisionCount, changed_by: state.user.id, changed_by_name: staffName(), change_reason: reason, status_before: order.status, status_after: nextStatus, before_data: oldData, after_data: orderData, batch_id_before: order.batch_id || null }),
+      });
+    } catch (error) { console.warn('revision history unavailable', error); }
+    await logActivity(updated || order, order.status === 'sent' ? 'sent_order_revised' : 'order_updated', { reason, revision_count: revisionCount });
+    if (updated) await renderDetail(updated);
+    showToast(`${order.order_no} を保存しました。`);
+  }
+
+  async function startOrder() {
+    if (!state.current) return;
+    const order = state.current;
+    const updated = await updateOrder(order, { status: 'in_progress' });
+    await logActivity(updated || order, 'review_started');
+    if (updated) await renderDetail(updated);
+    showToast(`${order.order_no} の確認を開始しました。`);
+  }
+
+  async function completeOrder() {
+    if (!state.current) return;
+    const order = state.current;
+    if (!window.confirm(`${order.order_no} をこの内容で確定しますか？\n確定後は「送信待ち」へ移動します。`)) return;
+    const updated = await updateOrder(order, { status: 'completed', completed_at: new Date().toISOString(), requires_resend: false });
+    await logActivity(updated || order, 'order_completed');
+    if (updated) await renderDetail(updated);
+    showToast(`${order.order_no} を確定しました。`);
+  }
+
+  async function reopenOrder() {
+    if (!state.current) return;
+    const order = state.current;
+    if (!window.confirm(`${order.order_no} を確認待ちへ戻しますか？`)) return;
+    const data = { ...(order.order_data || {}), status: 'new', _requiresResend: false };
+    const updated = await updateOrder(order, { status: 'new', completed_at: null, requires_resend: false, pending_batch_id: null, order_data: data });
+    await logActivity(updated || order, 'order_reopened');
+    if (updated) await renderDetail(updated);
+    showToast(`${order.order_no} を確認待ちへ戻しました。`);
+  }
+
+  function openDeleteDialog() {
+    if (!state.current) return;
+    const data = state.current.order_data || {};
+    $('deleteTarget').innerHTML = `<b>${escapeHtml(state.current.order_no)}（${escapeHtml(data.customerCompany || '')}）</b><br>通常の注文一覧には表示されなくなります。データは削除履歴から元に戻せます。`;
+    $('deleteReason').value = '';
+    $('deleteReasonOther').value = '';
+    $('deleteReasonOtherWrap').classList.add('hidden');
+    $('deleteDialog').showModal();
+  }
+
+  async function confirmSoftDelete() {
+    if (!state.current) return;
+    const order = state.current;
+    const selected = $('deleteReason').value;
+    const reason = selected === 'その他' ? $('deleteReasonOther').value.trim() : selected;
+    if (!reason) throw new Error('削除理由を選択または入力してください。');
+    const now = new Date().toISOString();
+    const orderData = { ...(order.order_data || {}), status: 'deleted', _deletedAt: now, _deletedBy: staffName(), _deletedById: state.user.id, _deleteReason: reason, _statusBeforeDelete: order.status };
+    const updated = await updateOrder(order, { status: 'deleted', order_data: orderData, deleted_at: now, deleted_by: state.user.id, deleted_by_name: staffName(), delete_reason: reason, status_before_delete: order.status });
+    await logActivity(updated || order, 'order_soft_deleted', { reason, status_before: order.status });
+    state.current = null;
+    $('deleteDialog').close();
+    $('detailDialog').close();
+    showToast(`${order.order_no} を削除履歴へ移しました。`);
+  }
+
+  function deletedOrders() {
+    return filteredBase({ includeDeleted: true }).sort((a, b) => new Date(b.deleted_at || b.order_data?._deletedAt || b.updated_at) - new Date(a.deleted_at || a.order_data?._deletedAt || a.updated_at));
+  }
+
+  function renderHistory() {
+    const rows = deletedOrders();
+    $('historyList').innerHTML = rows.length ? rows.map((order) => {
+      const data = order.order_data || {};
+      const before = order.status_before_delete || data._statusBeforeDelete || 'new';
+      const reason = order.delete_reason || data._deleteReason || '-';
+      return `<article class="historyRow"><div class="historyMain"><div class="historyNo">${escapeHtml(order.order_no)}</div><div class="historyCompany">${escapeHtml(data.customerCompany || '-')}　${escapeHtml(data.customerName || '')}</div><div class="historyMeta">削除：${escapeHtml(new Date(order.deleted_at || data._deletedAt || order.updated_at).toLocaleString('ja-JP'))} / ${escapeHtml(order.deleted_by_name || data._deletedBy || '-')}<br>理由：${escapeHtml(reason)} / 削除前：${statusLabel(before)}</div></div><div class="historyActions"><button class="secondary small" data-restore-id="${escapeHtml(order.id)}" type="button">元に戻す</button></div></article>`;
+    }).join('') : '<div class="empty">削除履歴はありません。</div>';
+  }
+
+  function openHistory() {
+    renderHistory();
+    $('historyDialog').showModal();
+  }
+
+  async function restoreDeleted(id) {
+    const order = state.orders.find((row) => row.id === id);
+    if (!order) return;
+    const data = { ...(order.order_data || {}) };
+    const restoreStatus = order.status_before_delete || data._statusBeforeDelete || 'new';
+    if (restoreStatus === 'sent' && !window.confirm('この注文は代理店送付済みの状態へ復元されます。送信履歴は残っています。続けますか？')) return;
+    delete data._deletedAt; delete data._deletedBy; delete data._deletedById; delete data._deleteReason; delete data._statusBeforeDelete;
+    data.status = restoreStatus;
+    const updated = await updateOrder(order, { status: restoreStatus, order_data: data, deleted_at: null, deleted_by: null, deleted_by_name: null, delete_reason: null, status_before_delete: null });
+    await logActivity(updated || order, 'order_restored', { restored_status: restoreStatus });
+    renderHistory();
+    showToast(`${order.order_no} を${statusLabel(restoreStatus)}へ戻しました。`);
+  }
+
+  function revisedMark(order) {
+    const revision = Number(order.revision_count || order.order_data?._revisionCount || 0);
+    return order.status === 'resend_required' || revision > 0 ? `<div class="revisedMark">REVISED ORDER / 修正版 / Revision ${revision}</div>` : '';
+  }
+
+  function buildPrint(order, cardUrl = '', wrapperClass = 'printOrder') {
+    const data = order.order_data || {}, items = data.items || [];
+    return `<section class="${wrapperClass}">${revisedMark(order)}<div class="printHead"><img src="assets/sun_nishimura_logo.jpg" alt="SAN NISHIMURA"><div class="printTitle"><h1>韓国展示会 確定注文</h1><div>Korea Exhibition Confirmed Order</div><b>${escapeHtml(order.order_no)}</b></div></div><div class="printMeta"><div class="printBox"><b>会社名</b>${escapeHtml(data.customerCompany || '-')}</div><div class="printBox"><b>氏名</b>${escapeHtml(data.customerName || '-')}</div><div class="printBox"><b>電話番号</b>${escapeHtml(data.customerPhone || '-')}</div><div class="printBox"><b>展示会 / 日付</b>${escapeHtml(eventNameOf(order))}<br>${escapeHtml(dateOf(order))}</div><div class="printBox"><b>受付日時</b>${escapeHtml(new Date(order.created_at).toLocaleString('ja-JP'))}</div><div class="printBox"><b>確認担当</b>${escapeHtml(order.assigned_name || staffName())}</div></div><table class="printTable"><thead><tr><th>品番</th><th>商品名</th><th class="num">数量</th><th class="num">単価</th><th class="num">小計</th></tr></thead><tbody>${items.map((item) => `<tr><td>${escapeHtml(item.c)}</td><td>${escapeHtml(itemName(item))}</td><td class="num">${escapeHtml(item.q)}</td><td class="num">${formatMoney(item.p)}</td><td class="num">${formatMoney(Number(item.p || 0) * Number(item.q || 0))}</td></tr>`).join('')}</tbody></table><div class="printTotal">合計 ${formatMoney(orderTotal(order))}</div>${data.notes ? `<div><b>備考</b><br>${escapeHtml(data.notes).replace(/\n/g, '<br>')}</div>` : ''}${cardUrl ? `<img class="printCard" src="${escapeHtml(cardUrl)}" alt="名刺">` : ''}<div class="printFooter">SAN NISHIMURA CO., LTD. / Korea Distributor: KY-S Corporation.${state.batch?.batchId ? ` / Batch ID: ${escapeHtml(state.batch.batchId)}` : ''}</div></section>`;
+  }
+
+  async function printCurrent() {
+    if (!state.current) return;
+    const order = state.current;
+    let card = '';
+    try { card = await createSignedUrl(order.business_card_original_path || order.business_card_preview_path); } catch {}
+    $('printArea').innerHTML = buildPrint(order, card);
+    try { await updateOrder(order, { printed_at: new Date().toISOString() }); } catch (error) { if (error.message !== 'CONFLICT') throw error; }
+    setTimeout(() => window.print(), 100);
+  }
+
+  function selectedBatchOrders() {
+    const checked = [...document.querySelectorAll('[data-batch-order]:checked')].map((input) => input.value);
+    const source = state.batch?.orders || [];
+    return source.filter((order) => checked.includes(order.id));
+  }
+
+  function batchEligibleOrders() {
+    return filteredBase().filter((order) => ['completed', 'resend_required'].includes(order.status) && !order.pending_batch_id);
+  }
+
+  function updateBatchDialogSummary() {
+    const rows = selectedBatchOrders();
+    const qty = rows.reduce((sum, order) => sum + totalQty(order), 0);
+    const amount = rows.reduce((sum, order) => sum + orderTotal(order), 0);
+    const revised = rows.filter((order) => order.status === 'resend_required').length;
+    $('batchSummary').innerHTML = `<div><span>注文件数</span><b>${rows.length}件</b></div><div><span>合計数量</span><b>${qty}点</b></div><div><span>合計金額</span><b>${formatMoney(amount)}</b></div><div><span>再送注文</span><b>${revised}件</b></div><div><span>対象日</span><b>${escapeHtml(rows[0] ? dateOf(rows[0]) : '-')}</b></div><div><span>Batch ID</span><b>${escapeHtml(state.batch?.batchId || 'PDF作成時に採番')}</b></div>`;
+    $('createBatchPdfButton').disabled = rows.length === 0;
+  }
+
+  async function openBatchDialog() {
+    let orders = batchEligibleOrders();
+    if (!orders.length) {
+      const pending = filteredBase().filter((order) => ['completed', 'resend_required'].includes(order.status) && order.pending_batch_id);
+      if (pending.length) {
+        const pendingId = pending[0].pending_batch_id;
+        orders = pending.filter((order) => order.pending_batch_id === pendingId);
+        state.batch = { batchId: pendingId, orders };
+      }
+    }
+    if (!orders.length) { showToast('現在の絞り込みに送信待ち注文はありません。'); return; }
+    const dates = [...new Set(orders.map(dateOf))];
+    if (dates.length > 1) { showToast('送信する日付を上の日付フィルターで1日選択してください。', 5000); return; }
+    state.batch ||= { batchId: '', orders };
+    state.batch.orders = orders;
+    $('recipientEmail').value = String(config.distributorEmail || '');
+    $('batchOrderList').innerHTML = orders.map((order) => `<label class="batchOrderRow"><span><input data-batch-order type="checkbox" value="${escapeHtml(order.id)}" checked ${state.batch.batchId ? 'disabled' : ''}> <b>${escapeHtml(order.order_no)}</b>　${escapeHtml(order.order_data?.customerCompany || '-')}</span><span>${totalQty(order)}点 / ${formatMoney(orderTotal(order))}${order.status === 'resend_required' ? ' / 修正版' : ''}</span></label>`).join('');
+    document.querySelectorAll('[data-batch-order]').forEach((input) => input.addEventListener('change', updateBatchDialogSummary));
+    $('pdfSavedCheck').checked = false;
+    $('mailSentCheck').checked = false;
+    $('openBatchMailButton').disabled = !state.batch.batchId;
+    $('markBatchSentButton').disabled = true;
+    $('batchMessage').textContent = state.batch.batchId ? `作業中の ${state.batch.batchId} を再開しました。` : '対象を確認し、最初にPDFを作成してください。';
+    updateBatchDialogSummary();
+    $('batchDialog').showModal();
+  }
+
+  async function createBatchPdf() {
+    const rows = selectedBatchOrders();
+    if (!rows.length) throw new Error('送信対象を選択してください。');
+    if (!state.batch.batchId) {
+      const eventId = eventIdOf(rows[0]), eventName = eventNameOf(rows[0]), eventDate = dateOf(rows[0]);
+      const result = await rpc('create_exhibition_order_batch', { p_event_id: eventId, p_event_name: eventName, p_event_date: eventDate, p_order_ids: rows.map((order) => order.id), p_recipient_email: $('recipientEmail').value.trim(), p_created_by_name: staffName() });
+      const record = Array.isArray(result) ? result[0] : result;
+      if (!record?.batch_id) throw new Error('Batch IDを作成できませんでした。');
+      state.batch = { ...state.batch, batchId: record.batch_id, orders: rows };
+    }
+    const urls = await Promise.all(rows.map((order) => createSignedUrl(order.business_card_original_path || order.business_card_preview_path).catch(() => '')));
+    const qty = rows.reduce((sum, order) => sum + totalQty(order), 0), amount = rows.reduce((sum, order) => sum + orderTotal(order), 0);
+    const cover = `<section class="batchCover"><img src="assets/sun_nishimura_logo.jpg" alt="SAN NISHIMURA" style="width:220px"><h1>Korea Exhibition Confirmed Orders</h1><h2>韓国展示会 確定注文明細</h2><table class="batchCoverTable"><tr><th>展示会</th><td>${escapeHtml(eventNameOf(rows[0]))}</td></tr><tr><th>対象日</th><td>${escapeHtml(dateOf(rows[0]))}</td></tr><tr><th>送信グループ番号</th><td>${escapeHtml(state.batch.batchId)}</td></tr><tr><th>作成日時</th><td>${escapeHtml(new Date().toLocaleString('ja-JP'))}</td></tr><tr><th>注文件数</th><td>${rows.length}件</td></tr><tr><th>合計数量</th><td>${qty}点</td></tr><tr><th>合計金額</th><td>${formatMoney(amount)}</td></tr><tr><th>作成担当</th><td>${escapeHtml(staffName())}</td></tr><tr><th>韓国代理店</th><td>KY-S Corporation.</td></tr></table></section>`;
+    $('printArea').innerHTML = cover + rows.map((order, index) => buildPrint(order, urls[index])).join('');
+    $('openBatchMailButton').disabled = false;
+    $('batchMessage').textContent = `${state.batch.batchId} の印刷画面を開きます。保存先でPDFを選択してください。`;
+    updateBatchDialogSummary();
+    setTimeout(() => window.print(), 100);
+  }
+
+  function openBatchMail() {
+    if (!state.batch?.batchId) return;
+    const rows = state.batch.orders;
+    const qty = rows.reduce((sum, order) => sum + totalQty(order), 0), amount = rows.reduce((sum, order) => sum + orderTotal(order), 0), revised = rows.some((order) => order.status === 'resend_required');
+    const email = $('recipientEmail').value.trim();
+    const subject = `${revised ? 'Revised ' : ''}Korea Exhibition Orders - ${state.batch.batchId}`;
+    const body = `Dear KY-S Corporation,\n\nPlease find attached the confirmed order PDF received at the exhibition.\n\nExhibition: ${eventNameOf(rows[0])}\nOrder date: ${dateOf(rows[0])}\nBatch ID: ${state.batch.batchId}\nNumber of orders: ${rows.length}\nTotal quantity: ${qty} pieces\nTotal amount: KRW ${Math.round(amount).toLocaleString('en-US')}\n\nThe attached PDF includes the confirmed order details.\nPlease check the attached order PDF and let us know if you have any questions.\n\nBest regards,\nSAN NISHIMURA CO., LTD.`;
+    location.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    $('batchMessage').textContent = 'メールソフトを開きました。PDFを添付して送信してください。';
+  }
+
+  function updateBatchSendEnabled() {
+    $('markBatchSentButton').disabled = !($('pdfSavedCheck').checked && $('mailSentCheck').checked && state.batch?.batchId);
+  }
+
+  async function markBatchSent() {
+    if (!state.batch?.batchId) throw new Error('Batch IDがありません。');
+    if (!$('pdfSavedCheck').checked || !$('mailSentCheck').checked) throw new Error('PDF保存とメール送信の両方を確認してください。');
+    if (!window.confirm(`${state.batch.orders.length}件を代理店送付済みにしますか？\n実際にメール送信が完了していることを確認してください。`)) return;
+    await rpc('mark_exhibition_order_batch_sent', { p_batch_id: state.batch.batchId, p_sent_by_name: staffName() });
+    const id = state.batch.batchId;
+    state.batch = null;
+    $('batchDialog').close();
+    await loadOrders();
+    showToast(`${id} を代理店送付済みにしました。`);
+  }
+
+  async function closeBatchDialog() {
+    if (state.batch?.batchId) {
+      if (!window.confirm(`${state.batch.batchId} の送付作業を中止しますか？\nPDFを作り直す場合は再度バッチを作成します。`)) return;
+      try { await rpc('cancel_exhibition_order_batch', { p_batch_id: state.batch.batchId }); } catch (error) { showToast(`バッチ中止失敗：${humanError(error)}`); return; }
+      state.batch = null;
+      await loadOrders();
+    }
+    $('batchDialog').close();
+  }
+
+  async function openBatchHistory() {
+    $('batchHistoryList').innerHTML = '<div class="empty">読み込み中…</div>';
+    $('batchHistoryDialog').showModal();
+    try {
+      const eventFilter = $('eventFilter').value, dateFilter = $('dateFilter').value;
+      const filters = `${eventFilter !== 'all' ? `&event_id=eq.${encodeURIComponent(eventFilter)}` : ''}${dateFilter !== 'all' ? `&event_date=eq.${encodeURIComponent(dateFilter)}` : ''}`;
+      const rows = await apiJson(`/rest/v1/order_batches?select=batch_id,event_name,event_date,created_at,created_by_name,sent_at,sent_by_name,recipient_email,order_count,total_quantity,total_amount,status&order=created_at.desc&limit=100${filters}`, { headers: { Accept: 'application/json' } });
+      $('batchHistoryList').innerHTML = rows.length ? rows.map((batch) => `<article class="historyRow"><div><div class="historyNo">${escapeHtml(batch.batch_id)}</div><div class="historyCompany">${escapeHtml(batch.event_name || '')} / ${escapeHtml(batch.event_date || '')}</div><div class="historyMeta">${escapeHtml(batch.status === 'sent' ? '送付済み' : batch.status === 'cancelled' ? '中止' : '作業中')} / ${batch.order_count}件 / ${batch.total_quantity}点 / ${formatMoney(batch.total_amount)}<br>送付：${escapeHtml(batch.sent_at ? new Date(batch.sent_at).toLocaleString('ja-JP') : '-')} / ${escapeHtml(batch.sent_by_name || '-')}</div></div></article>`).join('') : '<div class="empty">送信履歴はありません。</div>';
+    } catch (error) {
+      $('batchHistoryList').innerHTML = `<div class="empty">送信履歴を読み込めません。<br>${escapeHtml(humanError(error))}</div>`;
+    }
+  }
+
+  function beep() {
+    if (!state.soundEnabled) return;
+    try {
+      const Context = window.AudioContext || window.webkitAudioContext;
+      state.audioContext ||= new Context();
+      const oscillator = state.audioContext.createOscillator(), gain = state.audioContext.createGain();
+      oscillator.frequency.value = 880;
+      gain.gain.setValueAtTime(0.0001, state.audioContext.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.18, state.audioContext.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, state.audioContext.currentTime + 0.28);
+      oscillator.connect(gain).connect(state.audioContext.destination);
+      oscillator.start(); oscillator.stop(state.audioContext.currentTime + 0.3);
+    } catch {}
+  }
+
+  function notifyNewOrder(order) {
+    beep();
+    showToast(`新しい注文 ${order.order_no}`);
+    document.title = `🔴 ${order.order_no} 新規注文`;
+    setTimeout(() => { document.title = '韓国展示会 スタッフ注文管理 | SAN NISHIMURA'; }, 6000);
+    document.querySelector(`[data-order-id="${CSS.escape(order.id)}"]`)?.classList.add('newFlash');
+  }
+
+  function stopRealtime() {
+    if (state.realtimeChannel && state.realtimeClient) state.realtimeClient.removeChannel(state.realtimeChannel).catch(() => {});
+    state.realtimeChannel = null; state.realtimeClient = null; clearInterval(state.pollTimer);
+  }
+
+  async function startRealtime() {
+    stopRealtime();
+    state.pollTimer = setInterval(() => loadOrders().catch((error) => { console.warn(error); setSync('error', '自動更新エラー'); }), 10000);
+    try {
+      const module = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4/+esm');
+      const client = module.createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+      client.realtime.setAuth(state.session.access_token);
+      const channel = client.channel('korea-exhibition-orders').on('postgres_changes', { event: '*', schema: 'public', table: 'exhibition_orders' }, (payload) => loadOrders({ notify: payload.eventType === 'INSERT' }).catch(console.error)).subscribe((status) => {
+        if (status === 'SUBSCRIBED') setSync('live', 'リアルタイム接続中');
+        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') setSync('error', '10秒ごとの自動更新へ切替');
+      });
+      state.realtimeClient = client; state.realtimeChannel = channel;
+    } catch (error) {
+      console.warn('Realtime unavailable', error);
+      setSync('', '10秒ごとに自動更新');
+    }
+  }
+
+  function switchTab(tab) {
+    state.activeTab = tab;
+    document.querySelectorAll('[data-tab]').forEach((button) => button.classList.toggle('active', button.dataset.tab === tab));
+    document.querySelectorAll('.statusColumn').forEach((column) => column.classList.toggle('mobileHidden', column.id !== `column-${tab}`));
+  }
+
+  function attachEvents() {
+    $('loginForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = $('loginButton'); button.disabled = true; $('loginMessage').textContent = 'ログイン中…';
+      try {
+        await signIn($('email').value.trim(), $('password').value);
+        await loadStaffProfile();
+        $('password').value = '';
+        showDashboard(); await loadOrders(); await startRealtime();
+      } catch (error) {
+        saveSession(null); state.staff = null;
+        $('loginMessage').textContent = error.message.includes('Invalid login') ? 'メールアドレスまたはパスワードが違います。' : `ログインできませんでした：${humanError(error)}`;
+      } finally { button.disabled = false; }
+    });
+    $('logoutButton').addEventListener('click', signOut);
+    $('refreshButton').addEventListener('click', () => withBusy(['refreshButton'], () => loadOrders()).catch((error) => showToast(`更新失敗：${humanError(error)}`)));
+    $('historyButton').addEventListener('click', openHistory);
+    $('historyTopClose').addEventListener('click', () => $('historyDialog').close());
+    $('historyList').addEventListener('click', (event) => { const restore = event.target.closest('[data-restore-id]'); if (restore) withBusy([], () => restoreDeleted(restore.dataset.restoreId)).catch((error) => showToast(`復元失敗：${humanError(error)}`)); });
+    $('batchButton').addEventListener('click', () => openBatchDialog().catch((error) => showToast(`送信準備失敗：${humanError(error)}`)));
+    $('batchHistoryButton').addEventListener('click', () => openBatchHistory().catch((error) => showToast(`履歴表示失敗：${humanError(error)}`)));
+    $('batchHistoryTopClose').addEventListener('click', () => $('batchHistoryDialog').close());
+    $('batchTopClose').addEventListener('click', () => closeBatchDialog().catch((error) => showToast(humanError(error))));
+    $('cancelBatchButton').addEventListener('click', () => closeBatchDialog().catch((error) => showToast(humanError(error))));
+    $('createBatchPdfButton').addEventListener('click', () => withBusy(['createBatchPdfButton'], createBatchPdf).catch((error) => showToast(`PDF準備失敗：${humanError(error)}`, 6000)));
+    $('openBatchMailButton').addEventListener('click', openBatchMail);
+    $('pdfSavedCheck').addEventListener('change', updateBatchSendEnabled);
+    $('mailSentCheck').addEventListener('change', updateBatchSendEnabled);
+    $('markBatchSentButton').addEventListener('click', () => withBusy(['markBatchSentButton'], markBatchSent).catch((error) => showToast(`送付済み登録失敗：${humanError(error)}`, 6000)));
+    $('searchInput').addEventListener('input', render);
+    $('eventFilter').addEventListener('change', () => { populateFilters(); render(); });
+    $('dateFilter').addEventListener('change', render);
+    $('showUnsentButton').addEventListener('click', () => { $('dateFilter').value = 'all'; switchTab('completed'); render(); });
+    $('soundButton').addEventListener('click', () => { state.soundEnabled = !state.soundEnabled; if (state.soundEnabled) { beep(); $('soundButton').textContent = '🔔 通知音ON'; } else $('soundButton').textContent = '🔕 通知音OFF'; });
+    document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.tab)));
+    $('detailTopClose').addEventListener('click', () => $('detailDialog').close());
+    $('closeDetail').addEventListener('click', () => $('detailDialog').close());
+    $('startButton').addEventListener('click', () => withBusy(['startButton'], startOrder).catch((error) => showToast(`更新失敗：${humanError(error)}`)));
+    $('completeButton').addEventListener('click', () => withBusy(['completeButton'], completeOrder).catch((error) => showToast(`確定失敗：${humanError(error)}`)));
+    $('reopenButton').addEventListener('click', () => withBusy(['reopenButton'], reopenOrder).catch((error) => showToast(`更新失敗：${humanError(error)}`)));
+    $('deleteButton').addEventListener('click', openDeleteDialog);
+    $('printButton').addEventListener('click', () => withBusy(['printButton'], printCurrent).catch((error) => showToast(`印刷準備失敗：${humanError(error)}`)));
+    $('deleteTopClose').addEventListener('click', () => $('deleteDialog').close());
+    $('cancelDeleteButton').addEventListener('click', () => $('deleteDialog').close());
+    $('deleteReason').addEventListener('change', () => $('deleteReasonOtherWrap').classList.toggle('hidden', $('deleteReason').value !== 'その他'));
+    $('confirmDeleteButton').addEventListener('click', () => withBusy(['confirmDeleteButton'], confirmSoftDelete).catch((error) => showToast(`削除失敗：${humanError(error)}`, 6000)));
+  }
+
+  async function init() {
+    attachEvents();
+    if (!SUPABASE_URL || !ANON_KEY || !config.enabled) { showLogin('Supabase本番設定が未完了です。online-config.jsを確認してください。'); return; }
+    loadStoredSession();
+    if (!state.session) { showLogin(''); return; }
+    try {
+      await ensureToken(); await loadStaffProfile(); showDashboard(); await loadOrders(); await startRealtime();
+    } catch (error) {
+      console.warn(error); saveSession(null); state.staff = null; showLogin(`ログインできませんでした：${humanError(error)}`);
+    }
+  }
+
+  window.addEventListener('DOMContentLoaded', init);
 })();

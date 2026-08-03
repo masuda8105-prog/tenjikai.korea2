@@ -9,5 +9,11 @@ window.ORDER_ONLINE_CONFIG = Object.freeze({
   publicAppUrl: 'https://masuda8105-prog.github.io/korea-exibition-sannishimura/',
   functionName: 'exhibition-order',
   staffPage: 'staff.html',
-  orderRetentionDays: 14
+  orderRetentionDays: 14,
+  eventId: 'korea-exhibition-2026',
+  eventName: 'Korea Optical Exhibition 2026',
+  eventDate: '',
+  eventDay: 1,
+  distributorName: 'KY-S Corporation.',
+  distributorEmail: ''
 });

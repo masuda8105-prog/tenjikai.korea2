@@ -22,4 +22,5 @@ npx supabase functions deploy exhibition-order --no-verify-jwt --use-api
 npx supabase functions deploy cleanup-orders --no-verify-jwt --use-api
 
 Write-Host "=== Supabase更新完了 ===" -ForegroundColor Green
+Write-Host "重要: cleanup-ordersの安全なCronは README_Supabase設定.md の手順でCLEANUP_SECRETを設定してください。" -ForegroundColor Yellow
 Write-Host "次はSupabase Dashboardでスタッフユーザーを作成し、exhibition_staffへ登録してください。"

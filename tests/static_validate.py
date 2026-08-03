@@ -50,6 +50,9 @@ def validate_files() -> None:
         "supabase/functions/exhibition-order/index.ts",
         "supabase/functions/cleanup-orders/index.ts",
         "supabase/migrations/20260730090000_korea_staff_dashboard.sql",
+        "supabase/migrations/20260803120000_exhibition_order_workflow.sql",
+        "supabase/sql/04_secure_cleanup_schedule.sql",
+        "AGENTS.md", "README_当日操作.md", "README_Supabase設定.md",
         "01_Supabase更新.ps1", "02_GitHub公開.ps1",
     ]
     missing = [name for name in required if not (ROOT / name).is_file()]
@@ -79,8 +82,12 @@ def check_js() -> None:
 
 def check_required_markers() -> None:
     index = (ROOT / "index.html").read_text(encoding="utf-8")
-    staff = (ROOT / "staff.js").read_text(encoding="utf-8")
+    staff_js = (ROOT / "staff.js").read_text(encoding="utf-8")
+    staff_html = (ROOT / "staff.html").read_text(encoding="utf-8")
     migration = (ROOT / "supabase/migrations/20260730090000_korea_staff_dashboard.sql").read_text(encoding="utf-8")
+    workflow = (ROOT / "supabase/migrations/20260803120000_exhibition_order_workflow.sql").read_text(encoding="utf-8")
+    edge = (ROOT / "supabase/functions/exhibition-order/index.ts").read_text(encoding="utf-8")
+    cleanup = (ROOT / "supabase/functions/cleanup-orders/index.ts").read_text(encoding="utf-8")
     markers = [
         "注文を送信 / 주문 전송",
         "名刺画像を送信できませんでした。再試行してください。",
@@ -90,12 +97,25 @@ def check_required_markers() -> None:
     for marker in markers:
         if marker not in index:
             fail(f"お客様画面の必須文言がありません: {marker}")
-    for marker in ["対応開始", "完了", "リアルタイム接続中", "business-cards"]:
-        if marker not in staff:
+    for marker in ["対応開始", "注文を確定する", "確定注文をまとめて送る", "削除履歴へ移す"]:
+        if marker not in staff_html:
+            fail(f"スタッフ画面の必須機能がありません: {marker}")
+    for marker in ["リアルタイム接続中", "business-cards", "updated_at=eq.", "resend_required", "CONFLICT"]:
+        if marker not in staff_js:
             fail(f"スタッフ画面の必須機能がありません: {marker}")
     for marker in ["next_korea_order_no", "exhibition_staff", "supabase_realtime", "cleanup-expired-exhibition-orders"]:
         if marker not in migration:
             fail(f"DB設定の必須項目がありません: {marker}")
+    for marker in ["client_submission_id", "order_revisions", "order_batches", "order_batch_items", "status = 'deleted'", "is_exhibition_admin", "resend_required"]:
+        if marker not in workflow:
+            fail(f"ワークフローDB設定の必須項目がありません: {marker}")
+    for marker in ["clientSubmissionId", "duplicatePrevented", "client_submission_id"]:
+        if marker not in edge:
+            fail(f"注文APIの二重送信防止がありません: {marker}")
+    if "acceptedPublicKeys" in cleanup:
+        fail("cleanup-ordersが公開用キーを認証に使用しています")
+    if "method:'DELETE'" in staff_js or 'method: "DELETE"' in staff_js:
+        fail("通常スタッフ画面から物理DELETEを実行しています")
 
 
 def main() -> None:
