@@ -101,7 +101,7 @@ def check_required_markers() -> None:
     for marker in ["受付番号を発行", "近くのスタッフにお見せください"]:
         if marker not in index:
             fail(f"Reception-number guidance marker is missing: {marker}")
-    for marker in ["shippingAddress", "saveReceiptImage", "html2canvas.min.js", "receiptImagePanel", "prepareReceiptImagePreview", "receiptImageDownloadFab", "画像を長押し"]:
+    for marker in ["shippingAddress", "saveReceiptImage", "html2canvas.min.js", "receiptImagePanel", "prepareReceiptImagePreview", "renderReceiptDataCanvas", "receiptImageDownloadFab", "画像を長押し"]:
         if marker not in index:
             fail(f"Shipping-address or image-save marker is missing: {marker}")
     markers = [

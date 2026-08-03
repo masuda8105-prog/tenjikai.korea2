@@ -38,7 +38,7 @@ function launchOptions() {
 }
 
 async function customerFlow(browser) {
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/138.0 Mobile/15E148 Safari/604.1' });
   const errors = [];
   page.on('pageerror', (error) => errors.push(String(error)));
   const order = { v: 10, status: 'new', lang: 'ja', orderNo: 'K260803-001', createdAt: '2026-08-03T08:00:00.000Z', eventName: 'Korea Optical Exhibition 2026', customerCompany: 'Test Optical', customerName: 'Kim', customerPhone: '010-1234-5678', shippingAddress: '04524 Seoul Test Address', total: 120000, items: [{ c: '1053', n: ['ヤットコ', '플라이어'], q: 1, p: 120000 }] };
@@ -70,13 +70,14 @@ async function customerFlow(browser) {
   if (await page.evaluate(() => window.__postCount) !== 1) throw new Error('同じ注文が二重送信されました');
   if (!await page.evaluate(() => window.__cardParts?.original > 0 && window.__cardParts?.preview > 0)) throw new Error('名刺の原本とプレビューが分離されていません');
   if (await page.evaluate(() => window.__postedOrder?.shippingAddress) !== '04524 Seoul Test Address') throw new Error('発送先住所が注文データへ送信されていません');
+  await page.evaluate(() => { const originalHtml2Canvas = window.html2canvas; window.__htmlCaptureCalled = false; window.html2canvas = (...args) => { window.__htmlCaptureCalled = true; return originalHtml2Canvas(...args); }; });
   await page.click('#openReceipt');
   await page.waitForFunction(() => document.querySelector('#receiptPrintArea')?.textContent.includes('K260803-001'));
   const receipt = await page.textContent('#receiptPrintArea');
   if (!receipt.includes('スタッフ確認待ち') || !receipt.includes('1053') || !receipt.includes('04524 Seoul Test Address')) throw new Error('控えの状態・商品・発送先住所が不正です');
   await page.waitForSelector('#receiptImagePanel.ready', { timeout: 30000 });
-  const imagePreview = await page.evaluate(() => ({ button: document.querySelector('#saveReceiptImage').textContent, disabled: document.querySelector('#saveReceiptImage').disabled, src: document.querySelector('#receiptImagePreview').src, download: document.querySelector('#downloadReceiptImage').download, fabVisible: getComputedStyle(document.querySelector('#receiptImageDownloadFab')).display }));
-  if (!imagePreview.button.includes('画像を保存') || imagePreview.disabled || !imagePreview.src.startsWith('data:image/png') || imagePreview.src.length < 1000 || !imagePreview.download.endsWith('-order-copy.png') || imagePreview.fabVisible === 'none') throw new Error(`PNGの自動プレビューが不正です: ${JSON.stringify(imagePreview)}`);
+  const imagePreview = await page.evaluate(() => ({ button: document.querySelector('#saveReceiptImage').textContent, disabled: document.querySelector('#saveReceiptImage').disabled, src: document.querySelector('#receiptImagePreview').src, width: document.querySelector('#receiptImagePreview').naturalWidth, download: document.querySelector('#downloadReceiptImage').download, fabVisible: getComputedStyle(document.querySelector('#receiptImageDownloadFab')).display, htmlCaptureCalled: window.__htmlCaptureCalled }));
+  if (!imagePreview.button.includes('画像を保存') || imagePreview.disabled || !imagePreview.src.startsWith('data:image/png') || imagePreview.src.length < 1000 || imagePreview.width !== 900 || !imagePreview.download.endsWith('-order-copy.png') || imagePreview.fabVisible === 'none' || imagePreview.htmlCaptureCalled) throw new Error(`スマホ用の安全なPNG自動プレビューが不正です: ${JSON.stringify(imagePreview)}`);
   await page.evaluate(() => { isMobileLike = () => false; document.querySelector('#downloadReceiptImage').onclick = (event) => { event.preventDefault(); window.__imageFileName = event.currentTarget.download; markReceiptImageSaved(); }; });
   await page.click('#saveReceiptImage');
   await page.waitForFunction(() => window.__imageFileName);
