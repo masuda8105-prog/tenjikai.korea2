@@ -180,7 +180,7 @@ async def tablet_smoke(browser):
     await staff.fill('#email','tablet@example.com'); await staff.fill('#password','password'); await staff.click('#loginButton')
     await staff.wait_for_selector('#dashboardView:not(.hidden)',timeout=10000)
     assert await staff.locator('.summary').is_visible()
-    assert await staff.locator('[data-tab]').count()==4
+    assert await staff.locator('[data-tab]').count()==2
     assert not errors, errors
     await staff.close()
 

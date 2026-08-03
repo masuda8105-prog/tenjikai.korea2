@@ -109,6 +109,9 @@ async function staffFlow(browser) {
   await page.click('#batchButton'); await page.waitForSelector('#batchDialog[open]'); await page.click('#createBatchPdfButton');
   await page.waitForFunction(() => window.__printed === true); await page.check('#pdfSavedCheck'); await page.check('#mailSentCheck'); await page.click('#markBatchSentButton');
   await page.waitForFunction(() => document.querySelector('#sentCount')?.textContent === '1');
+  await page.click('#sentOrdersButton'); await page.waitForSelector('#sentOrdersDialog[open]');
+  if (!(await page.textContent('#list-sent')).includes('K260803-001')) throw new Error('送付済み注文をメニューから確認できません');
+  await page.click('#sentOrdersTopClose');
   if (errors.length) throw new Error(errors.join('\n'));
   await page.close();
 }
@@ -139,7 +142,7 @@ async function responsiveSmoke(browser) {
   await staff.setContent(staffHtml(staffMock), { waitUntil: 'domcontentloaded' });
   await staff.fill('#email', 'mobile@example.com'); await staff.fill('#password', 'password'); await staff.click('#loginButton');
   await staff.waitForSelector('#dashboardView:not(.hidden)');
-  if (!await staff.locator('.summary').isVisible() || await staff.locator('[data-tab]').count() !== 4) throw new Error('スマホスタッフ画面の表示が不正です');
+  if (!await staff.locator('.summary').isVisible() || await staff.locator('[data-tab]').count() !== 2) throw new Error('スマホスタッフ画面の表示が不正です');
   if (staffErrors.length) throw new Error(staffErrors.join('\n'));
   await staff.close();
 }

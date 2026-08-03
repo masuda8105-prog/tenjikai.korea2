@@ -46,8 +46,8 @@
     return 'open';
   };
   const statusLabel = (status) => ({
-    new: '確認待ち', in_progress: '確認中', completed: '送信待ち', sent: '送付済み',
-    resend_required: '修正版・再送待ち', deleted: '削除済み',
+    new: '確認待ち', in_progress: '確認中', completed: '注文確定', sent: '送付済み',
+    resend_required: '修正版・再送必要', deleted: '削除済み',
   }[status] || '確認待ち');
   const staffName = () => String(state.staff?.display_name || state.user?.user_metadata?.full_name || state.user?.email?.split('@')[0] || 'Staff');
   const staffRole = () => String(state.staff?.role || 'staff');
@@ -421,6 +421,7 @@
   async function openDetail(id) {
     const order = state.orders.find((row) => row.id === id);
     if (!order) return;
+    if ($('sentOrdersDialog')?.open) $('sentOrdersDialog').close();
     state.current = order;
     state.editDirty = false;
     state.editRefreshPending = false;
@@ -592,7 +593,7 @@
     if (!state.current) return;
     if (!requireSavedEditor()) return;
     const order = state.current;
-    if (!window.confirm(`${order.order_no} をこの内容で確定しますか？\n確定後は「送信待ち」へ移動します。`)) return;
+    if (!window.confirm(`${order.order_no} をこの内容で確定しますか？\n確定後は画面下の「注文確定分」へ移動します。`)) return;
     const updated = await updateOrder(order, { status: 'completed', completed_at: new Date().toISOString(), requires_resend: false });
     await logActivity(updated || order, 'order_completed');
     if (updated) await renderDetail(updated);
@@ -784,7 +785,7 @@
         state.batch = { batchId: pendingId, orders };
       }
     }
-    if (!orders.length) { showToast('現在の絞り込みに送信待ち注文はありません。'); return; }
+    if (!orders.length) { showToast('現在の絞り込みに注文確定分はありません。'); return; }
     const dates = [...new Set(orders.map(dateOf))];
     if (dates.length > 1) { showToast('送信する日付を上の日付フィルターで1日選択してください。', 5000); return; }
     state.batch ||= { batchId: '', orders };
@@ -918,9 +919,10 @@
   }
 
   function switchTab(tab) {
+    if (!['open', 'progress'].includes(tab)) return;
     state.activeTab = tab;
     document.querySelectorAll('[data-tab]').forEach((button) => button.classList.toggle('active', button.dataset.tab === tab));
-    document.querySelectorAll('.statusColumn').forEach((column) => column.classList.toggle('mobileHidden', column.id !== `column-${tab}`));
+    document.querySelectorAll('.primaryColumns .statusColumn').forEach((column) => column.classList.toggle('mobileHidden', column.id !== `column-${tab}`));
   }
 
   function attachEvents() {
@@ -941,6 +943,8 @@
     $('refreshButton').addEventListener('click', () => withBusy(['refreshButton'], () => loadOrders()).catch((error) => showToast(`更新失敗：${humanError(error)}`)));
     $('historyButton').addEventListener('click', openHistory);
     $('historyTopClose').addEventListener('click', () => $('historyDialog').close());
+    $('sentOrdersButton').addEventListener('click', () => { document.querySelector('.utilityMenu')?.removeAttribute('open'); $('sentOrdersDialog').showModal(); });
+    $('sentOrdersTopClose').addEventListener('click', () => $('sentOrdersDialog').close());
     $('historyList').addEventListener('click', (event) => { const restore = event.target.closest('[data-restore-id]'); if (restore) withBusy([], () => restoreDeleted(restore.dataset.restoreId)).catch((error) => showToast(`復元失敗：${humanError(error)}`)); });
     $('batchButton').addEventListener('click', () => openBatchDialog().catch((error) => showToast(`送信準備失敗：${humanError(error)}`)));
     $('batchHistoryButton').addEventListener('click', () => openBatchHistory().catch((error) => showToast(`履歴表示失敗：${humanError(error)}`)));
@@ -955,7 +959,7 @@
     $('searchInput').addEventListener('input', render);
     $('eventFilter').addEventListener('change', () => { populateFilters(); render(); });
     $('dateFilter').addEventListener('change', render);
-    $('showUnsentButton').addEventListener('click', () => { $('dateFilter').value = 'all'; switchTab('completed'); render(); });
+    $('showUnsentButton').addEventListener('click', () => { $('dateFilter').value = 'all'; render(); requestAnimationFrame(() => $('column-completed').scrollIntoView({ behavior: 'smooth', block: 'start' })); });
     $('soundButton').addEventListener('click', () => { state.soundEnabled = !state.soundEnabled; if (state.soundEnabled) { beep(); $('soundButton').textContent = '🔔 通知音ON'; } else $('soundButton').textContent = '🔕 通知音OFF'; });
     document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.tab)));
     $('detailTopClose').addEventListener('click', closeDetailSafely);
