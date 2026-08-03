@@ -1,0 +1,5 @@
+[functions.exhibition-order]
+verify_jwt = false
+
+[functions.cleanup-orders]
+verify_jwt = false

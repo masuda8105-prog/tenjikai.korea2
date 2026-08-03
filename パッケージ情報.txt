@@ -1,0 +1,15 @@
+SAN NISHIMURA 韓国展示会専用受注システム v2.0
+作成日: 2026-07-30
+商品件数: 3831
+商品画像数: 2753
+パッケージ内ファイル数: 2783
+
+主要ファイル SHA-256:
+0e69143c7b995d530db36593b64217ea24d1778be3f369e008cca059ddf9406f  index.html
+2db73d1350be0e75d1a57c7425f898be15692bb0c55e728dd45f9e01624cae85  staff.html
+71418f26add2b9b5c13d4d6e32f4470aab47ee4f4f83a765c76353cda3f35a2d  staff.js
+46108f1a06acb5f3c1229cb673fe976982a4949fe2bc7d0fb791cdfd06bb3e29  online-config.js
+615b1c59f0023d5222af7e1223818de304a577ddbefce71faaa35abf9a878904  product_master_korea.csv
+9d90b2912c242a5919876193c3f7a1f15b315d36144a4729def3bf1713e731e8  supabase/migrations/20260730090000_korea_staff_dashboard.sql
+ad4d4174d0f765587433f9f74034ca41cc1a5fd0a933ece39dbe3c6749ac1e02  supabase/functions/exhibition-order/index.ts
+9e3f5caf107fddc7f17af26e03ba39536a04e3ddae6b6c9ebbac4c5d9fc8b2cd  supabase/functions/cleanup-orders/index.ts
