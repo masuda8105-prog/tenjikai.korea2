@@ -57,6 +57,9 @@ async function customerFlow(browser) {
   await page.fill('#searchInput', '１０５３');
   await page.waitForSelector('[data-add="1053"]');
   if (!(await page.textContent('#results')).includes('1053')) throw new Error('全角数字で品番検索できません');
+  await page.evaluate(() => { window.__catalogOnlyProductCode = products[0].code; products[0].catalog = '987654321'; prepareProducts(products); renderResults(); });
+  await page.fill('#searchInput', '９８７６５４３２１');
+  if (await page.locator(`[data-add="${await page.evaluate(() => window.__catalogOnlyProductCode)}"]`).count()) throw new Error('カタログページ番号が数字検索にヒットしています');
   await page.fill('#searchInput', '1053');
   await page.click('[data-add="1053"]');
   await page.click('#quickCheckout');
