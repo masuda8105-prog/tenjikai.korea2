@@ -92,6 +92,8 @@ async function customerFlow(browser) {
   const receipt = await page.textContent('#receiptPrintArea');
   if (!receipt.includes('スタッフ確認待ち') || !receipt.includes('1053') || !receipt.includes('04524 Seoul Test Address') || !receipt.includes('K260803-001')) throw new Error('控えの状態・商品・発送先住所・受付番号が不正です');
   if (!await page.locator('#receiptPrintArea .receiptOrderQrBlock img').count()) throw new Error('注文控え・印刷用データにQRがありません');
+  const receiptQrLayout = await page.evaluate(() => { const block=document.querySelector('#receiptPrintArea .receiptOrderQrBlock'),footer=document.querySelector('#receiptPrintArea .receiptFooterMini'),img=block?.querySelector('img'),strong=block?.querySelector('strong'); return { beforeFooter:block?.nextElementSibling===footer, blockWidth:block?.getBoundingClientRect().width||0, imageWidth:img?.getBoundingClientRect().width||0, fontSize:Number.parseFloat(getComputedStyle(strong).fontSize)||0 }; });
+  if (!receiptQrLayout.beforeFooter || receiptQrLayout.blockWidth > 350 || receiptQrLayout.imageWidth > 52 || receiptQrLayout.fontSize > 16) throw new Error(`受付番号・QRが控え下部の小型表示になっていません: ${JSON.stringify(receiptQrLayout)}`);
   if (!await page.locator('#editOrderFromReceipt').isVisible() || !await page.locator('#editOrderFromImage').isVisible()) throw new Error('注文控え・画像保存画面に注文修正ボタンがありません');
   if (!(await page.textContent('#deviceSaveText')).includes('長押し') || await page.locator('[data-save-device]').count()) throw new Error('全スマートフォン共通の長押し保存案内になっていません');
   await page.waitForSelector('#receiptImagePanel.ready', { timeout: 30000 });
@@ -168,6 +170,7 @@ async function staffFlow(browser) {
   await page.click('#printButton'); await page.waitForFunction(() => window.__printed === true);
   if (!(await page.textContent('#printArea')).includes('04525 Seoul Updated Address')) throw new Error('スタッフ注文書に発送先住所が反映されません');
   if (!await page.locator('#printArea .receiptOrderQrBlock img').count() || !(await page.textContent('#printArea .receiptOrderQrBlock')).includes('K260803-001')) throw new Error('スタッフ注文書に受付番号とQRがありません');
+  if (!await page.evaluate(() => document.querySelector('#printArea .receiptOrderQrBlock')?.nextElementSibling?.classList.contains('receiptFooterMini'))) throw new Error('スタッフ注文書の受付番号・QRがフッター直前にありません');
   await page.evaluate(() => {
     const card = document.createElement('div');
     card.className = 'receiptBusinessCard';
@@ -196,7 +199,13 @@ async function staffFlow(browser) {
   await page.selectOption('#batchDateSelect', batchOptions.find((option) => option.text.includes('2026/08/03')).value);
   if (!(await page.textContent('#batchOrderList')).includes('Test Optical') || (await page.textContent('#batchOrderList')).includes('Day 2 Optical')) throw new Error('選択した展示会日の注文が表示されません');
   await page.click('#createBatchPdfButton');
-  await page.waitForFunction(() => window.__printed === true); await page.check('#pdfSavedCheck'); await page.check('#mailSentCheck'); await page.click('#markBatchSentButton');
+  await page.waitForFunction(() => window.__printed === true);
+  await page.emulateMedia({ media: 'print' });
+  const batchPdf = await page.pdf({ format: 'A4', preferCSSPageSize: true, printBackground: true, displayHeaderFooter: true, headerTemplate: '<span></span>', footerTemplate: '<span style="font-size:7px">mobile print footer</span>' });
+  const batchPages = await pdfPageTexts(batchPdf);
+  if (batchPages.length !== 2 || !batchPages[0].includes('KY-20260803-01') || !batchPages[0].includes('KY-S Corporation') || !batchPages[1].includes('K260803-001')) throw new Error(`一括送付PDFの表紙が1ページに収まっていません: ${JSON.stringify(batchPages.map((text) => text.slice(0, 260)))}`);
+  await page.emulateMedia({ media: 'screen' });
+  await page.check('#pdfSavedCheck'); await page.check('#mailSentCheck'); await page.click('#markBatchSentButton');
   await page.waitForFunction(() => document.querySelector('#sentCount')?.textContent === '1');
   await page.click('#sentOrdersButton'); await page.waitForSelector('#sentOrdersDialog[open]');
   if (!(await page.textContent('#list-sent')).includes('K260803-001')) throw new Error('送付済み注文をメニューから確認できません');
@@ -273,10 +282,13 @@ async function platformPrintSmoke(browser) {
       tableDisplay: getComputedStyle(document.querySelector('.receiptTable')).display,
       rowBreak: getComputedStyle(document.querySelector('.receiptTable tbody tr')).breakInside,
       qrBreak: getComputedStyle(document.querySelector('.receiptOrderQrBlock')).breakInside,
+      qrBlockWidth: document.querySelector('.receiptOrderQrBlock').getBoundingClientRect().width,
+      qrImageWidth: document.querySelector('.receiptOrderQrBlock img').getBoundingClientRect().width,
+      qrBeforeFooter: document.querySelector('.receiptOrderQrBlock').nextElementSibling?.classList.contains('receiptFooterMini'),
       summaryBreak: getComputedStyle(document.querySelector('.receiptSummaryBox')).breakInside,
       pageWidth: document.querySelector('#receiptPrintArea').getBoundingClientRect().width,
     }));
-    if (layout.tableDisplay !== 'table' || layout.rowBreak !== 'avoid' || layout.qrBreak !== 'avoid' || layout.summaryBreak !== 'avoid') throw new Error(`${platform.name}: 印刷用CSSが不正です ${JSON.stringify(layout)}`);
+    if (layout.tableDisplay !== 'table' || layout.rowBreak !== 'avoid' || layout.qrBreak !== 'avoid' || layout.summaryBreak !== 'avoid' || !layout.qrBeforeFooter || layout.qrBlockWidth > 240 || layout.qrImageWidth > 40) throw new Error(`${platform.name}: 印刷用CSSまたはフッターQR配置が不正です ${JSON.stringify(layout)}`);
     const pdf = await page.pdf({ format: 'A4', preferCSSPageSize: true, printBackground: true });
     const pages = await pdfPageTexts(pdf);
     if (pages.length < 2 || pages.length > 8) throw new Error(`${platform.name}: 複数ページ数が不自然です (${pages.length})`);
