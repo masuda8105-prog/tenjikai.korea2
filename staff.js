@@ -382,7 +382,7 @@
   function confirmedOrderRow(order) {
     const data = order.order_data || {};
     const time = new Date(order.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-    const customer = data.customerName || data.customerCompany || '-';
+    const customer = [data.customerCompany, data.customerName].filter((value) => String(value || '').trim()).join('　') || '-';
     const assigned = order.assigned_name || data.staffName || '-';
     const revised = order.status === 'resend_required' ? ' revised' : '';
     return `<article class="confirmedOrderRow${revised}" data-order-id="${escapeHtml(order.id)}" tabindex="0" role="button" aria-label="${escapeHtml(order.order_no)} ${escapeHtml(customer)} を開く"><span class="confirmedTime">${escapeHtml(time)}</span><span class="confirmedCustomer" title="${escapeHtml(customer)}">${escapeHtml(customer)}</span><span class="confirmedStaff" title="${escapeHtml(assigned)}">${escapeHtml(assigned)}</span><strong class="confirmedOrderNo">${escapeHtml(order.order_no)}</strong></article>`;
@@ -646,7 +646,7 @@
     if (!requireSavedEditor()) return;
     const order = state.current;
     const data = { ...(order.order_data || {}), status: 'in_progress' };
-    const updated = await updateOrder(order, { status: 'in_progress', order_data: data });
+    const updated = await updateOrder(order, { status: 'in_progress', assigned_to: state.user.id, assigned_name: staffName(), order_data: data });
     await logActivity(updated || order, 'review_started');
     if (updated) await renderDetail(updated);
     showToast(`${order.order_no} の確認を開始しました。`);
@@ -658,7 +658,7 @@
     const order = state.current;
     if (!window.confirm(`${order.order_no} をこの内容で確定しますか？\n確定後は画面下の「注文確定分」へ移動します。`)) return;
     const data = { ...(order.order_data || {}), status: 'confirmed', confirmedAt: new Date().toISOString() };
-    const updated = await updateOrder(order, { status: 'confirmed', order_data: data, completed_at: data.confirmedAt, requires_resend: false });
+    const updated = await updateOrder(order, { status: 'confirmed', assigned_to: state.user.id, assigned_name: staffName(), order_data: data, completed_at: data.confirmedAt, requires_resend: false });
     await logActivity(updated || order, 'order_completed');
     if (updated) await renderDetail(updated);
     showToast(`${order.order_no} を確定しました。`);

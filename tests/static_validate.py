@@ -55,6 +55,7 @@ def validate_files() -> None:
         "supabase/migrations/20260803150000_lock_browser_order_permissions.sql",
         "supabase/migrations/20260803151000_remove_legacy_order_policies.sql",
         "supabase/migrations/20260804100000_submitted_confirmed_customer_edits.sql",
+        "supabase/migrations/20260804120000_preserve_confirmed_order_assignee.sql",
         "supabase/sql/04_secure_cleanup_schedule.sql",
         "AGENTS.md", "README_当日操作.md", "README_Supabase設定.md",
         "01_Supabase更新.ps1", "02_GitHub公開.ps1",
@@ -93,6 +94,7 @@ def check_required_markers() -> None:
     permissions = (ROOT / "supabase/migrations/20260803150000_lock_browser_order_permissions.sql").read_text(encoding="utf-8")
     edge = (ROOT / "supabase/functions/exhibition-order/index.ts").read_text(encoding="utf-8")
     edit_workflow = (ROOT / "supabase/migrations/20260804100000_submitted_confirmed_customer_edits.sql").read_text(encoding="utf-8")
+    assignee_workflow = (ROOT / "supabase/migrations/20260804120000_preserve_confirmed_order_assignee.sql").read_text(encoding="utf-8")
     cleanup = (ROOT / "supabase/functions/cleanup-orders/index.ts").read_text(encoding="utf-8")
     for forbidden in ["packBadgeHtml(", "specsInfoHtml(", "'pack_qty','qty'", "i.pack||''"]:
         if forbidden in index:
@@ -141,6 +143,9 @@ def check_required_markers() -> None:
     for marker in ["submitted", "confirmed", "CUSTOMER_EDITABLE_STATUSES", 'req.method === "PATCH"', "expectedUpdatedAt", "order_changed"]:
         if marker not in edge + edit_workflow:
             fail(f"お客様による同一注文編集または新statusの実装がありません: {marker}")
+    for marker in ["starts_review", "confirms_order", "new.assigned_to = old.assigned_to", "new.updated_by = auth.uid()"]:
+        if marker not in assignee_workflow:
+            fail(f"注文担当者の上書き防止がありません: {marker}")
     if "acceptedPublicKeys" in cleanup:
         fail("cleanup-ordersが公開用キーを認証に使用しています")
     if "method:'DELETE'" in staff_js or 'method: "DELETE"' in staff_js:
