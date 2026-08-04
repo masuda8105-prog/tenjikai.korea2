@@ -29,6 +29,7 @@
     editDirty: false,
     editRefreshPending: false,
     customerQrUrl: '',
+    pendingOrderRef: '',
   };
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({
@@ -48,17 +49,19 @@
   const orderTotal = (order) => Number(order?.order_data?.total ?? (order?.order_data?.items || []).reduce((sum, item) => sum + Number(item.p || 0) * Number(item.q || 0), 0));
   const totalQty = (order) => (order?.order_data?.items || []).reduce((sum, item) => sum + Number(item.q || 0), 0);
   const isDeleted = (order) => order?.status === 'deleted';
+  const editableCustomerStatus = (status) => ['submitted', 'new', 'in_progress'].includes(status);
   const groupForStatus = (status) => {
-    if (status === 'new') return 'open';
+    if (status === 'submitted' || status === 'new') return 'open';
     if (status === 'in_progress') return 'progress';
-    if (status === 'completed' || status === 'resend_required') return 'completed';
+    if (status === 'confirmed' || status === 'completed' || status === 'resend_required') return 'completed';
     if (status === 'sent') return 'sent';
     return 'open';
   };
   const statusLabel = (status) => ({
-    new: '確認待ち', in_progress: '確認中', completed: '注文確定', sent: '送付済み',
+    submitted: '確認待ち', new: '確認待ち', in_progress: '確認中', confirmed: '注文確定', completed: '注文確定', sent: '送付済み',
     resend_required: '修正版・再送必要', deleted: '削除済み',
   }[status] || '確認待ち');
+  const statusClass = (status) => status === 'submitted' ? 'new' : status === 'confirmed' ? 'completed' : status;
   const staffName = () => String(state.staff?.display_name || state.user?.user_metadata?.full_name || state.user?.email?.split('@')[0] || 'Staff');
   const staffRole = () => String(state.staff?.role || 'staff');
   const eventIdOf = (order) => String(order?.event_id || order?.order_data?.eventId || config.eventId || 'korea-exhibition');
@@ -279,6 +282,7 @@
         }
       }
     }
+    if (state.pendingOrderRef) await openPendingOrderDeepLink();
     if (!state.workflowReady) setSync('error', 'DB更新が必要です');
     else if (state.editDirty && state.editRefreshPending) setSync('live', '編集中・入力を保護中');
     else setSync(state.realtimeChannel ? 'live' : '', state.realtimeChannel ? 'リアルタイム接続中' : '10秒ごとに自動更新');
@@ -370,7 +374,7 @@
 
   function orderCard(order) {
     const data = order.order_data || {};
-    const klass = order.status === 'in_progress' ? 'progress' : order.status;
+    const klass = statusClass(order.status);
     const revised = order.status === 'resend_required' ? '<div class="eventMeta">⚠ 修正理由あり・再送が必要</div>' : '';
     return `<article class="orderCard ${escapeHtml(klass)}" data-order-id="${escapeHtml(order.id)}" tabindex="0" role="button" aria-label="${escapeHtml(order.order_no)} を開く"><div class="cardTop"><div class="orderNo">${escapeHtml(order.order_no)}</div><span class="statusBadge ${escapeHtml(klass)}">${statusLabel(order.status)}</span></div><div class="company">${escapeHtml(data.customerCompany || '-')}</div><div class="person">${escapeHtml(data.customerName || '')}${data.customerPhone ? ` / ${escapeHtml(data.customerPhone)}` : ''}</div><div class="eventMeta">${escapeHtml(eventNameOf(order))} / ${escapeHtml(dateOf(order))}</div>${revised}${order.assigned_name ? `<div class="assigned">最終担当：${escapeHtml(order.assigned_name)}</div>` : ''}<div class="cardMeta"><div class="time">${escapeHtml(relativeTime(order.created_at))}<br>${totalQty(order)}点</div><div class="amount">${formatMoney(orderTotal(order))}</div></div></article>`;
   }
@@ -393,9 +397,9 @@
 
   function render() {
     const base = filteredBase();
-    $('newCount').textContent = base.filter((o) => o.status === 'new').length;
+    $('newCount').textContent = base.filter((o) => ['submitted', 'new'].includes(o.status)).length;
     $('progressCount').textContent = base.filter((o) => o.status === 'in_progress').length;
-    $('completedCount').textContent = base.filter((o) => ['completed', 'resend_required'].includes(o.status)).length;
+    $('completedCount').textContent = base.filter((o) => ['confirmed', 'completed', 'resend_required'].includes(o.status)).length;
     $('sentCount').textContent = base.filter((o) => o.status === 'sent').length;
     $('visibleCount').textContent = base.length;
     $('visibleQty').textContent = base.reduce((sum, order) => sum + totalQty(order), 0);
@@ -411,7 +415,7 @@
 
   function renderUnsentAlert(base) {
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
-    const old = base.filter((order) => ['completed', 'resend_required'].includes(order.status) && dateOf(order) < today);
+    const old = base.filter((order) => ['confirmed', 'completed', 'resend_required'].includes(order.status) && dateOf(order) < today);
     $('unsentAlert').classList.toggle('hidden', old.length === 0);
     $('unsentAlertText').textContent = `前日までの代理店未送信注文が${old.length}件あります。`;
   }
@@ -465,6 +469,18 @@
     state.editRefreshPending = false;
     await renderDetail(order);
     $('detailDialog').showModal();
+  }
+
+  async function openPendingOrderDeepLink() {
+    const ref = state.pendingOrderRef;
+    if (!ref) return;
+    const order = state.orders.find((row) => row.id === ref || row.public_token === ref);
+    state.pendingOrderRef = '';
+    if (!order) {
+      showToast('QRの注文が見つかりません。受付期限または受付番号を確認してください。', 6000);
+      return;
+    }
+    await openDetail(order.id);
   }
 
   function editDraftFromOrder(order) {
@@ -526,9 +542,9 @@
     $('addProductButton').addEventListener('click', () => withBusy(['addProductButton'], addProductToCurrent).catch((error) => showToast(`商品追加失敗：${humanError(error)}`)));
     refreshEditedTotal();
     if (state.editDirty) setEditProtection('入力中の内容を保護しています。自動更新が入っても、この画面の入力は消えません。', 'dirty');
-    $('startButton').classList.toggle('hidden', order.status !== 'new');
-    $('completeButton').classList.toggle('hidden', !['new', 'in_progress'].includes(order.status));
-    $('reopenButton').classList.toggle('hidden', !['completed', 'resend_required'].includes(order.status));
+    $('startButton').classList.toggle('hidden', !['submitted', 'new'].includes(order.status));
+    $('completeButton').classList.toggle('hidden', !editableCustomerStatus(order.status));
+    $('reopenButton').classList.toggle('hidden', !['confirmed', 'completed', 'resend_required'].includes(order.status));
   }
 
   function parseCsv(text) {
@@ -599,7 +615,7 @@
       if (!reason) throw new Error('送付済み注文の修正理由は必須です。');
       nextStatus = 'resend_required';
       requiresResend = true;
-    } else if (['completed', 'resend_required'].includes(order.status)) {
+    } else if (['confirmed', 'completed', 'resend_required'].includes(order.status)) {
       if (!window.confirm('この注文は確定済みです。変更内容は代理店へ送る注文書にも反映されます。保存しますか？')) return;
       reason = window.prompt('修正理由を入力してください。', order.revision_reason || '')?.trim() || '';
       if (!reason) throw new Error('確定済み注文の修正理由は必須です。');
@@ -629,7 +645,8 @@
     if (!state.current) return;
     if (!requireSavedEditor()) return;
     const order = state.current;
-    const updated = await updateOrder(order, { status: 'in_progress' });
+    const data = { ...(order.order_data || {}), status: 'in_progress' };
+    const updated = await updateOrder(order, { status: 'in_progress', order_data: data });
     await logActivity(updated || order, 'review_started');
     if (updated) await renderDetail(updated);
     showToast(`${order.order_no} の確認を開始しました。`);
@@ -640,7 +657,8 @@
     if (!requireSavedEditor()) return;
     const order = state.current;
     if (!window.confirm(`${order.order_no} をこの内容で確定しますか？\n確定後は画面下の「注文確定分」へ移動します。`)) return;
-    const updated = await updateOrder(order, { status: 'completed', completed_at: new Date().toISOString(), requires_resend: false });
+    const data = { ...(order.order_data || {}), status: 'confirmed', confirmedAt: new Date().toISOString() };
+    const updated = await updateOrder(order, { status: 'confirmed', order_data: data, completed_at: data.confirmedAt, requires_resend: false });
     await logActivity(updated || order, 'order_completed');
     if (updated) await renderDetail(updated);
     showToast(`${order.order_no} を確定しました。`);
@@ -651,8 +669,8 @@
     if (!requireSavedEditor()) return;
     const order = state.current;
     if (!window.confirm(`${order.order_no} を確認待ちへ戻しますか？`)) return;
-    const data = { ...(order.order_data || {}), status: 'new', _requiresResend: false };
-    const updated = await updateOrder(order, { status: 'new', completed_at: null, requires_resend: false, pending_batch_id: null, order_data: data });
+    const data = { ...(order.order_data || {}), status: 'submitted', _requiresResend: false };
+    const updated = await updateOrder(order, { status: 'submitted', completed_at: null, requires_resend: false, pending_batch_id: null, order_data: data });
     await logActivity(updated || order, 'order_reopened');
     if (updated) await renderDetail(updated);
     showToast(`${order.order_no} を確認待ちへ戻しました。`);
@@ -693,7 +711,7 @@
     const rows = deletedOrders();
     $('historyList').innerHTML = rows.length ? rows.map((order) => {
       const data = order.order_data || {};
-      const before = order.status_before_delete || data._statusBeforeDelete || 'new';
+      const before = order.status_before_delete || data._statusBeforeDelete || 'submitted';
       const reason = order.delete_reason || data._deleteReason || '-';
       return `<article class="historyRow"><div class="historyMain"><div class="historyNo">${escapeHtml(order.order_no)}</div><div class="historyCompany">${escapeHtml(data.customerCompany || '-')}　${escapeHtml(data.customerName || '')}</div><div class="historyMeta">削除：${escapeHtml(new Date(order.deleted_at || data._deletedAt || order.updated_at).toLocaleString('ja-JP'))} / ${escapeHtml(order.deleted_by_name || data._deletedBy || '-')}<br>理由：${escapeHtml(reason)} / 削除前：${statusLabel(before)}</div></div><div class="historyActions"><button class="secondary small" data-restore-id="${escapeHtml(order.id)}" type="button">元に戻す</button></div></article>`;
     }).join('') : '<div class="empty">削除履歴はありません。</div>';
@@ -708,7 +726,7 @@
     const order = state.orders.find((row) => row.id === id);
     if (!order) return;
     const data = { ...(order.order_data || {}) };
-    const restoreStatus = order.status_before_delete || data._statusBeforeDelete || 'new';
+    const restoreStatus = order.status_before_delete || data._statusBeforeDelete || 'submitted';
     if (restoreStatus === 'sent' && !window.confirm('この注文は代理店送付済みの状態へ復元されます。送信履歴は残っています。続けますか？')) return;
     delete data._deletedAt; delete data._deletedBy; delete data._deletedById; delete data._deleteReason; delete data._statusBeforeDelete;
     data.status = restoreStatus;
@@ -725,6 +743,31 @@
     const fallback = `${location.origin}${location.pathname.replace(/staff\.html(?:\?.*)?$/i, '')}`;
     const base = (configured || fallback).replace(/#.*$/, '');
     return `${base}#online-receipt=${encodeURIComponent(token)}`;
+  }
+
+  function staffOrderUrl(order) {
+    const ref = String(order?.public_token || order?.id || '').trim();
+    if (!ref) return '';
+    const configured = String(config.publicAppUrl || '').trim();
+    const fallback = `${location.origin}${location.pathname.replace(/staff\.html(?:\?.*)?$/i, '')}`;
+    const base = configured || fallback;
+    const staffPage = new URL(String(config.staffPage || 'staff.html'), base).toString().replace(/#.*$/, '');
+    return `${staffPage}#order=${encodeURIComponent(ref)}`;
+  }
+
+  function qrImageDataUrl(text, size = 132) {
+    if (!text || !window.QRCode) return '';
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;left:-9999px;top:0;background:#fff;padding:4px';
+    document.body.appendChild(host);
+    try {
+      new QRCode(host, { text, width: size, height: size, correctLevel: QRCode.CorrectLevel.M });
+      const canvas = host.querySelector('canvas');
+      const image = host.querySelector('img');
+      return canvas?.toDataURL('image/png') || image?.src || '';
+    } finally {
+      setTimeout(() => host.remove(), 1200);
+    }
   }
 
   function openCustomerQr() {
@@ -778,15 +821,16 @@
     return `<span class="receiptItemName">${escapeHtml(ja)}</span>${ko && ko !== ja ? `<span class="receiptItemSub">${escapeHtml(ko)}</span>` : ''}`;
   }
 
-  function buildPrint(order, cardUrl = '', wrapperClass = 'printOrder') {
+  function buildPrint(order, cardUrl = '', wrapperClass = 'printOrder', orderQrImage = '') {
     const data = order.order_data || {}, items = data.items || [];
     const hasBusinessCard = Boolean(order.business_card_original_path || order.business_card_preview_path);
     const businessCard = cardUrl ? `<div class="receiptBusinessCard"><div class="receiptBusinessCardLabel">名刺写真 / 명함 사진<small>お客様からお預かりした名刺画像 / 고객 명함 이미지</small></div><div class="receiptBusinessCardImage"><img src="${escapeHtml(cardUrl)}" alt="名刺写真 / 명함 사진"></div></div>` : hasBusinessCard ? '<div class="receiptBusinessCard receiptBusinessCardMissing"><div class="receiptBusinessCardLabel">名刺写真 / 명함 사진</div><div>画像を取得できませんでした。スタッフ画面で原本を確認してください。<br>명함 이미지를 불러오지 못했습니다. 직원 화면에서 원본을 확인해 주세요.</div></div>' : '';
     const shippingAddress = data.shippingAddress ? `<div class="receiptShippingAddress"><div class="receiptInfoLabel">Shipping address / 배송지 주소</div><div class="receiptInfoValue">${escapeHtml(data.shippingAddress).replace(/\n/g, '<br>')}</div></div>` : '';
     const notes = data.notes ? `<div class="receiptNote"><b>備考 / 비고</b>${escapeHtml(data.notes).replace(/\n/g, '<br>')}</div>` : '';
+    const orderQr = `<div class="receiptOrderQrBlock"><div><span>受付番号 / 접수 번호</span><strong>${escapeHtml(order.order_no)}</strong><small>QRを読むとスタッフ画面で最新の注文を開きます。<br>QR을 스캔하면 직원 화면에서 최신 주문이 열립니다.</small></div>${orderQrImage ? `<img src="${escapeHtml(orderQrImage)}" alt="${escapeHtml(order.order_no)} スタッフ確認用QR">` : ''}</div>`;
     return `<section class="${wrapperClass}">${revisedMark(order)}
       <div class="receiptHeaderSimple"><div class="receiptBrandBlock"><img class="receiptBrandLogo" src="assets/sun_nishimura_logo.jpg" alt="SAN NISHIMURA"><div><div class="receiptBrandName">SAN NISHIMURA CO., LTD.</div><div class="receiptBrandSub">サンニシムラ株式会社 / 선 니시무라 주식회사<br>Korea Distributor: KY-S Corporation | TEL +82-2-3789-2440</div></div></div><div class="receiptDocMeta"><div class="receiptDocTitle">確定注文書 / 확정 주문서</div><div class="receiptDocSub">Confirmed exhibition order sheet</div><div class="receiptMetaLine"><b>注文番号 / 주문번호</b> ${escapeHtml(order.order_no)}<br><b>状態 / 상태</b> ${escapeHtml(statusLabel(order.status))}<br><b>作成日時 / 작성일시</b> ${escapeHtml(new Date(order.created_at).toLocaleString('ja-JP'))}</div></div></div>
-      <div class="receiptInfoBand"><div class="receiptInfoCard"><div class="receiptInfoLabel">Company / 회사명</div><div class="receiptInfoValue">${escapeHtml(data.customerCompany || '-')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Name / 성명</div><div class="receiptInfoValue">${escapeHtml(data.customerName || '-')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Phone / 연락처</div><div class="receiptInfoValue">${escapeHtml(data.customerPhone || '-')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Event / 전시회</div><div class="receiptInfoValue">${escapeHtml(eventNameOf(order))}<br>${escapeHtml(dateOf(order))}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Distributor / 대리점</div><div class="receiptInfoValue">${escapeHtml(data.distributor || config.distributorName || 'KY-S Corporation')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Staff / 담당자</div><div class="receiptInfoValue">${escapeHtml(order.assigned_name || data.staffName || staffName())}</div></div></div>
+      ${orderQr}<div class="receiptInfoBand"><div class="receiptInfoCard"><div class="receiptInfoLabel">Company / 회사명</div><div class="receiptInfoValue">${escapeHtml(data.customerCompany || '-')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Name / 성명</div><div class="receiptInfoValue">${escapeHtml(data.customerName || '-')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Phone / 연락처</div><div class="receiptInfoValue">${escapeHtml(data.customerPhone || '-')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Event / 전시회</div><div class="receiptInfoValue">${escapeHtml(eventNameOf(order))}<br>${escapeHtml(dateOf(order))}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Distributor / 대리점</div><div class="receiptInfoValue">${escapeHtml(data.distributor || config.distributorName || 'KY-S Corporation')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Staff / 담당자</div><div class="receiptInfoValue">${escapeHtml(order.assigned_name || data.staffName || staffName())}</div></div></div>
       ${shippingAddress}
       ${businessCard}
       <div class="receiptSection"><div class="receiptSectionHead"><div class="receiptSectionTitle">注文明細 / 주문 내역</div><div class="receiptSectionHint">Main order details</div></div><table class="receiptTable"><colgroup><col class="code"><col class="image"><col><col class="qty"><col class="unit"><col class="subtotal"></colgroup><thead><tr><th>品番 / 품번</th><th></th><th>商品名 / 상품명</th><th class="num">数量 / 수량</th><th class="num">単価 / 단가</th><th class="num">金額 / 금액</th></tr></thead><tbody>${items.map((item) => `<tr><td><b>${escapeHtml(item.c)}</b></td><td>${item.img ? `<div class="receiptThumb"><img src="${escapeHtml(item.img)}" alt="${escapeHtml(item.c)}"></div>` : ''}</td><td>${printItemNames(item)}</td><td class="num">${escapeHtml(item.q)}</td><td class="num">${formatMoney(item.p)}</td><td class="num"><b>${formatMoney(Number(item.p || 0) * Number(item.q || 0))}</b></td></tr>`).join('')}</tbody></table><div class="receiptImageNote">※ 商品画像は参考表示です。 / 상품 이미지는 참고용입니다.</div></div>
@@ -831,7 +875,8 @@
     if (!requireSavedEditor()) return;
     const order = state.current;
     const card = await signedBusinessCardUrl(order);
-    $('printArea').innerHTML = buildPrint(order, card);
+    const qr = qrImageDataUrl(staffOrderUrl(order));
+    $('printArea').innerHTML = buildPrint(order, card, 'printOrder', qr);
     try { await updateOrder(order, { printed_at: new Date().toISOString() }); } catch (error) { if (error.message !== 'CONFLICT') throw error; }
     await openPrintWhenImagesReady();
   }
@@ -854,7 +899,7 @@
 
   function batchScopedOrders() {
     const eventFilter = $('eventFilter').value;
-    return state.orders.filter((order) => !isDeleted(order) && ['completed', 'resend_required'].includes(order.status) && (eventFilter === 'all' || eventIdOf(order) === eventFilter));
+    return state.orders.filter((order) => !isDeleted(order) && ['confirmed', 'completed', 'resend_required'].includes(order.status) && (eventFilter === 'all' || eventIdOf(order) === eventFilter));
   }
 
   function batchEligibleOrders() {
@@ -955,9 +1000,10 @@
       document.querySelectorAll('[data-batch-order]').forEach((input) => { input.disabled = true; });
     }
     const urls = await Promise.all(rows.map(signedBusinessCardUrl));
+    const qrImages = rows.map((order) => qrImageDataUrl(staffOrderUrl(order)));
     const qty = rows.reduce((sum, order) => sum + totalQty(order), 0), amount = rows.reduce((sum, order) => sum + orderTotal(order), 0);
     const cover = `<section class="batchCover"><img src="assets/sun_nishimura_logo.jpg" alt="SAN NISHIMURA" style="width:220px"><h1>Korea Exhibition Confirmed Orders</h1><h2>韓国展示会 確定注文明細</h2><table class="batchCoverTable"><tr><th>展示会</th><td>${escapeHtml(eventNameOf(rows[0]))}</td></tr><tr><th>対象日</th><td>${escapeHtml(dateOf(rows[0]))}</td></tr><tr><th>送信グループ番号</th><td>${escapeHtml(state.batch.batchId)}</td></tr><tr><th>作成日時</th><td>${escapeHtml(new Date().toLocaleString('ja-JP'))}</td></tr><tr><th>注文件数</th><td>${rows.length}件</td></tr><tr><th>合計数量</th><td>${qty}点</td></tr><tr><th>合計金額</th><td>${formatMoney(amount)}</td></tr><tr><th>作成担当</th><td>${escapeHtml(staffName())}</td></tr><tr><th>韓国代理店</th><td>KY-S Corporation</td></tr></table></section>`;
-    $('printArea').innerHTML = cover + rows.map((order, index) => buildPrint(order, urls[index])).join('');
+    $('printArea').innerHTML = cover + rows.map((order, index) => buildPrint(order, urls[index], 'printOrder', qrImages[index])).join('');
     $('openBatchMailButton').disabled = false;
     $('batchMessage').textContent = `${state.batch.batchId} の印刷画面を開きます。保存先でPDFを選択してください。`;
     updateBatchDialogSummary();
@@ -1127,6 +1173,8 @@
   }
 
   async function init() {
+    const deepLink = location.hash.match(/^#order=([^&]+)$/);
+    state.pendingOrderRef = deepLink ? decodeURIComponent(deepLink[1]) : '';
     attachEvents();
     if (!SUPABASE_URL || !ANON_KEY || !config.enabled) { showLogin('Supabase本番設定が未完了です。online-config.jsを確認してください。'); return; }
     loadStoredSession();

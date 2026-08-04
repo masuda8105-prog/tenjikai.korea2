@@ -9,6 +9,7 @@ const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "")
   .split(",")
   .map((value) => value.trim().replace(/\/$/, ""))
   .filter(Boolean);
+const CUSTOMER_EDITABLE_STATUSES = ["submitted", "new", "in_progress"];
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -57,7 +58,7 @@ function corsHeaders(req: Request): HeadersInit {
   return {
     "Access-Control-Allow-Origin": originAllowed(req) ? origin : "null",
     "Access-Control-Allow-Headers": "apikey, authorization, content-type",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
     "Vary": "Origin",
   };
 }
@@ -193,7 +194,7 @@ async function createOrder(req: Request): Promise<Response> {
 
   const { data: existing, error: existingError } = await supabase
     .from("exhibition_orders")
-    .select("id, public_token, order_no, status, created_at, expires_at, business_card_original_path, business_card_preview_path")
+    .select("id, public_token, order_no, status, created_at, updated_at, expires_at, business_card_original_path, business_card_preview_path")
     .eq("client_submission_id", clientSubmissionId)
     .maybeSingle();
   if (existingError && existingError.code !== "42703") {
@@ -206,6 +207,7 @@ async function createOrder(req: Request): Promise<Response> {
       orderNo: existing.order_no,
       status: existing.status,
       createdAt: existing.created_at,
+      updatedAt: existing.updated_at,
       expiresAt: existing.expires_at,
       hasBusinessCard: Boolean(existing.business_card_original_path || existing.business_card_preview_path),
       duplicatePrevented: true,
@@ -237,7 +239,7 @@ async function createOrder(req: Request): Promise<Response> {
     eventDate: validEventDate(clientOrder.eventDate),
     eventDay: Math.max(1, Math.min(99, Number(clientOrder.eventDay) || 1)),
     orderNo,
-    status: "new",
+    status: "submitted",
     createdAt,
     date: createdAt,
   };
@@ -265,7 +267,7 @@ async function createOrder(req: Request): Promise<Response> {
       public_token: token,
       order_no: orderNo,
       order_data: order,
-      status: "new",
+      status: "submitted",
       client_submission_id: clientSubmissionId,
       event_id: order.eventId,
       event_name: order.eventName || null,
@@ -274,12 +276,13 @@ async function createOrder(req: Request): Promise<Response> {
       business_card_original_path: originalPath,
       business_card_preview_path: previewPath,
       expires_at: expiresAt,
+      updated_at: createdAt,
     });
     if (error?.code === "23505") {
       if (uploaded.length) await supabase.storage.from(BUCKET).remove(uploaded);
       const { data: raced } = await supabase
         .from("exhibition_orders")
-        .select("id, public_token, order_no, status, created_at, expires_at, business_card_original_path, business_card_preview_path")
+        .select("id, public_token, order_no, status, created_at, updated_at, expires_at, business_card_original_path, business_card_preview_path")
         .eq("client_submission_id", clientSubmissionId)
         .maybeSingle();
       if (raced) {
@@ -289,6 +292,7 @@ async function createOrder(req: Request): Promise<Response> {
           orderNo: raced.order_no,
           status: raced.status,
           createdAt: raced.created_at,
+          updatedAt: raced.updated_at,
           expiresAt: raced.expires_at,
           hasBusinessCard: Boolean(raced.business_card_original_path || raced.business_card_preview_path),
           duplicatePrevented: true,
@@ -301,8 +305,9 @@ async function createOrder(req: Request): Promise<Response> {
       id,
       token,
       orderNo,
-      status: "new",
+      status: "submitted",
       createdAt,
+      updatedAt: createdAt,
       expiresAt,
       hasBusinessCard: Boolean(originalPath || previewPath),
     }, 201);
@@ -310,6 +315,196 @@ async function createOrder(req: Request): Promise<Response> {
     if (uploaded.length) await supabase.storage.from(BUCKET).remove(uploaded).catch(() => undefined);
     console.error(error);
     return json(req, { error: error instanceof Error ? error.message : "create_failed" }, 500);
+  }
+}
+
+function requestedFile(form: FormData, name: string): File | null {
+  const value = form.get(name);
+  return value instanceof File && value.size > 0 ? value : null;
+}
+
+function validateBusinessCardFiles(originalFile: File | null, previewFile: File | null): string | null {
+  if (originalFile && (!originalFile.type.startsWith("image/") || originalFile.size > 15 * 1024 * 1024)) {
+    return "名刺の元画像は15MB以下の画像ファイルにしてください。";
+  }
+  if (previewFile && (!previewFile.type.startsWith("image/") || previewFile.size > 5 * 1024 * 1024)) {
+    return "名刺プレビュー画像が大きすぎます。";
+  }
+  return null;
+}
+
+async function updateOrder(req: Request): Promise<Response> {
+  if (!originAllowed(req)) return json(req, { error: "origin_not_allowed" }, 403);
+  if (!apiKeyAllowed(req)) return json(req, { error: "invalid_api_key" }, 401);
+
+  let form: FormData;
+  try {
+    form = await req.formData();
+  } catch {
+    return json(req, { error: "multipart_form_required" }, 400);
+  }
+
+  const token = cleanText(form.get("token"), 100);
+  const expectedUpdatedAt = cleanText(form.get("expectedUpdatedAt"), 80);
+  const orderRaw = form.get("order");
+  if (!/^[A-Za-z0-9_-]{30,80}$/.test(token)) return json(req, { error: "invalid_token" }, 400);
+  if (!expectedUpdatedAt || Number.isNaN(new Date(expectedUpdatedAt).getTime())) {
+    return json(req, { error: "expected_updated_at_required" }, 400);
+  }
+  if (typeof orderRaw !== "string") return json(req, { error: "order_json_required" }, 400);
+
+  let clientOrder: any;
+  try {
+    clientOrder = JSON.parse(orderRaw);
+  } catch {
+    return json(req, { error: "invalid_order_json" }, 400);
+  }
+  const validationError = validateOrder(clientOrder);
+  if (validationError) return json(req, { error: validationError }, 400);
+
+  const { data: current, error: readError } = await supabase
+    .from("exhibition_orders")
+    .select("id, public_token, order_no, client_submission_id, order_data, status, revision_count, requires_resend, event_id, event_name, event_date, event_day, business_card_original_path, business_card_preview_path, created_at, updated_at, expires_at")
+    .eq("public_token", token)
+    .maybeSingle();
+  if (readError) return json(req, { error: readError.message }, 500);
+  if (!current) return json(req, { error: "order_not_found" }, 404);
+  if (new Date(current.expires_at).getTime() <= Date.now()) return json(req, { error: "order_expired" }, 410);
+  if (!CUSTOMER_EDITABLE_STATUSES.includes(current.status)) {
+    return json(req, { error: "order_already_confirmed", status: current.status, editable: false }, 409);
+  }
+  if (current.updated_at !== expectedUpdatedAt) {
+    return json(req, { error: "order_changed", status: current.status, updatedAt: current.updated_at }, 409);
+  }
+
+  const originalFile = requestedFile(form, "businessCardOriginal");
+  const previewFile = requestedFile(form, "businessCardPreview");
+  const fileError = validateBusinessCardFiles(originalFile, previewFile);
+  if (fileError) return json(req, { error: fileError }, 400);
+  const removeBusinessCard = form.get("removeBusinessCard") === "1";
+  const revisionNumber = Number(current.revision_count || 0) + 1;
+  const editedAt = new Date().toISOString();
+  const currentData = current.order_data && typeof current.order_data === "object" ? current.order_data : {};
+  const editableKeys = [
+    "lang", "distributor", "staffName", "customerCompany", "customerName", "customerPhone",
+    "shippingAddress", "notes", "priceMode", "currency", "total", "items",
+  ];
+  const mergedOrder: Record<string, unknown> = { ...currentData };
+  for (const key of editableKeys) {
+    if (Object.hasOwn(clientOrder, key)) mergedOrder[key] = clientOrder[key];
+  }
+  Object.assign(mergedOrder, {
+    v: Math.max(10, Number(currentData.v || clientOrder.v || 10)),
+    orderNo: current.order_no,
+    clientSubmissionId: current.client_submission_id || currentData.clientSubmissionId || clientOrder.clientSubmissionId,
+    eventId: current.event_id || currentData.eventId || clientOrder.eventId,
+    eventName: current.event_name || currentData.eventName || clientOrder.eventName,
+    eventDate: current.event_date || currentData.eventDate || clientOrder.eventDate,
+    eventDay: current.event_day || currentData.eventDay || clientOrder.eventDay,
+    createdAt: currentData.createdAt || current.created_at,
+    date: currentData.date || current.created_at,
+    status: current.status,
+    _revisionCount: revisionNumber,
+    _lastRevisionAt: editedAt,
+    _lastRevisionBy: "お客様",
+    _lastRevisionReason: "お客様による注文内容の修正",
+  });
+
+  const storageDate = String(current.event_date || current.created_at).slice(0, 10);
+  const basePath = `${cleanPathSegment(current.event_id, "korea-exhibition")}/${storageDate}/${current.id}`;
+  const newOriginalPath = originalFile
+    ? `${basePath}/customer-edit-${revisionNumber}-original-${cleanFileName(originalFile.name).replace(/\.[^.]+$/, "")}.${extensionFor(originalFile)}`
+    : null;
+  const newPreviewPath = previewFile ? `${basePath}/customer-edit-${revisionNumber}-preview.jpg` : null;
+  const uploaded: string[] = [];
+
+  try {
+    if (originalFile && newOriginalPath) {
+      await uploadFile(newOriginalPath, originalFile);
+      uploaded.push(newOriginalPath);
+    }
+    if (previewFile && newPreviewPath) {
+      await uploadFile(newPreviewPath, previewFile);
+      uploaded.push(newPreviewPath);
+    }
+
+    const nextOriginalPath = removeBusinessCard ? null : (newOriginalPath || current.business_card_original_path);
+    const nextPreviewPath = removeBusinessCard ? null : (newPreviewPath || current.business_card_preview_path);
+    const { data: updatedRows, error: updateError } = await supabase
+      .from("exhibition_orders")
+      .update({
+        order_data: mergedOrder,
+        business_card_original_path: nextOriginalPath,
+        business_card_preview_path: nextPreviewPath,
+        revision_count: revisionNumber,
+        revision_reason: "お客様による注文内容の修正",
+      })
+      .eq("id", current.id)
+      .eq("updated_at", expectedUpdatedAt)
+      .in("status", CUSTOMER_EDITABLE_STATUSES)
+      .select("id, public_token, order_no, status, revision_count, created_at, updated_at, expires_at, business_card_original_path, business_card_preview_path");
+    if (updateError) throw new Error(`database update failed: ${updateError.message}`);
+    const updated = updatedRows?.[0];
+    if (!updated) {
+      if (uploaded.length) await supabase.storage.from(BUCKET).remove(uploaded);
+      const { data: latest } = await supabase
+        .from("exhibition_orders")
+        .select("status, updated_at")
+        .eq("id", current.id)
+        .maybeSingle();
+      return json(req, {
+        error: CUSTOMER_EDITABLE_STATUSES.includes(latest?.status ?? "") ? "order_changed" : "order_already_confirmed",
+        status: latest?.status ?? current.status,
+        updatedAt: latest?.updated_at ?? current.updated_at,
+        editable: CUSTOMER_EDITABLE_STATUSES.includes(latest?.status ?? ""),
+      }, 409);
+    }
+
+    const oldPaths = [current.business_card_original_path, current.business_card_preview_path]
+      .filter((path): path is string => Boolean(path))
+      .filter((path) => path !== nextOriginalPath && path !== nextPreviewPath);
+    if (oldPaths.length) await supabase.storage.from(BUCKET).remove([...new Set(oldPaths)]).catch(() => undefined);
+
+    await Promise.allSettled([
+      supabase.from("order_revisions").insert({
+        order_id: current.id,
+        event_id: current.event_id,
+        revision_number: revisionNumber,
+        changed_by: null,
+        changed_by_name: "お客様",
+        change_reason: "お客様による注文内容の修正",
+        status_before: current.status,
+        status_after: current.status,
+        before_data: currentData,
+        after_data: mergedOrder,
+        batch_id_before: null,
+      }),
+      supabase.from("order_activity_logs").insert({
+        order_id: current.id,
+        event_id: current.event_id,
+        action: "customer_order_updated",
+        performed_by: null,
+        performed_by_name: "お客様",
+        details: { revision_number: revisionNumber, business_card_changed: Boolean(originalFile || previewFile || removeBusinessCard) },
+      }),
+    ]);
+
+    return json(req, {
+      id: updated.id,
+      token: updated.public_token,
+      orderNo: updated.order_no,
+      status: updated.status,
+      revisionCount: updated.revision_count,
+      createdAt: updated.created_at,
+      updatedAt: updated.updated_at,
+      expiresAt: updated.expires_at,
+      editable: true,
+      hasBusinessCard: Boolean(updated.business_card_original_path || updated.business_card_preview_path),
+    });
+  } catch (error) {
+    if (uploaded.length) await supabase.storage.from(BUCKET).remove(uploaded).catch(() => undefined);
+    console.error(error);
+    return json(req, { error: error instanceof Error ? error.message : "update_failed" }, 500);
   }
 }
 
@@ -330,7 +525,7 @@ async function getOrder(req: Request): Promise<Response> {
 
   const { data, error } = await supabase
     .from("exhibition_orders")
-    .select("order_data, status, assigned_name, business_card_original_path, business_card_preview_path, expires_at")
+    .select("id, public_token, order_no, order_data, status, revision_count, assigned_name, business_card_original_path, business_card_preview_path, created_at, updated_at, expires_at")
     .eq("public_token", token)
     .maybeSingle();
   if (error) return json(req, { error: error.message }, 500);
@@ -343,7 +538,19 @@ async function getOrder(req: Request): Promise<Response> {
       signedUrl(data.business_card_preview_path),
     ]);
     return json(req, {
-      order: { ...data.order_data, status: data.status, assignedName: data.assigned_name ?? "" },
+      id: data.id,
+      token: data.public_token,
+      orderNo: data.order_no,
+      updatedAt: data.updated_at,
+      editable: CUSTOMER_EDITABLE_STATUSES.includes(data.status),
+      order: {
+        ...data.order_data,
+        orderNo: data.order_no,
+        status: data.status,
+        assignedName: data.assigned_name ?? "",
+        revisionCount: data.revision_count ?? 0,
+        createdAt: data.order_data?.createdAt ?? data.created_at,
+      },
       status: data.status,
       expiresAt: data.expires_at,
       signedUrlExpiresIn: SIGNED_URL_SECONDS,
@@ -363,6 +570,7 @@ Deno.serve(async (req) => {
   }
   if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return json(req, { error: "server_not_configured" }, 500);
   if (req.method === "POST") return createOrder(req);
+  if (req.method === "PATCH") return updateOrder(req);
   if (req.method === "GET") return getOrder(req);
   return json(req, { error: "method_not_allowed" }, 405);
 });

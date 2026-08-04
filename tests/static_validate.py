@@ -54,6 +54,7 @@ def validate_files() -> None:
         "supabase/migrations/20260803120000_exhibition_order_workflow.sql",
         "supabase/migrations/20260803150000_lock_browser_order_permissions.sql",
         "supabase/migrations/20260803151000_remove_legacy_order_policies.sql",
+        "supabase/migrations/20260804100000_submitted_confirmed_customer_edits.sql",
         "supabase/sql/04_secure_cleanup_schedule.sql",
         "AGENTS.md", "README_当日操作.md", "README_Supabase設定.md",
         "01_Supabase更新.ps1", "02_GitHub公開.ps1",
@@ -91,6 +92,7 @@ def check_required_markers() -> None:
     workflow = (ROOT / "supabase/migrations/20260803120000_exhibition_order_workflow.sql").read_text(encoding="utf-8")
     permissions = (ROOT / "supabase/migrations/20260803150000_lock_browser_order_permissions.sql").read_text(encoding="utf-8")
     edge = (ROOT / "supabase/functions/exhibition-order/index.ts").read_text(encoding="utf-8")
+    edit_workflow = (ROOT / "supabase/migrations/20260804100000_submitted_confirmed_customer_edits.sql").read_text(encoding="utf-8")
     cleanup = (ROOT / "supabase/functions/cleanup-orders/index.ts").read_text(encoding="utf-8")
     for forbidden in ["packBadgeHtml(", "specsInfoHtml(", "'pack_qty','qty'", "i.pack||''"]:
         if forbidden in index:
@@ -108,7 +110,8 @@ def check_required_markers() -> None:
         "受付番号を発行 / 접수 번호 발급",
         "名刺画像を送信できませんでした。再試行してください。",
         "受付番号 / 접수 번호",
-        "予備QRを表示 / 예비 QR 표시",
+        "スタッフ確認用QR / 직원 확인용 QR",
+        "注文内容を修正する / 주문 수정",
     ]
     for marker in markers:
         if marker not in index:
@@ -135,6 +138,9 @@ def check_required_markers() -> None:
     for marker in ["clientSubmissionId", "duplicatePrevented", "client_submission_id"]:
         if marker not in edge:
             fail(f"注文APIの二重送信防止がありません: {marker}")
+    for marker in ["submitted", "confirmed", "CUSTOMER_EDITABLE_STATUSES", 'req.method === "PATCH"', "expectedUpdatedAt", "order_changed"]:
+        if marker not in edge + edit_workflow:
+            fail(f"お客様による同一注文編集または新statusの実装がありません: {marker}")
     if "acceptedPublicKeys" in cleanup:
         fail("cleanup-ordersが公開用キーを認証に使用しています")
     if "method:'DELETE'" in staff_js or 'method: "DELETE"' in staff_js:

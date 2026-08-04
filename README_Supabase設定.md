@@ -38,6 +38,7 @@ order by status;
 
 ```text
 supabase/migrations/20260803120000_exhibition_order_workflow.sql
+supabase/migrations/20260804100000_submitted_confirmed_customer_edits.sql
 ```
 
 追加内容：
@@ -49,6 +50,9 @@ supabase/migrations/20260803120000_exhibition_order_workflow.sql
 - 送信バッチ・送信時スナップショット・Batch ID採番RPC
 - スタッフ `role`（`staff / admin`）
 - クライアント送信IDの一意制約
+- 受付済み `submitted` とスタッフ確定 `confirmed` の分離
+- スタッフ確定前だけ許可する、公開トークン＋楽観ロックによる同一注文更新
+- 新旧statusを両方受け付ける送信バッチ
 - 公開キーを使う旧cleanup Cronの停止
 
 ## 3. cleanup secretとCron
