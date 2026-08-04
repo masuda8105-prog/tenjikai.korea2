@@ -54,6 +54,9 @@ async function customerFlow(browser) {
   await page.fill('#searchInput', packedProduct.code);
   await page.waitForSelector(`[data-add="${packedProduct.code}"]`);
   if (await page.locator('.packBadge').count() || (await page.textContent('#results')).includes(packedProduct.pack)) throw new Error('商品一覧に入り数が表示されています');
+  await page.fill('#searchInput', '１０５３');
+  await page.waitForSelector('[data-add="1053"]');
+  if (!(await page.textContent('#results')).includes('1053')) throw new Error('全角数字で品番検索できません');
   await page.fill('#searchInput', '1053');
   await page.click('[data-add="1053"]');
   await page.click('#quickCheckout');
@@ -148,6 +151,10 @@ async function staffFlow(browser) {
   await page.waitForSelector('#detailDialog[open]');
   if (!(await page.textContent('#detailTitle')).includes('K260803-001')) throw new Error('スタッフ用QRの直リンクで該当注文が開きません');
   await page.click('#closeDetail');
+  await page.evaluate(() => { const input = document.querySelector('#searchInput'); input.value = '０１０－１２３４'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.waitForFunction(() => document.querySelectorAll('[data-order-id]').length === 1);
+  if (await page.locator('[data-order-id]').count() !== 1) throw new Error('スタッフ画面で全角数字の電話番号検索ができません');
+  await page.evaluate(() => { const input = document.querySelector('#searchInput'); input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })); });
   await page.evaluate(() => { window.__stableOrderCard = document.querySelector('[data-order-id]'); });
   await page.evaluate(() => document.querySelector('#refreshButton').click());
   await page.waitForFunction(() => !document.querySelector('#refreshButton').disabled);

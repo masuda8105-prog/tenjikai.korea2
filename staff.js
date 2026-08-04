@@ -64,6 +64,7 @@
   const statusClass = (status) => status === 'submitted' ? 'new' : status === 'confirmed' ? 'completed' : status;
   const staffName = () => String(state.staff?.display_name || state.user?.user_metadata?.full_name || state.user?.email?.split('@')[0] || 'Staff');
   const staffRole = () => String(state.staff?.role || 'staff');
+  const normalizeSearchText = (value) => String(value || '').normalize('NFKC').toLocaleLowerCase();
   const eventIdOf = (order) => String(order?.event_id || order?.order_data?.eventId || config.eventId || 'korea-exhibition');
   const eventNameOf = (order) => String(order?.event_name || order?.order_data?.eventName || config.eventName || '韓国展示会');
   const dateOf = (order) => String(order?.event_date || order?.order_data?.eventDate || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date(order?.created_at || Date.now())));
@@ -353,7 +354,7 @@
   }
 
   function filteredBase({ includeDeleted = false } = {}) {
-    const query = $('searchInput').value.trim().toLowerCase();
+    const query = normalizeSearchText($('searchInput').value.trim());
     const eventFilter = $('eventFilter').value;
     const dateFilter = $('dateFilter').value;
     return state.orders.filter((order) => {
@@ -363,7 +364,7 @@
       if (dateFilter !== 'all' && dateOf(order) !== dateFilter) return false;
       if (!query) return true;
       const data = order.order_data || {};
-      const searchable = [order.order_no, data.customerCompany, data.customerName, data.customerPhone, data.shippingAddress, data.notes, order.assigned_name, eventNameOf(order), dateOf(order), ...(data.items || []).flatMap((item) => [item.c, itemName(item)])].join(' ').toLowerCase();
+      const searchable = normalizeSearchText([order.order_no, data.customerCompany, data.customerName, data.customerPhone, data.shippingAddress, data.notes, order.assigned_name, eventNameOf(order), dateOf(order), ...(data.items || []).flatMap((item) => [item.c, itemName(item)])].join(' '));
       return searchable.includes(query);
     });
   }

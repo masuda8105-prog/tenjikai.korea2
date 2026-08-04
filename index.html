@@ -544,7 +544,7 @@
     function normalizeProductCodeSearch(value){ return String(value||'').normalize('NFKC').toLowerCase().trim().replace(/^no\.?\s*/,'').replace(/[\s_ー－―–—]/g,'-').replace(/[^a-z0-9\-]/g,''); }
     function normalizeKeywordText(value){ return String(value||'').normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim().replace(/\s+/g,' '); }
     function productMatch(p,qRaw){
-      const keyword=normalizeKeywordText(qRaw), isCodeQuery=/^[\sA-Za-z0-9._\-ー－―–—]+$/.test(String(qRaw||'')), q=normalizeProductCodeSearch(qRaw);
+      const normalizedRaw=String(qRaw||'').normalize('NFKC'), keyword=normalizeKeywordText(normalizedRaw), isCodeQuery=/^[\sA-Za-z0-9._\-ー－―–—]+$/.test(normalizedRaw), q=normalizeProductCodeSearch(normalizedRaw);
       if(!keyword) return null;
       const code = p._codeSearch || normalizeProductCodeSearch(p.code);
       const codeNoDash = code.replace(/-/g,'');
