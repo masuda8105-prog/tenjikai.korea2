@@ -87,6 +87,7 @@ def check_js() -> None:
 
 def check_required_markers() -> None:
     index = (ROOT / "index.html").read_text(encoding="utf-8")
+    automated_e2e = (ROOT / "tests/automated_e2e.cjs").read_text(encoding="utf-8")
     staff_js = (ROOT / "staff.js").read_text(encoding="utf-8")
     staff_html = (ROOT / "staff.html").read_text(encoding="utf-8")
     migration = (ROOT / "supabase/migrations/20260730090000_korea_staff_dashboard.sql").read_text(encoding="utf-8")
@@ -111,6 +112,9 @@ def check_required_markers() -> None:
     for marker in ["exactProductFound", "exactMatchProduct", "exactMatchSignal", "exactMatchStatus", 'data-exact-match="true"']:
         if marker not in index:
             fail(f"Exact product-code match emphasis marker is missing: {marker}")
+    for marker in ["fixedKeypadTitle", "searchTapKeyboard", 'id="keypadPanel"', 'id="toggleKeypadMode"', "updateKeypadDockHeight", "--keypad-dock-height", "input.blur();input.value=''"]:
+        if marker not in index + automated_e2e:
+            fail(f"Fixed product-code keypad marker is missing: {marker}")
     markers = [
         "受付番号を発行 / 접수 번호 발급",
         "名刺画像を送信できませんでした。再試行してください。",
