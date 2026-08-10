@@ -104,6 +104,10 @@ async function customerFlow(browser) {
   if (!(await page.textContent('#deviceSaveText')).includes('長押しして保存してください') || await page.locator('[data-save-device]').count()) throw new Error('長押し保存案内が簡潔に表示されていません');
   if (await page.locator('#saveReceiptImage, #downloadReceiptImage, #receiptImageDownloadFab, #shareReceiptImage').count()) throw new Error('不要な画像表示・ダウンロード・共有ボタンが残っています');
   await page.waitForSelector('#receiptImagePanel.ready', { timeout: 30000 });
+  if (await page.locator('#receiptPrintArea').isVisible()) throw new Error('画像控えの下に注文書プレビューが重複表示されています');
+  await page.emulateMedia({ media: 'print' });
+  if (!await page.locator('#receiptPrintArea').isVisible() || await page.locator('#receiptImagePanel').isVisible()) throw new Error('印刷時に注文書本体だけを表示できません');
+  await page.emulateMedia({ media: 'screen' });
   const imagePreview = await page.evaluate(() => ({ src: document.querySelector('#receiptImagePreview').src, width: document.querySelector('#receiptImagePreview').naturalWidth, panelText: document.querySelector('#receiptImagePanel').textContent, htmlCaptureCalled: window.__htmlCaptureCalled }));
   if (!imagePreview.src.startsWith('data:image/png') || imagePreview.src.length < 1000 || imagePreview.width !== 900 || imagePreview.htmlCaptureCalled) throw new Error(`スマホ用の安全なPNG自動プレビューが不正です: ${JSON.stringify(imagePreview)}`);
   if (imagePreview.panelText.includes('長押しできない場合') || imagePreview.panelText.includes('共有')) throw new Error(`控え画像画面に不要な補助案内が残っています: ${imagePreview.panelText}`);
@@ -287,7 +291,7 @@ async function platformPrintSmoke(browser) {
     const mock = `history.replaceState(null,'','#online-receipt=${token}');const __nativeFetch=window.fetch.bind(window);window.fetch=async(input,init={})=>String(input).includes('/functions/v1/exhibition-order')?new Response(JSON.stringify({id:'00000000-0000-0000-0000-000000000099',token:'${token}',orderNo:'K260804-PRINT',updatedAt:'2026-08-04T08:00:01.000Z',editable:true,order:${JSON.stringify(order)},status:'submitted',expiresAt:'2026-08-18T08:00:00.000Z',businessCardOriginalUrl:'',businessCardPreviewUrl:''}),{status:200,headers:{'Content-Type':'application/json'}}):__nativeFetch(input,init);`;
     await page.setContent(customerHtml(mock), { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => document.querySelectorAll('#receiptPrintArea .receiptTable tbody tr').length === 34, null, { timeout: 30000 });
-    await page.waitForSelector('#receiptPrintArea .receiptOrderQrBlock img');
+    await page.waitForSelector('#receiptPrintArea .receiptOrderQrBlock img', { state: 'attached' });
     if (platform.mobile && !(await page.textContent('#deviceSaveText')).includes('長押し')) throw new Error(`${platform.name}: 共通の長押し保存案内が表示されません`);
     await page.emulateMedia({ media: 'print' });
     const layout = await page.evaluate(() => ({
