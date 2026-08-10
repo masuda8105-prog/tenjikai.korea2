@@ -57,6 +57,11 @@ async function customerFlow(browser) {
   await page.fill('#searchInput', '１０５３');
   await page.waitForSelector('[data-add="1053"]');
   if (!(await page.textContent('#results')).includes('1053')) throw new Error('全角数字で品番検索できません');
+  const exactMatchUi = await page.evaluate(() => { const card=document.querySelector('.exactMatchProduct[data-exact-match="true"]'),signal=card?.querySelector('.exactMatchSignal'),status=document.querySelector('#searchResultStatus'); return { cardCount:document.querySelectorAll('.exactMatchProduct[data-exact-match="true"]').length, signal:signal?.textContent||'', status:status?.textContent||'', statusHighlighted:status?.classList.contains('exactMatchStatus')||false, borderWidth:card?Number.parseFloat(getComputedStyle(card).borderTopWidth):0 }; });
+  if (exactMatchUi.cardCount !== 1 || !exactMatchUi.signal.includes('品番が完全一致しました') || !exactMatchUi.status.includes('1053') || !exactMatchUi.statusHighlighted || exactMatchUi.borderWidth < 3) throw new Error(`完全一致商品の強調表示が不正です: ${JSON.stringify(exactMatchUi)}`);
+  await page.fill('#searchInput', '１０５');
+  await page.waitForSelector('[data-add="1053"]');
+  if (await page.locator('.exactMatchProduct, .exactMatchSignal, #searchResultStatus.exactMatchStatus').count()) throw new Error('部分一致検索でも完全一致の強調が残っています');
   await page.evaluate(() => { window.__catalogOnlyProductCode = products[0].code; products[0].catalog = '987654321'; prepareProducts(products); renderResults(); });
   await page.fill('#searchInput', '９８７６５４３２１');
   if (await page.locator(`[data-add="${await page.evaluate(() => window.__catalogOnlyProductCode)}"]`).count()) throw new Error('カタログページ番号が数字検索にヒットしています');

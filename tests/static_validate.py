@@ -108,6 +108,9 @@ def check_required_markers() -> None:
     for marker in ["shippingAddress", "html2canvas.min.js", "receiptImagePanel", "prepareReceiptImagePreview", "renderReceiptDataCanvas", "deviceSaveGuide", "画像を長押しして保存してください", ".receiptOnly #receiptPrintArea{display:none}", "#receiptPrintArea{display:block!important"]:
         if marker not in index:
             fail(f"Shipping-address or image-save marker is missing: {marker}")
+    for marker in ["exactProductFound", "exactMatchProduct", "exactMatchSignal", "exactMatchStatus", 'data-exact-match="true"']:
+        if marker not in index:
+            fail(f"Exact product-code match emphasis marker is missing: {marker}")
     markers = [
         "受付番号を発行 / 접수 번호 발급",
         "名刺画像を送信できませんでした。再試行してください。",
