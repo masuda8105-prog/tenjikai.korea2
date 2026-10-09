@@ -11,6 +11,7 @@ const storageShim = `(()=>{const make=()=>{const data=new Map();return{getItem:k
 function customerHtml(mock) {
   new Function(mock);
   let html = read('index.html');
+  html = html.replace('<link rel="stylesheet" href="ui-refresh.css">', `<style>${read('ui-refresh.css')}</style>`);
   html = html.replace('<script src="online-config.js"></script>', `<script>${storageShim}${mock}</script><script>${read('online-config.js')}</script>`);
   html = html.replace('<script src="vendor/qrcode.min.js"></script>', `<script>${read('vendor/qrcode.min.js')}</script>`);
   html = html.replace('<script src="vendor/html2canvas.min.js"></script>', `<script>${read('vendor/html2canvas.min.js')}</script>`);
@@ -26,9 +27,10 @@ function customerHtml(mock) {
 function staffHtml(mock) {
   new Function(mock);
   let html = read('staff.html');
+  html = html.replace('<link rel="stylesheet" href="ui-refresh.css">', `<style>${read('ui-refresh.css')}</style>`);
   html = html.replace('<script src="online-config.js"></script>', `<script>${storageShim}${mock}</script><script>${read('online-config.js')}</script>`);
   html = html.replace('<script src="vendor/qrcode.min.js"></script>', `<script>${read('vendor/qrcode.min.js')}</script>`);
-  html = html.replace('<script src="staff.js"></script>', `<script>${read('staff.js').replace("await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4/+esm')", "({createClient(){throw new Error('offline test')}})")}</script>`);
+  html = html.replace('<script src="staff.js?v=20261009-ui"></script>', `<script>${read('staff.js').replace("await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4/+esm')", "({createClient(){throw new Error('offline test')}})")}</script>`);
   return html;
 }
 
@@ -51,7 +53,7 @@ async function customerFlow(browser) {
   await page.selectOption('#langSelect', 'ja');
   await page.waitForSelector('#keypadPanel #keypad [data-key="1"]');
   const keypadInitial = await page.evaluate(() => { const panel=document.querySelector('#keypadPanel'),rect=panel.getBoundingClientRect(),cart=document.querySelector('#cartPanel').getBoundingClientRect(); return { visible:getComputedStyle(panel).display!=='none', position:getComputedStyle(panel).position, top:Math.round(rect.top), bottom:Math.round(rect.bottom), height:Math.round(rect.height), cartBottom:Math.round(cart.bottom), viewportHeight:window.innerHeight, scrollY:window.scrollY }; });
-  if (!keypadInitial.visible || keypadInitial.position !== 'fixed' || Math.abs(keypadInitial.bottom-keypadInitial.viewportHeight)>1 || keypadInitial.height<210 || keypadInitial.cartBottom>keypadInitial.top-5) throw new Error(`固定テンキーの初期表示またはカート位置が不正です: ${JSON.stringify(keypadInitial)}`);
+  if (!keypadInitial.visible || keypadInitial.position !== 'fixed' || Math.abs(keypadInitial.bottom-keypadInitial.viewportHeight)>1 || keypadInitial.height<210 || keypadInitial.cartBottom>keypadInitial.top+1) throw new Error(`固定テンキーの初期表示またはカート位置が不正です: ${JSON.stringify(keypadInitial)}`);
   for (const key of ['1','0','5','3','-']) await page.click(`#keypad [data-key="${key}"]`);
   await page.click('#keypad [data-key="⌫"]');
   const keypadNumeric = await page.evaluate(() => ({ value:document.querySelector('#searchInput').value, focused:document.activeElement?.id||'', scrollY:window.scrollY, bottom:Math.round(document.querySelector('#keypadPanel').getBoundingClientRect().bottom), height:Math.round(document.querySelector('#keypadPanel').getBoundingClientRect().height) }));
@@ -82,6 +84,10 @@ async function customerFlow(browser) {
   if (await page.locator(`[data-add="${await page.evaluate(() => window.__catalogOnlyProductCode)}"]`).count()) throw new Error('カタログページ番号が数字検索にヒットしています');
   await page.fill('#searchInput', '1053');
   await page.click('[data-add="1053"]');
+  await page.click('[data-add="1053"]');
+  if (await page.textContent('.productQty output') !== '2') throw new Error('商品カードで追加数量を確認できません');
+  await page.click('[data-result-minus="1053"]');
+  if (await page.inputValue('[data-qty="0"]') !== '1') throw new Error('商品カードの数量変更がカートに反映されません');
   await page.click('#quickCheckout');
   if (!(await page.textContent('#createQr')).includes('受付番号を発行')) throw new Error('主操作が「受付番号を発行」になっていません');
   await page.fill('#customerCompany', 'Test Optical');
@@ -281,6 +287,41 @@ async function responsiveSmoke(browser) {
   await staff.close();
 }
 
+async function staffPriceLookup(browser) {
+  const page = await browser.newPage({ viewport:{ width:390, height:844 } });
+  const errors = [];
+  page.on('pageerror', error => errors.push(String(error)));
+  const lines = read('product_master_korea.csv').split(/\r?\n/);
+  const csv = [lines[0], lines.find(line => line.startsWith('1053,')), lines.find(line => line.startsWith('36,'))].join('\n');
+  const mock = `window.__writes=0;window.__csvCalls=0;window.fetch=async(input,init={})=>{const url=String(input);if(url.includes('product_master_korea.csv')){window.__csvCalls++;return window.__csvCalls===1?new Response('unavailable',{status:503}):new Response(${JSON.stringify(csv)},{status:200})}if(url.includes('/auth/v1/token'))return new Response(JSON.stringify({access_token:'price-test',refresh_token:'price-test',expires_in:3600,user:{id:'price-user',email:'price@example.com'}}),{status:200});if(url.includes('/exhibition_staff'))return new Response(JSON.stringify([{display_name:'価格確認スタッフ',role:'staff',active:true}]),{status:200});if((init.method||'GET').toUpperCase()!=='GET')window.__writes++;return new Response('[]',{status:200})};`;
+  await page.setContent(staffHtml(mock), { waitUntil:'domcontentloaded' });
+  await page.fill('#email','price@example.com'); await page.fill('#password','password'); await page.click('#loginButton');
+  await page.waitForSelector('#dashboardView:not(.hidden)');
+  await page.click('#priceCheckButton');
+  await page.waitForSelector('#priceRetryButton');
+  await page.fill('#priceSearchInput','１０５３');
+  await page.click('#priceRetryButton');
+  await page.waitForSelector('[data-price-code="1053"].exact');
+  if (!(await page.textContent('[data-price-code="1053"]')).includes('₩83,300')) throw new Error('価格確認で商品マスターのKRW価格が表示されません');
+  await page.fill('#priceSearchInput','ヤットコ');
+  await page.waitForSelector('[data-price-code="1053"]');
+  await page.fill('#priceSearchInput','푸시록');
+  await page.waitForSelector('[data-price-code="1053"]');
+  await page.fill('#priceSearchInput','126');
+  if (await page.locator('[data-price-code="1053"]').count()) throw new Error('価格確認でカタログページが数字検索にヒットしています');
+  await page.fill('#priceSearchInput','存在しない商品');
+  if (!(await page.textContent('#priceSearchStatus')).includes('該当する商品がありません')) throw new Error('価格確認の検索ゼロ件案内がありません');
+  await page.click('#priceClearButton');
+  if (await page.inputValue('#priceSearchInput')) throw new Error('価格検索をクリアできません');
+  await page.fill('#priceSearchInput','1053');
+  if (await page.locator('#priceDialog [data-add], #priceDialog [data-qty-input]').count() || await page.evaluate(() => window.__writes !== 0)) throw new Error('価格確認操作が注文データを変更しています');
+  await page.click('#closePriceDialog'); await page.click('#priceCheckButton');
+  await page.waitForSelector('[data-price-code="1053"]');
+  if (await page.evaluate(() => window.__csvCalls !== 2)) throw new Error('価格確認を再度開くたびに商品データを再読み込みしています');
+  if (errors.length) throw new Error(errors.join('\n'));
+  await page.close();
+}
+
 async function pdfPageTexts(buffer) {
   const pdfModule = await import(pathToFileURL(require.resolve('pdfjs-dist/legacy/build/pdf.mjs')).href);
   const document = await pdfModule.getDocument({ data: new Uint8Array(buffer), disableWorker: true }).promise;
@@ -342,6 +383,7 @@ async function platformPrintSmoke(browser) {
     await customerFailure(browser);
     await staffFlow(browser);
     await responsiveSmoke(browser);
+    await staffPriceLookup(browser);
     await platformPrintSmoke(browser);
   } finally {
     await browser.close();

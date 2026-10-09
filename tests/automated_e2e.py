@@ -27,6 +27,7 @@ def storage_shim():
 
 def inline_customer_html(mock_js: str):
     html=(ROOT/'index.html').read_text(encoding='utf-8')
+    html=html.replace('<link rel="stylesheet" href="ui-refresh.css">', '<style>'+(ROOT/'ui-refresh.css').read_text(encoding='utf-8')+'</style>')
     mock_js=storage_shim()+mock_js
     html=html.replace('<script src="online-config.js"></script>', f'<script>{mock_js}</script><script>{(ROOT/"online-config.js").read_text()}</script>')
     html=html.replace('<script src="vendor/qrcode.min.js"></script>', f'<script>{(ROOT/"vendor/qrcode.min.js").read_text()}</script>')
@@ -45,10 +46,11 @@ def inline_customer_html(mock_js: str):
 
 def inline_staff_html(mock_js: str):
     html=(ROOT/'staff.html').read_text(encoding='utf-8')
+    html=html.replace('<link rel="stylesheet" href="ui-refresh.css">', '<style>'+(ROOT/'ui-refresh.css').read_text(encoding='utf-8')+'</style>')
     mock_js=storage_shim()+mock_js
     html=html.replace('<script src="online-config.js"></script>', f'<script>{mock_js}</script><script>{(ROOT/"online-config.js").read_text()}</script>')
     html=html.replace('<script src="vendor/qrcode.min.js"></script>', f'<script>{(ROOT/"vendor/qrcode.min.js").read_text()}</script>')
-    html=html.replace('<script src="staff.js"></script>', f'<script>{(ROOT/"staff.js").read_text()}</script>')
+    html=html.replace('<script src="staff.js?v=20261009-ui"></script>', f'<script>{(ROOT/"staff.js").read_text()}</script>')
     return html
 
 

@@ -46,7 +46,7 @@ def validate_catalog() -> None:
 
 def validate_files() -> None:
     required = [
-        "index.html", "staff.html", "staff.js", "online-config.js",
+        "index.html", "staff.html", "staff.js", "online-config.js", "ui-refresh.css",
         "vendor/html2canvas.min.js",
         "supabase/functions/exhibition-order/index.ts",
         "supabase/functions/cleanup-orders/index.ts",

@@ -3,3 +3,4 @@ supabase/.env.production
 .env.*
 !.env.example
 !supabase/.env.production.example
+tests/artifacts/

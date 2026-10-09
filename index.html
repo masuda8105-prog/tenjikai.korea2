@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>サンニシムラ 韓国展示会 注文ツール</title>
-  <meta name="theme-color" content="#111827" />
+  <meta name="theme-color" content="#176b55" />
   <style>
     :root{
       --bg:#f3f4f6; --panel:#ffffff; --ink:#111827; --muted:#6b7280; --line:#e5e7eb;
@@ -89,6 +89,7 @@
     @media(max-width:760px){.receiptImagePanel{padding:10px;border-radius:15px}.receiptImagePanelTitle{font-size:15px}.receiptImagePreviewFrame{min-height:180px;max-height:64vh;padding:7px}.receiptActions button:disabled{opacity:.58;cursor:wait}}
 
   </style>
+  <link rel="stylesheet" href="ui-refresh.css">
 </head>
 <body>
   <main class="app newApp">
@@ -96,7 +97,7 @@
       <div class="appTopbarInner">
         <div class="appBrand">
           <div class="appBrandMark">SN</div>
-          <div><div class="appBrandTitle">KOREA EXHIBITION ORDER</div><div class="appBrandSub">サンニシムラ 韓国展示会注文</div></div>
+          <div><div class="appBrandTitle">SAN NISHIMURA</div><div class="appBrandSub">EXHIBITION ORDER</div></div>
         </div>
         <div class="appTopControls">
           <label class="topLang"><span data-i18n="displayLanguage">言語</span><select id="langSelect"><option value="ja">日本語</option><option value="ko" selected>한국어</option></select></label>
@@ -104,26 +105,18 @@
       </div>
     </header>
 
-    <section class="venueFlow" aria-label="注文の流れ">
-      <div class="venueFlowTitle">3 STEP ORDER / 3ステップで注文完了</div>
-      <div class="venueFlowSteps">
-        <div class="venueFlowStep"><span>1</span><div>商品を検索<small>상품 검색</small></div></div>
-        <div class="venueFlowStep"><span>2</span><div>カートを確認<small>카트 확인</small></div></div>
-        <div class="venueFlowStep"><span>3</span><div>注文を送信<small>주문 전송</small></div></div>
-      </div>
-    </section>
-
     <section class="searchDock" id="searchCard" aria-label="商品検索">
       <div class="searchDockInner">
         <div class="searchTitleRow">
-          <div><strong data-i18n="searchTitle">品番・キーワード検索</strong><span id="searchResultStatus" class="searchResultStatus" role="status" aria-live="polite">商品データを準備中</span></div>
-          <span class="searchTip">品番・商品名・英字で検索 / 품번·상품명·영문 검색</span>
+          <strong data-i18n="browseTitle">商品を探す</strong>
+          <nav class="orderSteps" aria-label="注文の流れ"><span><i>1</i><b data-i18n="stepProducts">商品</b></span><em></em><span><i>2</i><b data-i18n="stepCustomer">お客様情報</b></span><em></em><span><i>3</i><b data-i18n="stepNumber">受付番号</b></span></nav>
         </div>
         <div class="nativeSearchRow">
           <span class="searchIcon" aria-hidden="true">⌕</span>
           <input id="searchInput" class="nativeSearchInput" type="search" inputmode="search" enterkeyhint="search" data-i18n-placeholder="searchPlaceholder" placeholder="品番 / 商品名 / English" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" aria-label="Product code or keyword search" />
           <button id="clearSearch" class="clearSearchBtn" type="button" aria-label="検索をクリア">×</button>
         </div>
+        <div class="searchStatusRow"><span id="searchResultStatus" class="searchResultStatus" role="status" aria-live="polite">商品データを準備中</span></div>
       </div>
     </section>
 
@@ -139,7 +132,7 @@
         </button>
         <div id="miniCartItems" class="miniCartItems"><span class="miniCartEmpty">商品を追加するとここに表示されます</span></div>
         <div class="cartExpandedBody">
-          <div class="cartPanelHead"><div><h2 data-i18n="orderTitle">注文明細</h2><p>数量変更や削除はここで行えます。</p></div><button id="collapseCart" class="secondary small" type="button">閉じる</button></div>
+          <div class="cartPanelHead"><div><h2 data-i18n="orderTitle">注文明細</h2><p data-i18n="cartEditHint">数量変更や削除はここで行えます。</p></div><button id="collapseCart" class="secondary small" type="button" data-i18n="close">閉じる</button></div>
           <div id="orderItems" class="orderItems"></div>
           <div class="cartSubActions"><button class="danger" id="clearOrder" data-i18n="clearOrder">明細を全クリア</button></div>
           <details class="staffTools"><summary data-i18n="staffToolsTitle">スタッフ用：注文履歴</summary><div class="staffToolsBody"><div id="historyList" class="hint">履歴がありません。</div><div class="toolbar"><button class="secondary" id="exportHistory" data-i18n="exportHistory">履歴CSV出力</button><button class="danger" id="clearHistory" data-i18n="clearHistory">履歴を全削除</button></div></div></details>
@@ -176,17 +169,17 @@
       </div>
       <div class="businessCardCapture">
         <div class="businessCardCaptureHead">
-          <div><div class="businessCardCaptureTitle">名刺写真（任意） / 명함 사진 (선택)</div><div class="businessCardCaptureHint">撮影した名刺は高画質のまま一時保存し、スタッフの別端末と控えの両方で確認できます。<br>촬영한 명함은 고화질로 임시 저장되어 직원의 다른 기기와 주문서에서 확인할 수 있습니다.</div></div>
+          <div><div class="businessCardCaptureTitle" data-i18n="cardPhotoTitle">名刺写真（任意）</div><div class="businessCardCaptureHint" data-i18n="cardPhotoHint">名刺を撮影して注文控えに添付できます。</div></div>
         </div>
         <input id="businessCardInput" type="file" accept="image/*" capture="environment" hidden>
-        <div class="businessCardButtons"><button id="captureBusinessCard" class="secondary" type="button">📷 名刺を撮影・選択 / 명함 촬영·선택</button><button id="removeBusinessCard" class="danger" type="button" style="display:none">写真を削除 / 사진 삭제</button></div>
+        <div class="businessCardButtons"><button id="captureBusinessCard" class="secondary" type="button" data-i18n="cardPhotoChoose">名刺を撮影・選択</button><button id="removeBusinessCard" class="danger" type="button" style="display:none" data-i18n="cardPhotoRemove">写真を削除</button></div>
         <div id="businessCardPreview" class="businessCardPreview"><div><div class="businessCardPreviewFrame"><img id="businessCardPreviewImage" alt="名刺写真 / 명함 사진"></div><div class="businessCardPreviewStatus">名刺写真を控えに追加します / 명함 사진을 주문서에 추가합니다</div></div></div><div id="onlineUploadStatus" class="onlineUploadStatus" role="status" aria-live="polite"></div>
       </div>
-      <div class="customerOptionalGrid">
+      <details class="customerMore"><summary data-i18n="otherInfo">その他の情報（任意）</summary><div class="customerOptionalGrid">
         <label><span data-i18n="distributorLabel">代理店名</span><input id="distributor" value="KY-S Corporation" data-i18n-placeholder="optionalPlaceholder" /></label>
         <label><span data-i18n="staffLabel">担当スタッフ名</span><input id="staffName" data-i18n-placeholder="ifKnownPlaceholder" /></label>
         <label><span data-i18n="eventLabel">展示会名</span><input id="eventName" data-i18n-placeholder="optionalPlaceholder" /></label>
-      </div>
+      </div></details>
       <label class="shippingAddressField"><span data-i18n="shippingAddressLabel">発送先住所（任意）</span><textarea id="shippingAddress" maxlength="500" autocomplete="shipping street-address" data-i18n-placeholder="shippingAddressPlaceholder" placeholder="郵便番号・住所・建物名など"></textarea></label>
       <label class="notesField"><span data-i18n="notesLabel">備考</span><textarea id="notes" maxlength="2000" data-i18n-placeholder="notesPlaceholder" placeholder=""></textarea></label>
       <div id="checkoutSummary" class="checkoutGuide" aria-live="polite"></div>
@@ -245,6 +238,7 @@
 
     const extraT={
       ja:{
+        browseTitle:'商品を探す',stepProducts:'商品',stepCustomer:'お客様情報',stepNumber:'受付番号',welcomeTitle:'品番から、すぐ価格確認',welcomeText:'カタログの品番を入力すると、商品画像と価格が表示されます。注文したい商品は「追加」を押してください。',tryCode:'例',cartEditHint:'数量を変更して、注文内容をご確認ください。',cardPhotoTitle:'名刺写真（任意）',cardPhotoHint:'名刺を撮影して注文控えに添付できます。',cardPhotoChoose:'名刺を撮影・選択',cardPhotoRemove:'写真を削除',otherInfo:'その他の情報（任意）',
         exactProductFound:'品番が完全一致しました',
         fixedKeypadTitle:'品番入力テンキー',searchTapKeyboard:'検索バーをタップすると端末キーボードを使えます',
         keyboard:'キーボード',keyboardOff:'テンキー入力',keypadTitle:'テンキー',keypadFixed:'下部固定',alpha:'英字',number:'数字',moveLeft:'左へ',moveRight:'右へ',collapse:'畳む',show:'表示',keypadButton:'テンキー',layoutSwap:'配置反転',
@@ -269,6 +263,7 @@
         mobileSaveTitle:'How to save a PDF on a phone',browserRecommended:'Open in Safari / Chrome',languageChanged:'The language changed. Print again if needed.',imageFailed:'Could not create the image. Try printing or taking a screenshot.',addedToOrder:'Added to the order'
       },
       ko:{
+        browseTitle:'상품 찾기',stepProducts:'상품',stepCustomer:'고객 정보',stepNumber:'접수 번호',welcomeTitle:'품번으로 가격을 바로 확인',welcomeText:'카탈로그의 품번을 입력하면 상품 사진과 가격이 표시됩니다. 주문할 상품은 「추가」를 눌러 주세요.',tryCode:'예',cartEditHint:'수량을 변경하고 주문 내용을 확인해 주세요.',cardPhotoTitle:'명함 사진 (선택)',cardPhotoHint:'명함을 촬영해 주문서에 첨부할 수 있습니다.',cardPhotoChoose:'명함 촬영·선택',cardPhotoRemove:'사진 삭제',otherInfo:'기타 정보 (선택)',
         exactProductFound:'품번이 완전히 일치합니다',
         fixedKeypadTitle:'품번 입력 키패드',searchTapKeyboard:'검색창을 누르면 기기 키보드를 사용할 수 있습니다',
         keyboard:'키보드',keyboardOff:'키패드 입력',keypadTitle:'키패드',keypadFixed:'화면 하단 고정',alpha:'영문',number:'숫자',moveLeft:'왼쪽으로',moveRight:'오른쪽으로',collapse:'접기',show:'표시',keypadButton:'키패드',layoutSwap:'화면 좌우 전환',
@@ -306,8 +301,8 @@
     }
     function updateStaticUi(lang=currentLang()){
       const copy={
-        ja:{quickCheckoutLabel:'注文手続きへ',quickCheckoutHint:'お客様情報を入力して受付番号を発行',customerSheetTitle:'お客様情報',customerSheetHint:'注文受付に必要な情報だけ入力してください。',closeCustomerDialog:'閉じる',saveCustomerInfo:'保存して戻る',submit:'受付番号を発行'},
-        ko:{quickCheckoutLabel:'주문 절차로',quickCheckoutHint:'고객 정보를 입력하고 접수 번호를 발급합니다',customerSheetTitle:'고객 정보',customerSheetHint:'주문 접수에 필요한 정보만 입력해 주세요.',closeCustomerDialog:'닫기',saveCustomerInfo:'저장하고 돌아가기',submit:'접수 번호 발급'},
+        ja:{quickCheckoutLabel:'受付番号発行へ →',quickCheckoutHint:'お客様情報を入力して受付番号を発行',customerSheetTitle:'お客様情報',customerSheetHint:'会社名・お名前・電話番号をご入力ください。',closeCustomerDialog:'閉じる',saveCustomerInfo:'商品に戻る',submit:'受付番号を発行'},
+        ko:{quickCheckoutLabel:'접수 번호 발급 →',quickCheckoutHint:'고객 정보를 입력하고 접수 번호를 발급합니다',customerSheetTitle:'고객 정보',customerSheetHint:'회사명·성함·전화번호를 입력해 주세요.',closeCustomerDialog:'닫기',saveCustomerInfo:'상품으로 돌아가기',submit:'접수 번호 발급'},
         en:{quickCheckoutLabel:'Continue to order',quickCheckoutHint:'Enter customer details and issue a reception number',customerSheetTitle:'Customer information',customerSheetHint:'Enter only the information needed to receive the order.',closeCustomerDialog:'Close',saveCustomerInfo:'Save and return',submit:'Issue reception number'},
         zh:{quickCheckoutLabel:'继续下单',quickCheckoutHint:'填写客户信息并生成受理编号',customerSheetTitle:'客户信息',customerSheetHint:'请仅填写订单受理所需的信息。',closeCustomerDialog:'关闭',saveCustomerInfo:'保存并返回',submit:'生成受理编号'}
       };
@@ -543,7 +538,7 @@
     function setCartExpanded(expanded){
       const panel=$('cartPanel');if(!panel)return;
       panel.classList.toggle('expanded',!!expanded);$('cartPeek')?.setAttribute('aria-expanded',expanded?'true':'false');
-      const label=$('cartToggleLabel');if(label)label.textContent=currentLang()==='ko'?(expanded?'카트 닫기':'카트 내용 확인'):(expanded?'カートを閉じる':'カート内容を確認');
+      const label=$('cartToggleLabel');if(label)label.textContent=currentLang()==='ko'?(expanded?'닫기':'내용 보기 ›'):(expanded?'閉じる':'内容を見る ›');
     }
     function toggleCartPanel(){if(window.innerWidth<=760)setCartExpanded(!$('cartPanel').classList.contains('expanded'));}
     function prepareProducts(list){ return list.map(p=>{ p._codeSearch=normalizeProductCodeSearch(p.code); p._search=normalizeKeywordText([...Object.values(p.names||{}),...Object.values(p.usages||{}),...Object.values(p.benefits||{})].join(' ')); return p; }); }
@@ -578,18 +573,20 @@
       if(!$('results')) return;
       const lang=currentLang(), qRaw=$('searchInput').value.trim();
       if(!qRaw){
-        const prompt=txt('enterSearch',lang);
-        if($('productCount')) $('productCount').value=`${products.length.toLocaleString('ja-JP')} / 0`; if($('searchResultStatus')){$('searchResultStatus').classList.remove('exactMatchStatus');$('searchResultStatus').textContent=`${products.length.toLocaleString('ja-JP')}商品`;}
-        $('results').innerHTML=`<div class="empty">${sanitize(prompt)}</div>`;
+        if($('productCount')) $('productCount').value=`${products.length.toLocaleString('ja-JP')} / 0`; if($('searchResultStatus')){$('searchResultStatus').classList.remove('exactMatchStatus');$('searchResultStatus').textContent=lang==='ko'?`${products.length.toLocaleString('ko-KR')}개 상품`:`${products.length.toLocaleString('ja-JP')}商品`;}
+        $('results').innerHTML=`<div class="searchWelcome"><div class="searchWelcomeIcon" aria-hidden="true"><svg width="32" height="32" viewBox="0 0 32 32" fill="none"><rect x="4" y="4" width="17" height="22" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M9 10h7M9 15h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="21" cy="21" r="6" fill="#edf5f0" stroke="currentColor" stroke-width="1.6"/><path d="m25 25 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div><h2>${sanitize(txt('welcomeTitle',lang))}</h2><p>${sanitize(txt('welcomeText',lang))}</p><div class="searchExamples"><button type="button" data-search-example="1053">${sanitize(txt('tryCode',lang))} 1053 ↗</button><button type="button" data-search-example="36">${sanitize(txt('tryCode',lang))} 36 ↗</button></div></div>`;
+        $('results').querySelectorAll('[data-search-example]').forEach(button=>{button.addEventListener('pointerdown',event=>event.preventDefault());button.onclick=()=>{$('searchInput').value=button.dataset.searchExample;renderResults();};});
         updateKeypadVisibilitySoon();
         return;
       }
       const list=products.map((p,idx)=>({p,idx,m:productMatch(p,qRaw)})).filter(x=>x.m).sort((a,b)=>(a.m?.rank??9)-(b.m?.rank??9)||String(a.p.code).localeCompare(String(b.p.code),'ja',{numeric:true})||a.idx-b.idx).slice(0,60);
       const exactItem=list.find(({m})=>m?.rank===0),resultStatus=$('searchResultStatus');
-      if($('productCount')) $('productCount').value=`${products.length.toLocaleString('ja-JP')} / ${list.length.toLocaleString('ja-JP')}`; if(resultStatus){resultStatus.classList.toggle('exactMatchStatus',Boolean(exactItem));resultStatus.textContent=exactItem?`✓ ${txt('exactProductFound',lang)}：${exactItem.p.code}`:`${list.length.toLocaleString('ja-JP')}件表示 / ${products.length.toLocaleString('ja-JP')}商品`;}
-      $('results').innerHTML=list.length?list.map(({p,m})=>`<article class="product${m?.rank===0?' exactMatchProduct':''}"${m?.rank===0?' data-exact-match="true"':''}>${m?.rank===0?`<div class="exactMatchSignal"><span class="exactMatchCheck" aria-hidden="true">✓</span><span>${sanitize(txt('exactProductFound',lang))}</span></div>`:''}${thumbHtml(p)}<div><div class="code">${sanitize(p.code)}</div><div class="name">${sanitize(nameOf(p,lang))}</div><div class="metaLine">${m?.rank!==0&&m?.label?`<span class="badge ${m.className}">${sanitize(m.label)}</span>`:''}${usageBadgeHtml(p,lang)}${catalogLabel(p.catalog,lang)?`<span class="badge">${sanitize(catalogLabel(p.catalog,lang))}</span>`:''}</div></div><div class="productActions"><div class="price">${sanitize(priceDisplay(p.price,p.currency||$('currencySelect').value))}</div><button class="small" data-add="${sanitize(p.code)}">${txt('add')}</button><button class="secondary small" data-detail="${sanitize(p.code)}">${txt('detail')}</button></div></article>`).join(''):`<div class="empty">${txt('notFound')}</div>`;
+      if($('productCount')) $('productCount').value=`${products.length.toLocaleString('ja-JP')} / ${list.length.toLocaleString('ja-JP')}`; if(resultStatus){resultStatus.classList.toggle('exactMatchStatus',Boolean(exactItem));resultStatus.textContent=exactItem?`✓ ${txt('exactProductFound',lang)}：${exactItem.p.code}`:lang==='ko'?`${list.length.toLocaleString('ko-KR')}개 표시 / ${products.length.toLocaleString('ko-KR')}개 상품`:`${list.length.toLocaleString('ja-JP')}件表示 / ${products.length.toLocaleString('ja-JP')}商品`;}
+      $('results').innerHTML=list.length?list.map(({p,m})=>`<article class="product${m?.rank===0?' exactMatchProduct':''}" data-product-code="${sanitize(p.code)}"${m?.rank===0?' data-exact-match="true"':''}>${m?.rank===0?`<div class="exactMatchSignal"><span class="exactMatchCheck" aria-hidden="true">✓</span><span>${sanitize(txt('exactProductFound',lang))}</span></div>`:''}${thumbHtml(p)}<div class="productInfo"><div class="code">${sanitize(p.code)}</div><div class="name">${sanitize(nameOf(p,lang))}</div><div class="price">${sanitize(priceDisplay(p.price,p.currency||$('currencySelect').value))}</div><div class="metaLine">${m?.rank!==0&&m?.label?`<span class="badge ${m.className}">${sanitize(m.label)}</span>`:''}${catalogLabel(p.catalog,lang)?`<span class="badge">${sanitize(catalogLabel(p.catalog,lang))}</span>`:''}</div></div><div class="productActions"><button class="secondary small" data-detail="${sanitize(p.code)}">${txt('detail')} ↗</button><div class="productQty" hidden><button type="button" data-result-minus="${sanitize(p.code)}" aria-label="${sanitize(p.code)} ${sanitize(txt('qty',lang))} −">−</button><output aria-label="${sanitize(txt('qty',lang))}"></output></div><button class="small" data-add="${sanitize(p.code)}" aria-label="${sanitize(p.code)} ${sanitize(txt('add',lang))}">＋ ${txt('add')}</button></div></article>`).join(''):`<div class="empty">${txt('notFound')}</div>`;
       $('results').querySelectorAll('[data-add]').forEach(btn=>btn.onclick=()=>addProduct(btn.dataset.add));
       $('results').querySelectorAll('[data-detail]').forEach(btn=>btn.onclick=()=>showProductDetail(btn.dataset.detail));
+      $('results').querySelectorAll('[data-result-minus]').forEach(btn=>btn.onclick=()=>{const idx=order.findIndex(item=>String(item.code)===btn.dataset.resultMinus);if(idx<0)return;if(order[idx].qty<=1)order.splice(idx,1);else order[idx].qty--;renderOrder();});
+      syncProductQuantities();
       updateKeypadVisibilitySoon();
     }
 
@@ -601,8 +598,11 @@
     function updateKeypadVisibilitySoon(){requestAnimationFrame(updateKeypadDockHeight);}
 
     let toastTimer=0;
+    function syncProductQuantities(){
+      document.querySelectorAll('.product[data-product-code]').forEach(card=>{const item=order.find(item=>String(item.code)===card.dataset.productCode),control=card.querySelector('.productQty');if(control){control.hidden=!item;control.querySelector('output').textContent=String(item?.qty||0);}});
+    }
     function showToast(message){ const el=$('toast'); if(!el)return; el.textContent=message; el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),1800); }
-    function addProduct(code){ const p=products.find(x=>String(x.code)===String(code)); if(!p)return; const existing=order.find(x=>String(x.code)===String(code)); if(existing) existing.qty+=1; else order.push({...p, qty:1}); renderOrder(); showToast(`${nameOf(p)} — ${txt('addedToOrder')}`); }
+    function addProduct(code){ const p=products.find(x=>String(x.code)===String(code)); if(!p)return; const existing=order.find(x=>String(x.code)===String(code)); if(existing) existing.qty=Math.min(9999,existing.qty+1); else order.push({...p, qty:1}); renderOrder(); showToast(`${nameOf(p)} — ${txt('addedToOrder')}`); }
     function showProductDetail(code){ const p=products.find(x=>String(x.code)===String(code)); if(!p)return; const lang=currentLang(); $('detailBody').innerHTML=`<div class="detailHero">${thumbHtml(p)}<div><div class="detailCode">${sanitize(p.code)}</div><div class="detailTitle">${sanitize(nameOf(p,lang))}</div><div class="detailPrice">${sanitize(priceDisplay(p.price,p.currency||$('currencySelect').value))}</div>${detailInfoHtml(p,lang)}${officialLinkHtml(p,lang)}<div class="metaLine">${catalogLabel(p.catalog,lang)?`<span class="badge">${sanitize(catalogLabel(p.catalog,lang))}</span>`:''}</div><div class="row wrap" style="margin-top:14px"><button data-add-detail="${sanitize(p.code)}">${txt('add')}</button><button class="secondary" onclick="document.getElementById('detailDialog').close()">${txt('close')}</button></div></div></div>`; $('detailBody').querySelector('[data-add-detail]').onclick=()=>{addProduct(code);$('detailDialog').close();}; $('detailDialog').showModal(); }
     function renderOrder(){
       if(!$('orderItems'))return;
@@ -615,9 +615,9 @@
       const total=order.reduce((sum,item)=>sum+Number(item.price||0)*Number(item.qty||0),0),qty=order.reduce((sum,item)=>sum+Number(item.qty||0),0);
       if($('grandTotal'))$('grandTotal').textContent=fmt(total);
       $('cartDockTotal').textContent=fmt(total);
-      $('cartItemCount').textContent=currentLang()==='ko'?`주문 카트: ${qty}점 · ${order.length}품번`:`注文カート：${qty}点・${order.length}品番`;
+      $('cartItemCount').textContent=currentLang()==='ko'?`카트 ${qty}점 · ${order.length}품번`:`カート ${qty}点・${order.length}品番`;
       $('miniCartItems').innerHTML=order.length?order.slice(-6).reverse().map(i=>`<span class="miniCartChip">${sanitize(i.code)} × ${sanitize(i.qty)}</span>`).join(''):`<span class="miniCartEmpty">商品を追加するとここに表示されます</span>`;
-      localStorage.setItem('qrDraftOrder',JSON.stringify(order.map(i=>({code:i.code,qty:i.qty,snapshot:{code:i.code,names:i.names,price:i.price,currency:i.currency||'KRW',image:i.image||'',catalog:i.catalog||''}}))));updateCustomerStatus();renderCheckoutSummary();
+      localStorage.setItem('qrDraftOrder',JSON.stringify(order.map(i=>({code:i.code,qty:i.qty,snapshot:{code:i.code,names:i.names,price:i.price,currency:i.currency||'KRW',image:i.image||'',catalog:i.catalog||''}}))));updateCustomerStatus();renderCheckoutSummary();syncProductQuantities();
     }
     function changeQty(idx,delta){ order[idx].qty=Math.min(9999,Math.max(1,Number(order[idx].qty||1)+delta)); renderOrder(); }
     async function handleFile(e){ const file=e.target.files?.[0]; if(!file)return; const ext=file.name.split('.').pop().toLowerCase(); try{ if(ext==='csv'){ products=prepareProducts(parseCsv(await file.text()).map(normalizeRow).filter(p=>p.code)); }else{ if(!(await ensureLib('XLSX'))) throw new Error('XLSX library is not loaded. Please try CSV.'); const buf=await file.arrayBuffer(); const wb=XLSX.read(buf,{type:'array'}); const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}); products=prepareProducts(rows.map(normalizeRow).filter(p=>p.code)); } restoreOrder(); alert(`${products.length} products loaded`); renderResults(); renderOrder(); }catch(err){ alert('Import error: '+err.message); } }

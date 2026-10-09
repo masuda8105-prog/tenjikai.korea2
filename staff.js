@@ -14,6 +14,8 @@
     current: null,
     editItems: [],
     productMaster: null,
+    productMasterPromise: null,
+    priceIndex: [],
     realtimeClient: null,
     realtimeChannel: null,
     pollTimer: null,
@@ -522,6 +524,13 @@
     const resendWarning = order.status === 'resend_required' ? `<div class="revisionNotice"><b>修正版・再送待ち</b><br>${escapeHtml(order.revision_reason || data._lastRevisionReason || '')}</div>` : '';
     $('detailBody').innerHTML = `${sentWarning}${resendWarning}<div class="detailGrid"><section class="infoPanel"><div class="infoGrid"><div class="infoBox"><div class="label">受付番号</div><div class="value">${escapeHtml(order.order_no)}</div></div><div class="infoBox"><div class="label">状態</div><div class="value">${statusLabel(order.status)}</div></div><div class="infoBox"><div class="label">受付日時</div><div class="value">${escapeHtml(new Date(order.created_at).toLocaleString('ja-JP'))}</div></div><div class="infoBox"><div class="label">展示会日</div><div class="value">${escapeHtml(dateOf(order))}</div></div><div class="infoBox"><div class="label">最終担当</div><div class="value">${escapeHtml(order.assigned_name || '-')}</div></div><div class="infoBox"><div class="label">改訂</div><div class="value">Revision ${Number(order.revision_count || data._revisionCount || 0)}</div></div></div><div class="editBlock"><h3>お客様情報・備考を編集</h3><div class="editGrid"><div class="editField"><label for="editCompany">会社名</label><input id="editCompany" maxlength="160" value="${escapeHtml(edit.customerCompany)}"></div><div class="editField"><label for="editName">氏名</label><input id="editName" maxlength="120" value="${escapeHtml(edit.customerName)}"></div><div class="editField full"><label for="editPhone">電話番号</label><input id="editPhone" maxlength="30" value="${escapeHtml(edit.customerPhone)}"></div><div class="editField full"><label for="editNotes">備考</label><textarea id="editNotes" maxlength="2000">${escapeHtml(edit.notes)}</textarea></div></div></div><div class="businessCard"><h3>名刺</h3>${previewUrl || originalUrl ? `<a href="${escapeHtml(originalUrl || previewUrl)}" target="_blank" rel="noopener"><img src="${escapeHtml(previewUrl || originalUrl)}" alt="名刺画像"></a>` : '<div class="noCard">名刺画像なし</div>'}</div></section><section class="itemsPanel"><h3>商品・数量</h3><table class="itemsTable"><thead><tr><th>品番</th><th>商品名</th><th class="num">数量</th><th class="num">単価</th><th class="num">小計</th></tr></thead><tbody>${state.editItems.map((item, index) => `<tr><td><b>${escapeHtml(item.c)}</b></td><td><div class="detailProductIdentity">${detailItemImage(item)}<span>${escapeHtml(itemName(item))}</span></div></td><td class="num"><div class="qtyControl"><button type="button" data-qty-minus="${index}" aria-label="数量を減らす">−</button><input data-qty-input="${index}" type="number" min="0" max="9999" step="1" value="${Number(item.q || 0)}" aria-label="${escapeHtml(item.c)}の数量"><button type="button" data-qty-plus="${index}" aria-label="数量を増やす">＋</button></div></td><td class="num">${formatMoney(item.p)}</td><td class="num" data-subtotal="${index}"><b>${formatMoney(Number(item.p || 0) * Number(item.q || 0))}</b></td></tr>`).join('')}</tbody></table><div class="detailTotal"><span>合計</span><span id="editedTotal">${formatMoney(orderTotal(order))}</span></div><div class="productAdder"><input id="addProductCode" type="text" placeholder="追加する品番を入力（例 1053）" aria-label="追加する品番"><button id="addProductButton" class="secondary" type="button">商品を追加</button><div id="productSuggest" class="productSuggest">品番を完全一致で入力してください。商品マスターから名称・価格を取得します。</div></div><div class="saveRow"><button id="saveEditButton" class="primary" type="button">変更を保存</button></div></section></div>`;
     $('editPhone').closest('.editField').insertAdjacentHTML('afterend', `<div class="editField full"><label for="editShippingAddress">発送先住所（任意）</label><textarea id="editShippingAddress" maxlength="500" autocomplete="shipping street-address">${escapeHtml(edit.shippingAddress)}</textarea></div>`);
+    const metadata = document.createElement('details');
+    metadata.className = 'detailMetadata';
+    metadata.innerHTML = '<summary>受付日時・担当者など</summary>';
+    const infoGrid = $('detailBody').querySelector('.infoGrid');
+    infoGrid.replaceWith(metadata);
+    metadata.append(infoGrid);
+    $('detailBody').insertAdjacentHTML('afterbegin', `<div class="detailCustomerSummary"><strong>${escapeHtml(edit.customerCompany || '会社名未入力')}</strong><span>${escapeHtml(edit.customerName)} · ${escapeHtml(edit.customerPhone)} · ${statusLabel(order.status)}</span></div>`);
     $('detailBody').insertAdjacentHTML('afterbegin', '<div id="editProtectionNotice" class="editProtectionNotice">編集中の入力は自動更新から保護されます。</div>');
     $('saveEditButton').insertAdjacentHTML('beforebegin', '<span class="saveHint">保存後、お客様用QRにも最新内容が反映されます。</span>');
     const refreshEditedTotal = () => {
@@ -543,6 +552,7 @@
     $('addProductButton').addEventListener('click', () => withBusy(['addProductButton'], addProductToCurrent).catch((error) => showToast(`商品追加失敗：${humanError(error)}`)));
     refreshEditedTotal();
     if (state.editDirty) setEditProtection('入力中の内容を保護しています。自動更新が入っても、この画面の入力は消えません。', 'dirty');
+    $('detailDialog').dataset.status = order.status;
     $('startButton').classList.toggle('hidden', !['submitted', 'new'].includes(order.status));
     $('completeButton').classList.toggle('hidden', !editableCustomerStatus(order.status));
     $('reopenButton').classList.toggle('hidden', !['confirmed', 'completed', 'resend_required'].includes(order.status));
@@ -566,14 +576,63 @@
 
   async function loadProductMaster() {
     if (state.productMaster) return state.productMaster;
-    const response = await fetchWithTimeout('product_master_korea.csv', { cache: 'default' }, 20000);
-    if (!response.ok) throw new Error('商品マスターを読み込めません。');
-    const rows = parseCsv(await response.text());
-    state.productMaster = new Map(rows.map((row) => [String(row['品番'] || '').trim().toUpperCase(), {
-      c: String(row['品番'] || '').trim(), n: [String(row['商品名_JA'] || ''), String(row['商品名_KO'] || '')], q: 1,
-      p: Number(row['韓国眼鏡店への販売価格（KRW）'] || 0), img: String(row['画像ファイル名'] || '') ? `product-images/${row['画像ファイル名']}` : '',
-    }]));
-    return state.productMaster;
+    if (!state.productMasterPromise) state.productMasterPromise = (async () => {
+      const response = await fetchWithTimeout('product_master_korea.csv', { cache: 'default' }, 20000);
+      if (!response.ok) throw new Error('商品マスターを読み込めません。');
+      const rows = parseCsv(await response.text());
+      const master = new Map(rows.filter(row => String(row['品番'] || '').trim()).map((row) => [String(row['品番'] || '').trim().toUpperCase(), {
+        c: String(row['品番'] || '').trim(), n: [String(row['商品名_JA'] || ''), String(row['商品名_KO'] || '')], q: 1,
+        p: Number(row['韓国眼鏡店への販売価格（KRW）'] || 0), img: String(row['画像ファイル名'] || '') ? `product-images/${row['画像ファイル名']}` : '',
+      }]));
+      if (!master.size) throw new Error('商品マスターの形式を確認してください。');
+      // Lookup-only fields stay out of the order item contract.
+      state.priceIndex = rows.filter(row => master.has(String(row['品番'] || '').trim().toUpperCase())).map(row => ({
+        product: master.get(String(row['品番'] || '').trim().toUpperCase()),
+        code: normalizePriceCode(row['品番']),
+        names: normalizeSearchText(['JA','KO','EN','ZH'].map(lang => row[`商品名_${lang}`] || '').join(' ')),
+      }));
+      state.productMaster = master;
+      return master;
+    })();
+    try { return await state.productMasterPromise; }
+    finally { state.productMasterPromise = null; }
+  }
+
+  function normalizePriceCode(value) {
+    return normalizeSearchText(value).trim().replace(/[\s_ー－―–—]/g, '-');
+  }
+
+  function renderPriceResults() {
+    if (!state.productMaster) return;
+    const query = normalizeSearchText($('priceSearchInput').value).trim();
+    if (!query) {
+      $('priceSearchStatus').textContent = `${state.productMaster.size.toLocaleString('ja-JP')}商品の価格を検索できます`;
+      $('priceResults').innerHTML = '<div class="empty">品番または商品名を入力してください。<br>例：1053 ／ ヤットコ</div>';
+      return;
+    }
+    const code = normalizePriceCode(query), codeOnly = /^[a-z0-9.\s_\-ー―–—]+$/i.test(query);
+    const matches = state.priceIndex.map(entry => ({ ...entry, rank: entry.code === code ? 0 : entry.code.startsWith(code) ? 1 : entry.code.includes(code) ? 2 : (!codeOnly || /[a-z]/i.test(query)) && entry.names.includes(query) ? 3 : 9 }))
+      .filter(entry => entry.rank < 9).sort((a,b) => a.rank-b.rank || a.code.localeCompare(b.code,'ja',{numeric:true}));
+    const shown = matches.slice(0, 60);
+    $('priceSearchStatus').textContent = matches.length ? `${matches.length}件${matches.length > 60 ? '（先頭60件を表示）' : ''}${shown[0]?.rank === 0 ? ' · 品番が完全一致' : ''}` : '該当する商品がありません';
+    $('priceResults').innerHTML = shown.length ? shown.map(({ product, rank }) => `<article class="priceProduct${rank === 0 ? ' exact' : ''}" data-price-code="${escapeHtml(product.c)}"><div class="priceProductImage">${product.img ? `<img src="${escapeHtml(product.img)}" alt="${escapeHtml(product.c)} 商品画像" loading="lazy">` : '<span>画像なし</span>'}</div><div>${rank === 0 ? '<div class="priceExact">✓ 品番が完全一致</div>' : ''}<div class="priceProductCode">${escapeHtml(product.c)}</div><div class="priceProductName">${escapeHtml(itemName(product))}</div><div class="priceProductAmount">${formatMoney(product.p)}</div></div></article>`).join('') : '<div class="empty">該当する商品がありません。<br>品番や商品名を変えて検索してください。</div>';
+    $('priceResults').querySelectorAll('img').forEach(img => img.addEventListener('error', () => { img.parentElement.innerHTML = '<span>画像なし</span>'; }, { once:true }));
+    $('priceResults').scrollTop = 0;
+  }
+
+  async function openPriceLookup() {
+    const dialog = $('priceDialog');
+    if (!dialog.open) dialog.showModal();
+    if (state.productMaster) { renderPriceResults(); return; }
+    $('priceSearchStatus').textContent = '商品データを読み込んでいます…';
+    $('priceResults').innerHTML = '<div class="empty">商品データを準備中</div>';
+    $('priceResults').setAttribute('aria-busy', 'true');
+    try { await loadProductMaster(); renderPriceResults(); }
+    catch (error) {
+      $('priceSearchStatus').textContent = '商品データを読み込めませんでした';
+      $('priceResults').innerHTML = '<div class="empty">通信を確認して再読み込みしてください。<br><button id="priceRetryButton" class="priceRetry" type="button">再読み込み</button></div>';
+      $('priceRetryButton').addEventListener('click', openPriceLookup);
+    } finally { $('priceResults').setAttribute('aria-busy', 'false'); }
   }
 
   async function addProductToCurrent() {
@@ -1129,6 +1188,10 @@
       } finally { button.disabled = false; }
     });
     $('logoutButton').addEventListener('click', signOut);
+    $('priceCheckButton').addEventListener('click', openPriceLookup);
+    $('closePriceDialog').addEventListener('click', () => $('priceDialog').close());
+    $('priceSearchInput').addEventListener('input', renderPriceResults);
+    $('priceClearButton').addEventListener('click', () => { $('priceSearchInput').value = ''; renderPriceResults(); $('priceSearchInput').focus({ preventScroll:true }); });
     $('refreshButton').addEventListener('click', () => withBusy(['refreshButton'], () => loadOrders()).catch((error) => showToast(`更新失敗：${humanError(error)}`)));
     $('historyButton').addEventListener('click', openHistory);
     $('historyTopClose').addEventListener('click', () => $('historyDialog').close());
