@@ -314,5 +314,28 @@
     .productActions [data-add] { min-width:88px; }
     .productQty { gap:5px; }
   }
+  /* Price lookup is the everyday workspace; ordering stays available on demand. */
+  .browseModeToggle { min-height:44px; padding:8px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--ink); white-space:nowrap; font-size:12px; }
+  .priceOnly #cartPanel,.priceOnly .orderSteps,.priceOnly [data-add],.priceOnly .productQty,.priceOnly [data-add-detail] { display:none!important; }
+  .priceOnly .workspace { grid-template-columns:minmax(0,1fr); max-width:1000px; }
+  .priceOnly .newApp { padding-bottom:calc(var(--keypad-dock-height) + 24px); }
+  .priceOnly .product { grid-template-columns:112px minmax(0,1fr); }
+  .priceOnly .product .thumb { width:112px; height:126px; }
+  .priceOnly .product .price { font-size:26px; }
+  .priceOnly .productActions { padding-top:0; justify-content:flex-end; }
+  .nextProductSearch { min-height:36px; padding:6px 10px; font-size:12px; border:1px solid #b8cbc1; border-radius:10px; background:#edf5f0; color:var(--accent); white-space:nowrap; }
+  .recentSearches { grid-column:1/-1; padding:16px; border:1px solid var(--line); border-radius:14px; background:#fff; }
+  .recentSearches>span { font-size:12px; color:var(--muted); }
+  .recentSearches>div { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .recentSearches button,.moreSearchResults { min-height:44px; background:#fff; color:var(--accent); border:1px solid var(--line); border-radius:10px; }
+  .moreSearchResults { grid-column:1/-1; }
+  @media(max-width:760px) {
+    .appTopControls { gap:6px; }
+    .appBrandTitle { font-size:11px; }
+    .priceOnly .productGrid { grid-template-columns:1fr; }
+    .keypadHeadText small { max-width:180px; }
+    .browseModeToggle { padding:6px 9px; }
+  }
+  @media(max-width:380px) { .appBrandTitle { display:none; } .keypadHeadText small { display:none; } }
   @media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
 }

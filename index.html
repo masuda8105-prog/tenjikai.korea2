@@ -91,7 +91,7 @@
   </style>
   <link rel="stylesheet" href="ui-refresh.css">
 </head>
-<body>
+<body class="priceOnly">
   <main class="app newApp">
     <header class="appTopbar">
       <div class="appTopbarInner">
@@ -100,6 +100,7 @@
           <div><div class="appBrandTitle">SAN NISHIMURA</div><div class="appBrandSub">EXHIBITION ORDER</div></div>
         </div>
         <div class="appTopControls">
+          <button id="browseModeToggle" class="browseModeToggle" type="button" aria-pressed="false">注文へ / 주문하기</button>
           <label class="topLang"><span data-i18n="displayLanguage">言語</span><select id="langSelect"><option value="ja">日本語</option><option value="ko" selected>한국어</option></select></label>
         </div>
       </div>
@@ -292,9 +293,26 @@
     Object.assign(extraT.ko,{finishInput:'접수 번호 발급',finishInputHint:'발급 후 접수 번호 화면을 가까운 직원에게 보여 주세요.',shippingAddressLabel:'배송지 주소 (선택)',shippingAddressPlaceholder:'우편번호, 주소, 건물명 등',flow3Title:'확인서를 이미지로 저장',flow3Text:'직원 확인 후 “이미지로 저장 (간편)”을 누릅니다. PDF도 선택할 수 있습니다.',checkoutGuideText:'접수 번호를 발급하여 가까운 직원에게 보여 주세요. 확인 후 확인서를 이미지 또는 PDF로 저장할 수 있습니다.',customerNextText:'확인서를 열고 “이미지로 저장 (간편)”을 눌러 주세요. PDF 저장・인쇄도 선택할 수 있습니다.',customerNextReady:'직원 확인이 완료되었습니다. 확인서를 이미지 또는 PDF로 저장해 주세요.',customerReceiptTitle:'주문 확인서를 저장해 주세요',customerReceiptText:'“이미지로 저장 (간편)”을 권장합니다. 필요한 경우 PDF 저장・인쇄도 선택할 수 있습니다.',leaveWithoutPdf:'아직 주문 확인서를 저장하지 않았습니다. 저장하지 않고 돌아갈까요?',mobileSaveTitle:'스마트폰에서 확인서 저장 방법'});
     Object.assign(extraT.en,{finishInput:'Issue reception number',finishInputHint:'After it is issued, show the reception-number screen to nearby staff.',shippingAddressLabel:'Shipping address (optional)',shippingAddressPlaceholder:'Postal code, address, building, etc.',flow3Title:'Save your order copy',flow3Text:'After staff verification, tap “Save as image (easy).” PDF is also available.',checkoutGuideText:'Issue a reception number and show it to nearby staff. After verification, save the copy as an image or PDF.',customerNextText:'Open the copy and tap “Save as image (easy).” PDF saving and printing are also available.',customerNextReady:'Staff verification is complete. Open the copy and save it as an image or PDF.',customerReceiptTitle:'Save your order copy',customerReceiptText:'“Save as image (easy)” is recommended. You can also save a PDF or print.',leaveWithoutPdf:'The order copy has not been saved yet. Leave without saving it?',mobileSaveTitle:'How to save your copy on a phone'});
     Object.assign(extraT.zh,{finishInput:'生成受理编号',finishInputHint:'生成后，请向附近的工作人员出示受理编号画面。',shippingAddressLabel:'收货地址（选填）',shippingAddressPlaceholder:'邮政编码、地址、楼名等',flow3Title:'将回执保存为图片',flow3Text:'工作人员确认后，点击“保存为图片（简单）”。也可选择PDF。',checkoutGuideText:'生成受理编号并向附近工作人员出示。确认后，可将回执保存为图片或PDF。',customerNextText:'打开回执并点击“保存为图片（简单）”。也可保存PDF或打印。',customerNextReady:'工作人员已确认。请打开回执并保存为图片或PDF。',customerReceiptTitle:'请保存订单回执',customerReceiptText:'推荐使用“保存为图片（简单）”。也可保存PDF或打印。',leaveWithoutPdf:'尚未保存订单回执。是否不保存直接返回？',mobileSaveTitle:'如何在手机上保存回执'});
+    let browseMode = 'price';
+    let searchLimit=20, lastSearchQuery='', recentSearchTimer=0, catalogReady=false, catalogLoading=false;
+    const codeCollator=new Intl.Collator('ja',{numeric:true});
+    function updateBrowseMode(){
+      const ordering=browseMode==='order',ko=currentLang()==='ko';
+      document.body.classList.toggle('priceOnly',!ordering);
+      const toggle=$('browseModeToggle');
+      if(toggle){toggle.textContent=ordering?(ko?'가격 검색으로':'価格検索へ'):(ko?'주문하기':'注文へ');toggle.setAttribute('aria-pressed',String(ordering));}
+      const title=document.querySelector('[data-i18n="browseTitle"]');if(title)title.textContent=ordering?txt('browseTitle'):(ko?'품번으로 가격 검색':'品番で価格検索');
+     const next=$('nextProductSearch');if(next)next.textContent=ko?'다음 품번':'次の品番';
+    }
+    function setBrowseMode(mode){browseMode=mode==='order'?'order':'price';updateBrowseMode();renderResults();requestAnimationFrame(updateFixedStackLayout);}
+    function recentCodes(){try{const list=JSON.parse(localStorage.getItem('exhibitionRecentCodes')||'[]');return Array.isArray(list)?list.filter(code=>typeof code==='string'&&products.some(p=>p.code===code)).slice(0,6):[];}catch{return [];}}
+    function saveRecentCode(code){try{localStorage.setItem('exhibitionRecentCodes',JSON.stringify([code,...recentCodes().filter(c=>c!==code)].slice(0,6)));}catch{}}
+    function clearProductSearch(){clearTimeout(recentSearchTimer);$('searchInput').value='';renderResults();window.scrollTo({top:0,behavior:'instant'});}
     function init(){
       if(location.hash.startsWith('#receipt=')||location.hash.startsWith('#staff=')||location.hash.startsWith('#online-receipt=')||location.hash.startsWith('#online-staff=')){ showReceiptFromHash(); return; }
       const savedLang=localStorage.getItem('qrDisplayLang'); if(savedLang&&['ja','ko'].includes(savedLang)) $('langSelect').value=savedLang;
+      if(new URLSearchParams(location.search).get('mode')==='order')browseMode='order';
+      $('browseModeToggle').onclick=()=>setBrowseMode(browseMode==='price'?'order':'price');
       restoreCustomerDraft(); attachEvents(); setupKeypadPanel(); initPriceMode(); applyI18n(); initFixedStackLayout();
       $('results').innerHTML=`<div class="empty">${sanitize(txt('loading'))}</div>`;
       loadDefaultCsv(); renderOrder(); renderHistory();
@@ -315,6 +333,7 @@
       updateStaticUi(lang);
       document.querySelectorAll('[data-i18n]').forEach(el=>{const key=el.dataset.i18n;const value=extraT[lang]?.[key]||t[lang]?.[key];if(value)el.textContent=value;});
       document.querySelectorAll('[data-i18n-placeholder]').forEach(el=>{const value=txt(el.dataset.i18nPlaceholder,lang);if(value)el.placeholder=value;});
+      updateBrowseMode();
       renderResults(); renderOrder(); renderHistory(); updateCustomerStatus(); setCartExpanded($('cartPanel')?.classList.contains('expanded')); requestAnimationFrame(updateFixedStackLayout);
     }
     function txt(key, lang=currentLang()){ return extraT[lang]?.[key] || t[lang]?.[key] || extraT.en?.[key] || t.en[key] || key; }
@@ -406,7 +425,8 @@
       const search=$('searchInput');
       search.addEventListener('input',renderResults);
       $('clearSearch').addEventListener('pointerdown',event=>event.preventDefault());
-      $('clearSearch').onclick=()=>{search.value='';renderResults();};
+      $('clearSearch').onclick=clearProductSearch;
+      search.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();clearProductSearch();}if(event.key==='Enter'){event.preventDefault();search.blur();}});
       $('langSelect').addEventListener('change',()=>{localStorage.setItem('qrDisplayLang',currentLang());applyI18n();});
       $('fileInput')?.addEventListener('change',handleFile);
       $('clearOrder').onclick=()=>{if(confirm(txt('clearOrderConfirm'))){order=[];renderOrder();}};
@@ -541,9 +561,22 @@
       const label=$('cartToggleLabel');if(label)label.textContent=currentLang()==='ko'?(expanded?'닫기':'내용 보기 ›'):(expanded?'閉じる':'内容を見る ›');
     }
     function toggleCartPanel(){if(window.innerWidth<=760)setCartExpanded(!$('cartPanel').classList.contains('expanded'));}
-    function prepareProducts(list){ return list.map(p=>{ p._codeSearch=normalizeProductCodeSearch(p.code); p._search=normalizeKeywordText([...Object.values(p.names||{}),...Object.values(p.usages||{}),...Object.values(p.benefits||{})].join(' ')); return p; }); }
+    function prepareProducts(list){ return list.map(p=>{ p._codeSearch=normalizeProductCodeSearch(p.code); p._codeNoDash=p._codeSearch.replace(/-/g,''); p._search=normalizeKeywordText([...Object.values(p.names||{}),...Object.values(p.usages||{}),...Object.values(p.benefits||{})].join(' ')); return p; }).sort((a,b)=>codeCollator.compare(String(a.code),String(b.code))); }
     function restoreOrder(){ try{ const saved=JSON.parse(localStorage.getItem('qrDraftOrder')||'[]'); order=saved.map(s=>{ const p=products.find(x=>String(x.code)===String(s.code))||s.snapshot; return p?{...p,qty:Math.max(1,Number(s.qty)||1),_draftFallback:!products.some(x=>String(x.code)===String(s.code))}:null; }).filter(Boolean); }catch(err){ order=[]; } }
-    async function loadDefaultCsv(){ try{ const res = await fetch(DATA_FILE, {cache:'default'}); if(!res.ok) throw new Error('no default csv'); const text = await res.text(); products=prepareProducts(parseCsv(text).map(normalizeRow).filter(p=>p.code)); restoreOrder(); if($('autoLoadNotice')) $('autoLoadNotice').innerHTML=`<b>${products.length.toLocaleString('ja-JP')}件</b>の商品マスターを読み込みました。`; renderResults(); renderOrder(); }catch(err){ restoreOrder(); if($('autoLoadNotice')) $('autoLoadNotice').textContent=txt('loadFailed'); $('results').innerHTML=`<div class="empty loadError">${sanitize(txt('loadFailed'))}<br><button type="button" class="secondary small" onclick="loadDefaultCsv()">再読み込み / 다시 불러오기</button></div>`; renderOrder(); }}
+    async function loadDefaultCsv(){
+      if(catalogLoading)return;
+      catalogLoading=true;renderResults();
+      const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),15000);
+      try{
+        const res=await fetch(DATA_FILE,{cache:'default',signal:controller.signal});
+        if(!res.ok)throw new Error('product master unavailable');
+        const loaded=prepareProducts(parseCsv(await res.text()).map(normalizeRow).filter(p=>p.code));
+        if(!loaded.length)throw new Error('empty product master');
+        products=loaded;catalogReady=true;restoreOrder();
+        if($('autoLoadNotice'))$('autoLoadNotice').textContent=`${products.length.toLocaleString('ja-JP')}件の商品マスターを読み込みました。`;
+      }catch(err){if($('autoLoadNotice'))$('autoLoadNotice').textContent=txt('loadFailed');}
+      finally{clearTimeout(timeout);catalogLoading=false;renderResults();renderOrder();}
+    }
     function cleanProductCode(raw){
       let v=String(raw||'').trim();
       const months={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
@@ -557,12 +590,12 @@
     }
     function normalizeProductCodeSearch(value){ return String(value||'').normalize('NFKC').toLowerCase().trim().replace(/^no\.?\s*/,'').replace(/[\s_ー－―–—]/g,'-').replace(/[^a-z0-9\-]/g,''); }
     function normalizeKeywordText(value){ return String(value||'').normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim().replace(/\s+/g,' '); }
-    function productMatch(p,qRaw){
-      const normalizedRaw=String(qRaw||'').normalize('NFKC'), keyword=normalizeKeywordText(normalizedRaw), isCodeQuery=/^[\sA-Za-z0-9._\-ー－―–—]+$/.test(normalizedRaw), q=normalizeProductCodeSearch(normalizedRaw);
+    function prepareSearchQuery(qRaw){const raw=String(qRaw||'').normalize('NFKC'),q=normalizeProductCodeSearch(raw);return {keyword:normalizeKeywordText(raw),isCodeQuery:/^[\sA-Za-z0-9._\-ー－―–—]+$/.test(raw),q,qNoDash:q.replace(/-/g,'')};}
+    function productMatch(p,qRaw,query=prepareSearchQuery(qRaw)){
+      const {keyword,isCodeQuery,q,qNoDash}=query;
       if(!keyword) return null;
       const code = p._codeSearch || normalizeProductCodeSearch(p.code);
-      const codeNoDash = code.replace(/-/g,'');
-      const qNoDash = q.replace(/-/g,'');
+      const codeNoDash = p._codeNoDash || code.replace(/-/g,'');
       if(isCodeQuery && q && (code===q || codeNoDash===qNoDash)) return {rank:0,label:txt('exactMatch'),className:'matchExact'};
       if(isCodeQuery && q && (code.startsWith(q) || codeNoDash.startsWith(qNoDash))) return {rank:1,label:txt('prefixMatch'),className:'matchPrefix'};
       if(isCodeQuery && q && (code.includes(q) || codeNoDash.includes(qNoDash))) return {rank:2,label:txt('partialMatch'),className:'matchPartial'};
@@ -572,26 +605,41 @@
     function renderResults(){
       if(!$('results')) return;
       const lang=currentLang(), qRaw=$('searchInput').value.trim();
+      clearTimeout(recentSearchTimer);
+      if(!catalogReady){
+        $('searchResultStatus').textContent=catalogLoading?(lang==='ko'?'상품 준비 중':'商品データを準備中'):(lang==='ko'?'다시 불러와 주세요':'再読み込みしてください');
+        $('results').innerHTML=catalogLoading?`<div class="empty" role="status">${lang==='ko'?'상품을 불러오는 중…':'商品を読み込んでいます…'}</div>`:`<div class="empty loadError">${sanitize(txt('loadFailed'))}<br><button type="button" class="secondary small" onclick="loadDefaultCsv()">再読み込み / 다시 불러오기</button></div>`;
+        return;
+      }
+      if(qRaw!==lastSearchQuery){searchLimit=20;lastSearchQuery=qRaw;if(window.scrollY>0)window.scrollTo({top:0,behavior:'instant'});}
       if(!qRaw){
         if($('productCount')) $('productCount').value=`${products.length.toLocaleString('ja-JP')} / 0`; if($('searchResultStatus')){$('searchResultStatus').classList.remove('exactMatchStatus');$('searchResultStatus').textContent=lang==='ko'?`${products.length.toLocaleString('ko-KR')}개 상품`:`${products.length.toLocaleString('ja-JP')}商品`;}
         $('results').innerHTML=`<div class="searchWelcome"><div class="searchWelcomeIcon" aria-hidden="true"><svg width="32" height="32" viewBox="0 0 32 32" fill="none"><rect x="4" y="4" width="17" height="22" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M9 10h7M9 15h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="21" cy="21" r="6" fill="#edf5f0" stroke="currentColor" stroke-width="1.6"/><path d="m25 25 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div><h2>${sanitize(txt('welcomeTitle',lang))}</h2><p>${sanitize(txt('welcomeText',lang))}</p><div class="searchExamples"><button type="button" data-search-example="1053">${sanitize(txt('tryCode',lang))} 1053 ↗</button><button type="button" data-search-example="36">${sanitize(txt('tryCode',lang))} 36 ↗</button></div></div>`;
+        const welcome=$('results').querySelector('.searchWelcome p');if(welcome&&browseMode==='price')welcome.textContent=lang==='ko'?'품번을 입력하면 상품 사진과 가격이 바로 표시됩니다. 아래 키패드로 계속 검색할 수 있습니다.':'品番を入力するだけで、商品画像と価格を確認できます。下のテンキーから続けて検索できます。';
+        const recent=recentCodes();if(recent.length)$('results').insertAdjacentHTML('afterbegin',`<section class="recentSearches"><span>${lang==='ko'?'최근 검색':'最近調べた品番'}</span><div>${recent.map(code=>`<button type="button" data-search-example="${sanitize(code)}">${sanitize(code)}</button>`).join('')}</div></section>`);
         $('results').querySelectorAll('[data-search-example]').forEach(button=>{button.addEventListener('pointerdown',event=>event.preventDefault());button.onclick=()=>{$('searchInput').value=button.dataset.searchExample;renderResults();};});
         updateKeypadVisibilitySoon();
         return;
       }
-      const list=products.map((p,idx)=>({p,idx,m:productMatch(p,qRaw)})).filter(x=>x.m).sort((a,b)=>(a.m?.rank??9)-(b.m?.rank??9)||String(a.p.code).localeCompare(String(b.p.code),'ja',{numeric:true})||a.idx-b.idx).slice(0,60);
+      const query=prepareSearchQuery(qRaw),buckets=[[],[],[],[]];
+      for(const p of products){const m=productMatch(p,qRaw,query);if(m)buckets[m.rank].push({p,m});}
+      const matches=buckets.flat(),list=matches.slice(0,searchLimit);
       const exactItem=list.find(({m})=>m?.rank===0),resultStatus=$('searchResultStatus');
+      if(exactItem)recentSearchTimer=setTimeout(()=>saveRecentCode(exactItem.p.code),800);
       if($('productCount')) $('productCount').value=`${products.length.toLocaleString('ja-JP')} / ${list.length.toLocaleString('ja-JP')}`; if(resultStatus){resultStatus.classList.toggle('exactMatchStatus',Boolean(exactItem));resultStatus.textContent=exactItem?`✓ ${txt('exactProductFound',lang)}：${exactItem.p.code}`:lang==='ko'?`${list.length.toLocaleString('ko-KR')}개 표시 / ${products.length.toLocaleString('ko-KR')}개 상품`:`${list.length.toLocaleString('ja-JP')}件表示 / ${products.length.toLocaleString('ja-JP')}商品`;}
       $('results').innerHTML=list.length?list.map(({p,m})=>`<article class="product${m?.rank===0?' exactMatchProduct':''}" data-product-code="${sanitize(p.code)}"${m?.rank===0?' data-exact-match="true"':''}>${m?.rank===0?`<div class="exactMatchSignal"><span class="exactMatchCheck" aria-hidden="true">✓</span><span>${sanitize(txt('exactProductFound',lang))}</span></div>`:''}${thumbHtml(p)}<div class="productInfo"><div class="code">${sanitize(p.code)}</div><div class="name">${sanitize(nameOf(p,lang))}</div><div class="price">${sanitize(priceDisplay(p.price,p.currency||$('currencySelect').value))}</div><div class="metaLine">${m?.rank!==0&&m?.label?`<span class="badge ${m.className}">${sanitize(m.label)}</span>`:''}${catalogLabel(p.catalog,lang)?`<span class="badge">${sanitize(catalogLabel(p.catalog,lang))}</span>`:''}</div></div><div class="productActions"><button class="secondary small" data-detail="${sanitize(p.code)}">${txt('detail')} ↗</button><div class="productQty" hidden><button type="button" data-result-minus="${sanitize(p.code)}" aria-label="${sanitize(p.code)} ${sanitize(txt('qty',lang))} −">−</button><output aria-label="${sanitize(txt('qty',lang))}"></output></div><button class="small" data-add="${sanitize(p.code)}" aria-label="${sanitize(p.code)} ${sanitize(txt('add',lang))}">＋ ${txt('add')}</button></div></article>`).join(''):`<div class="empty">${txt('notFound')}</div>`;
       $('results').querySelectorAll('[data-add]').forEach(btn=>btn.onclick=()=>addProduct(btn.dataset.add));
       $('results').querySelectorAll('[data-detail]').forEach(btn=>btn.onclick=()=>showProductDetail(btn.dataset.detail));
       $('results').querySelectorAll('[data-result-minus]').forEach(btn=>btn.onclick=()=>{const idx=order.findIndex(item=>String(item.code)===btn.dataset.resultMinus);if(idx<0)return;if(order[idx].qty<=1)order.splice(idx,1);else order[idx].qty--;renderOrder();});
       syncProductQuantities();
+      if(matches.length>list.length){$('results').insertAdjacentHTML('beforeend',`<button id="moreSearchResults" class="moreSearchResults" type="button">${lang==='ko'?`더 보기 (${list.length} / ${matches.length})`:`続きを表示（${list.length} / ${matches.length}件）`}</button>`);$('moreSearchResults').onclick=()=>{searchLimit+=20;renderResults();};}
       updateKeypadVisibilitySoon();
     }
 
     function setupKeypadPanel(){
       buildKeypad();
+      const next=document.createElement('button');next.id='nextProductSearch';next.type='button';next.className='nextProductSearch';next.textContent='次の品番';next.onclick=clearProductSearch;
+      document.querySelector('.keypadTools').prepend(next);
       updateKeypadDockHeight();
       window.addEventListener('resize',updateKeypadDockHeight,{passive:true});
     }
@@ -602,7 +650,7 @@
       document.querySelectorAll('.product[data-product-code]').forEach(card=>{const item=order.find(item=>String(item.code)===card.dataset.productCode),control=card.querySelector('.productQty');if(control){control.hidden=!item;control.querySelector('output').textContent=String(item?.qty||0);}});
     }
     function showToast(message){ const el=$('toast'); if(!el)return; el.textContent=message; el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),1800); }
-    function addProduct(code){ const p=products.find(x=>String(x.code)===String(code)); if(!p)return; const existing=order.find(x=>String(x.code)===String(code)); if(existing) existing.qty=Math.min(9999,existing.qty+1); else order.push({...p, qty:1}); renderOrder(); showToast(`${nameOf(p)} — ${txt('addedToOrder')}`); }
+    function addProduct(code){ if(browseMode!=='order')return;const p=products.find(x=>String(x.code)===String(code)); if(!p)return; const existing=order.find(x=>String(x.code)===String(code)); if(existing) existing.qty=Math.min(9999,existing.qty+1); else order.push({...p, qty:1}); renderOrder(); showToast(`${nameOf(p)} — ${txt('addedToOrder')}`); }
     function showProductDetail(code){ const p=products.find(x=>String(x.code)===String(code)); if(!p)return; const lang=currentLang(); $('detailBody').innerHTML=`<div class="detailHero">${thumbHtml(p)}<div><div class="detailCode">${sanitize(p.code)}</div><div class="detailTitle">${sanitize(nameOf(p,lang))}</div><div class="detailPrice">${sanitize(priceDisplay(p.price,p.currency||$('currencySelect').value))}</div>${detailInfoHtml(p,lang)}${officialLinkHtml(p,lang)}<div class="metaLine">${catalogLabel(p.catalog,lang)?`<span class="badge">${sanitize(catalogLabel(p.catalog,lang))}</span>`:''}</div><div class="row wrap" style="margin-top:14px"><button data-add-detail="${sanitize(p.code)}">${txt('add')}</button><button class="secondary" onclick="document.getElementById('detailDialog').close()">${txt('close')}</button></div></div></div>`; $('detailBody').querySelector('[data-add-detail]').onclick=()=>{addProduct(code);$('detailDialog').close();}; $('detailDialog').showModal(); }
     function renderOrder(){
       if(!$('orderItems'))return;
@@ -620,7 +668,7 @@
       localStorage.setItem('qrDraftOrder',JSON.stringify(order.map(i=>({code:i.code,qty:i.qty,snapshot:{code:i.code,names:i.names,price:i.price,currency:i.currency||'KRW',image:i.image||'',catalog:i.catalog||''}}))));updateCustomerStatus();renderCheckoutSummary();syncProductQuantities();
     }
     function changeQty(idx,delta){ order[idx].qty=Math.min(9999,Math.max(1,Number(order[idx].qty||1)+delta)); renderOrder(); }
-    async function handleFile(e){ const file=e.target.files?.[0]; if(!file)return; const ext=file.name.split('.').pop().toLowerCase(); try{ if(ext==='csv'){ products=prepareProducts(parseCsv(await file.text()).map(normalizeRow).filter(p=>p.code)); }else{ if(!(await ensureLib('XLSX'))) throw new Error('XLSX library is not loaded. Please try CSV.'); const buf=await file.arrayBuffer(); const wb=XLSX.read(buf,{type:'array'}); const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}); products=prepareProducts(rows.map(normalizeRow).filter(p=>p.code)); } restoreOrder(); alert(`${products.length} products loaded`); renderResults(); renderOrder(); }catch(err){ alert('Import error: '+err.message); } }
+    async function handleFile(e){ const file=e.target.files?.[0]; if(!file)return; const ext=file.name.split('.').pop().toLowerCase(); try{ if(ext==='csv'){ products=prepareProducts(parseCsv(await file.text()).map(normalizeRow).filter(p=>p.code)); }else{ if(!(await ensureLib('XLSX'))) throw new Error('XLSX library is not loaded. Please try CSV.'); const buf=await file.arrayBuffer(); const wb=XLSX.read(buf,{type:'array'}); const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}); products=prepareProducts(rows.map(normalizeRow).filter(p=>p.code)); } catalogReady=products.length>0; restoreOrder(); alert(`${products.length} products loaded`); renderResults(); renderOrder(); }catch(err){ alert('Import error: '+err.message); } }
     function parseCsv(text){ const rows=[]; let row=[], cell='', q=false; for(let i=0;i<text.length;i++){ const c=text[i], n=text[i+1]; if(c==='"'&&q&&n==='"'){cell+='"';i++;continue;} if(c==='"'){q=!q;continue;} if(c===','&&!q){row.push(cell);cell='';continue;} if((c==='\n'||c==='\r')&&!q){ if(cell||row.length){row.push(cell);rows.push(row);row=[];cell='';} if(c==='\r'&&n==='\n')i++; continue;} cell+=c; } if(cell||row.length){row.push(cell);rows.push(row);} const headers=rows.shift()?.map(h=>h.trim().replace(/^\uFEFF/,''))||[]; return rows.map(r=>Object.fromEntries(headers.map((h,i)=>[h,r[i]??'']))); }
     function get(row, names){ const keys=Object.keys(row); for(const n of names){ const direct=keys.find(k=>k.trim().toLowerCase()===n.toLowerCase()); if(direct) return row[direct]; } const hit=keys.find(k=>names.some(n=>k.toLowerCase().replace(/\s/g,'').includes(n.toLowerCase()))); return hit?row[hit]:''; }
     function normalizeRow(row){ 
@@ -680,8 +728,8 @@
     }
     async function ensureReceiptProductMaster(codes=[]){
       const needed=[...new Set(codes.map(String).filter(Boolean))];
-      if(needed.length && needed.every(code=>products.some(p=>String(p.code)===code))) return;
-      try{ const res=await fetch(DATA_FILE,{cache:'default'}); if(!res.ok) throw new Error('product master unavailable'); products=prepareProducts(parseCsv(await res.text()).map(normalizeRow).filter(p=>p.code)); }
+      if(catalogReady && needed.length && needed.every(code=>products.some(p=>String(p.code)===code))) return;
+      try{ const res=await fetch(DATA_FILE,{cache:'default'}); if(!res.ok) throw new Error('product master unavailable'); products=prepareProducts(parseCsv(await res.text()).map(normalizeRow).filter(p=>p.code)); catalogReady=products.length>0; }
       catch(err){ /* The compact receipt can still show codes and prices without the master. */ }
     }
     async function hydrateReceiptPayload(raw){
@@ -829,7 +877,7 @@
         businessCardImageData=String(latest.businessCardImage||'');businessCardOriginalFile=null;businessCardPreviewBlob=null;businessCardExisting=!!businessCardImageData;businessCardRemoveRequested=false;businessCardVersion++;
         document.querySelectorAll('dialog[open]').forEach(dialog=>dialog.close());document.body.classList.remove('receiptOnly','staffReceiptView');document.querySelector('.receiptPage').style.display='';
         try{history.replaceState(null,'',`${location.pathname}${location.search}`);}catch(error){}
-        applyI18n();renderOrder();updateBusinessCardPreview();saveCustomerDraft();pendingDraftSignature=currentDraftSignature();setCartExpanded(true);
+        browseMode='order';applyI18n();renderOrder();updateBusinessCardPreview();saveCustomerDraft();pendingDraftSignature=currentDraftSignature();setCartExpanded(true);
         setOnlineStatus('同じ受付番号のまま修正できます。修正後に「修正内容を保存」を押してください。 / 같은 접수 번호로 수정할 수 있습니다.','success');
         requestAnimationFrame(()=>{$('cartPanel')?.scrollIntoView({behavior:'smooth',block:'center'});});
       }catch(error){console.error(error);alert('最新の注文内容を読み込めませんでした。通信を確認してもう一度お試しください。 / 최신 주문 내용을 불러오지 못했습니다.');}

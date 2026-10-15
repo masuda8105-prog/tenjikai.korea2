@@ -27,6 +27,8 @@ def storage_shim():
 
 def inline_customer_html(mock_js: str):
     html=(ROOT/'index.html').read_text(encoding='utf-8')
+    # These legacy scenarios exercise checkout; price-first coverage is in automated_e2e.cjs.
+    html=html.replace("let browseMode = 'price';", "let browseMode = 'order';")
     html=html.replace('<link rel="stylesheet" href="ui-refresh.css">', '<style>'+(ROOT/'ui-refresh.css').read_text(encoding='utf-8')+'</style>')
     mock_js=storage_shim()+mock_js
     html=html.replace('<script src="online-config.js"></script>', f'<script>{mock_js}</script><script>{(ROOT/"online-config.js").read_text()}</script>')

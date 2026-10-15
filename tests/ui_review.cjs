@@ -23,11 +23,13 @@ const staffMock = `window.fetch=async(input,init={})=>{const u=String(input);if(
   try {
     for (const width of [390, 820, 1440]) {
       const page = await browser.newPage({ viewport: { width, height: 900 } });
-      await page.setContent(fixtures.customerHtml(''), { waitUntil: 'domcontentloaded' });
-      await page.waitForFunction(() => products.some(p => p.code === '1053'));
+      await page.setContent(fixtures.customerHtml('',false), { waitUntil: 'domcontentloaded' });
+      await page.waitForFunction(() => catalogReady);
       await page.evaluate(image => { products.forEach(p => p.image = image); renderResults(); }, image);
       await page.screenshot({ path: path.join(output, `customer-${width}-empty.png`) });
       await page.fill('#searchInput', '1053');
+      await page.screenshot({ path: path.join(output, `price-${width}.png`) });
+      await page.click('#browseModeToggle');
       await page.click('[data-add="1053"]');
       await page.screenshot({ path: path.join(output, `customer-${width}.png`) });
       await page.selectOption('#langSelect','ja');

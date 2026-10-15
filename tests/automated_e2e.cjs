@@ -8,9 +8,11 @@ const ROOT = path.resolve(__dirname, '..');
 const read = (name) => fs.readFileSync(path.join(ROOT, name), 'utf8');
 const storageShim = `(()=>{const make=()=>{const data=new Map();return{getItem:k=>data.has(String(k))?data.get(String(k)):null,setItem:(k,v)=>data.set(String(k),String(v)),removeItem:k=>data.delete(String(k)),clear:()=>data.clear(),key:i=>Array.from(data.keys())[i]||null,get length(){return data.size}}};try{Object.defineProperty(window,'localStorage',{value:make(),configurable:true})}catch{}try{Object.defineProperty(window,'sessionStorage',{value:make(),configurable:true})}catch{}})();`;
 
-function customerHtml(mock) {
+function customerHtml(mock, orderMode = true, fullCatalog = false) {
   new Function(mock);
   let html = read('index.html');
+  // Existing checkout regressions explicitly exercise ordering; price-first has its own scenario.
+  if(orderMode) html=html.replace("let browseMode = 'price';", "let browseMode = 'order';");
   html = html.replace('<link rel="stylesheet" href="ui-refresh.css">', `<style>${read('ui-refresh.css')}</style>`);
   html = html.replace('<script src="online-config.js"></script>', `<script>${storageShim}${mock}</script><script>${read('online-config.js')}</script>`);
   html = html.replace('<script src="vendor/qrcode.min.js"></script>', `<script>${read('vendor/qrcode.min.js')}</script>`);
@@ -19,7 +21,7 @@ function customerHtml(mock) {
   html = html.replace('<script src="vendor/xlsx.full.min.js"></script>', '');
   const csv = read('product_master_korea.csv').split(/\r?\n/);
   const small = `\uFEFF${csv[0]}\n${csv.find((line) => line.startsWith('36,'))}\n${csv.find((line) => line.startsWith('1053,'))}\n`;
-  html = html.replace("const DATA_FILE = 'product_master_korea.csv';", `const DATA_FILE = 'data:text/csv;base64,${Buffer.from(small).toString('base64')}';`);
+  html = html.replace("const DATA_FILE = 'product_master_korea.csv';", `const DATA_FILE = 'data:text/csv;base64,${Buffer.from(fullCatalog?read('product_master_korea.csv'):small).toString('base64')}';`);
   [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].forEach((match, index) => { try { new vm.Script(match[1], { filename: `customer-script-${index}.js` }); } catch (error) { throw error; } });
   return html;
 }
@@ -376,9 +378,44 @@ async function platformPrintSmoke(browser) {
   }
 }
 
+async function priceFirstFlow(browser) {
+  const page=await browser.newPage({viewport:{width:390,height:844}});
+  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
+  await page.setContent(customerHtml('',false,true));
+  await page.waitForFunction(()=>catalogReady);
+  if(await page.evaluate(()=>products.length)!==3831)throw new Error('Full catalog not tested');
+  await page.selectOption('#langSelect','ja');
+  await page.fill('#searchInput','１０５３');
+  await page.waitForSelector('[data-exact-match="true"]');
+  if(await page.locator('#cartPanel').isVisible() || await page.locator('[data-add="1053"]').isVisible())throw new Error('Price mode exposes ordering');
+  await page.waitForFunction(()=>JSON.parse(localStorage.getItem('exhibitionRecentCodes')||'[]').includes('1053'));
+  await page.click('#nextProductSearch');
+  if(await page.inputValue('#searchInput')!=='')throw new Error('Next product did not clear');
+  await page.click('.recentSearches [data-search-example="1053"]');
+  await page.click('#browseModeToggle');
+  await page.click('[data-add="1053"]');
+  await page.click('#browseModeToggle');
+  await page.click('#browseModeToggle');
+  if(await page.evaluate(()=>order.find(p=>p.code==='1053')?.qty)!==1)throw new Error('Mode switch lost cart');
+  await page.evaluate(()=>{products=prepareProducts(Array.from({length:85},(_,i)=>({...products[0],code:`TEST-${i}`})));});
+  await page.fill('#searchInput','TEST');
+  if(await page.locator('.product').count()!==20)throw new Error('Initial result limit');
+  while(await page.locator('#moreSearchResults').count())await page.click('#moreSearchResults');
+  if(await page.locator('.product').count()!==85)throw new Error('Results inaccessible after first page');
+  if(errors.length)throw new Error(errors.join('\n'));
+  await page.close();
+  const failure=await browser.newPage();
+  await failure.setContent(customerHtml("window.fetch=async()=>{throw new Error('offline')};",false));
+  await failure.waitForSelector('.loadError');
+  await failure.fill('#searchInput','1053');
+  if(await failure.locator('.product').count())throw new Error('Sample prices shown on load failure');
+  await failure.close();
+}
+
 (async () => {
   const browser = await chromium.launch(launchOptions());
   try {
+    await priceFirstFlow(browser);
     await customerFlow(browser);
     await customerFailure(browser);
     await staffFlow(browser);
