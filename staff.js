@@ -195,6 +195,7 @@
   }
 
   function showLogin(message = '') {
+    $('staffIntakeDialog')?.close();
     $('loginView').classList.remove('hidden');
     $('dashboardView').classList.add('hidden');
     $('loginMessage').textContent = message;
@@ -407,6 +408,13 @@
     $('visibleCount').textContent = base.length;
     $('visibleQty').textContent = base.reduce((sum, order) => sum + totalQty(order), 0);
     $('visibleAmount').textContent = formatMoney(base.reduce((sum, order) => sum + orderTotal(order), 0));
+    const history = $('list-history');
+    history.innerHTML = base.length ? base.map(order => {
+      const store = escapeHtml(order.order_data?.customerCompany || '未入力');
+      const time = escapeHtml(new Date(order.created_at).toLocaleString('ja-JP', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }));
+      const number = escapeHtml(order.order_no);
+      return `<article class="confirmedOrderRow historyOrderRow" data-order-id="${escapeHtml(order.id)}" tabindex="0" role="button" aria-label="${number} ${store} を開く"><span class="confirmedTime">${time}</span><span class="confirmedCustomer">${store}</span><span class="confirmedStaff">${formatMoney(orderTotal(order))}</span><strong class="confirmedOrderNo">${number}</strong></article>`;
+    }).join('') : '<div class="empty">該当する注文はありません。</div>';
     ['open', 'progress', 'completed', 'sent'].forEach(renderList);
     document.querySelectorAll('[data-order-id]').forEach((card) => {
       const open = () => openDetail(card.dataset.orderId).catch((error) => showToast(`表示失敗：${humanError(error)}`));
@@ -520,9 +528,13 @@
     } catch (error) {
       console.warn(error);
     }
+    const extraCardUrls = await signedExtraBusinessCards(order);
+    const extraCardHtml = extraCardUrls.map(url=>url
+      ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" alt="追加の名刺"></a>`
+      : '<div class="noCard">追加の名刺を取得できませんでした</div>').join('');
     const sentWarning = order.status === 'sent' ? '<div class="revisionNotice"><b>この注文は代理店送付済みです。</b><br>変更すると修正版・再送待ちへ移動し、修正理由が必要です。</div>' : '';
     const resendWarning = order.status === 'resend_required' ? `<div class="revisionNotice"><b>修正版・再送待ち</b><br>${escapeHtml(order.revision_reason || data._lastRevisionReason || '')}</div>` : '';
-    $('detailBody').innerHTML = `${sentWarning}${resendWarning}<div class="detailGrid"><section class="infoPanel"><div class="infoGrid"><div class="infoBox"><div class="label">受付番号</div><div class="value">${escapeHtml(order.order_no)}</div></div><div class="infoBox"><div class="label">状態</div><div class="value">${statusLabel(order.status)}</div></div><div class="infoBox"><div class="label">受付日時</div><div class="value">${escapeHtml(new Date(order.created_at).toLocaleString('ja-JP'))}</div></div><div class="infoBox"><div class="label">展示会日</div><div class="value">${escapeHtml(dateOf(order))}</div></div><div class="infoBox"><div class="label">最終担当</div><div class="value">${escapeHtml(order.assigned_name || '-')}</div></div><div class="infoBox"><div class="label">改訂</div><div class="value">Revision ${Number(order.revision_count || data._revisionCount || 0)}</div></div></div><div class="editBlock"><h3>お客様情報・備考を編集</h3><div class="editGrid"><div class="editField"><label for="editCompany">会社名</label><input id="editCompany" maxlength="160" value="${escapeHtml(edit.customerCompany)}"></div><div class="editField"><label for="editName">氏名</label><input id="editName" maxlength="120" value="${escapeHtml(edit.customerName)}"></div><div class="editField full"><label for="editPhone">電話番号</label><input id="editPhone" maxlength="30" value="${escapeHtml(edit.customerPhone)}"></div><div class="editField full"><label for="editNotes">備考</label><textarea id="editNotes" maxlength="2000">${escapeHtml(edit.notes)}</textarea></div></div></div><div class="businessCard"><h3>名刺</h3>${previewUrl || originalUrl ? `<a href="${escapeHtml(originalUrl || previewUrl)}" target="_blank" rel="noopener"><img src="${escapeHtml(previewUrl || originalUrl)}" alt="名刺画像"></a>` : '<div class="noCard">名刺画像なし</div>'}</div></section><section class="itemsPanel"><h3>商品・数量</h3><table class="itemsTable"><thead><tr><th>品番</th><th>商品名</th><th class="num">数量</th><th class="num">単価</th><th class="num">小計</th></tr></thead><tbody>${state.editItems.map((item, index) => `<tr><td><b>${escapeHtml(item.c)}</b></td><td><div class="detailProductIdentity">${detailItemImage(item)}<span>${escapeHtml(itemName(item))}</span></div></td><td class="num"><div class="qtyControl"><button type="button" data-qty-minus="${index}" aria-label="数量を減らす">−</button><input data-qty-input="${index}" type="number" min="0" max="9999" step="1" value="${Number(item.q || 0)}" aria-label="${escapeHtml(item.c)}の数量"><button type="button" data-qty-plus="${index}" aria-label="数量を増やす">＋</button></div></td><td class="num">${formatMoney(item.p)}</td><td class="num" data-subtotal="${index}"><b>${formatMoney(Number(item.p || 0) * Number(item.q || 0))}</b></td></tr>`).join('')}</tbody></table><div class="detailTotal"><span>合計</span><span id="editedTotal">${formatMoney(orderTotal(order))}</span></div><div class="productAdder"><input id="addProductCode" type="text" placeholder="追加する品番を入力（例 1053）" aria-label="追加する品番"><button id="addProductButton" class="secondary" type="button">商品を追加</button><div id="productSuggest" class="productSuggest">品番を完全一致で入力してください。商品マスターから名称・価格を取得します。</div></div><div class="saveRow"><button id="saveEditButton" class="primary" type="button">変更を保存</button></div></section></div>`;
+    $('detailBody').innerHTML = `${sentWarning}${resendWarning}<div class="detailGrid"><section class="infoPanel"><div class="infoGrid"><div class="infoBox"><div class="label">受付番号</div><div class="value">${escapeHtml(order.order_no)}</div></div><div class="infoBox"><div class="label">状態</div><div class="value">${statusLabel(order.status)}</div></div><div class="infoBox"><div class="label">受付日時</div><div class="value">${escapeHtml(new Date(order.created_at).toLocaleString('ja-JP'))}</div></div><div class="infoBox"><div class="label">展示会日</div><div class="value">${escapeHtml(dateOf(order))}</div></div><div class="infoBox"><div class="label">最終担当</div><div class="value">${escapeHtml(order.assigned_name || '-')}</div></div><div class="infoBox"><div class="label">改訂</div><div class="value">Revision ${Number(order.revision_count || data._revisionCount || 0)}</div></div></div><div class="editBlock"><h3>お客様情報・備考を編集</h3><div class="editGrid"><div class="editField"><label for="editCompany">会社名</label><input id="editCompany" maxlength="160" value="${escapeHtml(edit.customerCompany)}"></div><div class="editField"><label for="editName">氏名</label><input id="editName" maxlength="120" value="${escapeHtml(edit.customerName)}"></div><div class="editField full"><label for="editPhone">電話番号</label><input id="editPhone" maxlength="30" value="${escapeHtml(edit.customerPhone)}"></div><div class="editField full"><label for="editNotes">備考</label><textarea id="editNotes" maxlength="2000">${escapeHtml(edit.notes)}</textarea></div></div></div><div class="businessCard"><h3>名刺</h3>${previewUrl || originalUrl ? `<a href="${escapeHtml(originalUrl || previewUrl)}" target="_blank" rel="noopener"><img src="${escapeHtml(previewUrl || originalUrl)}" alt="名刺画像"></a>` : extraCardUrls.length ? '' : '<div class="noCard">名刺画像なし</div>'}${extraCardHtml}</div></section><section class="itemsPanel"><h3>商品・数量</h3><table class="itemsTable"><thead><tr><th>品番</th><th>商品名</th><th class="num">数量</th><th class="num">単価</th><th class="num">小計</th></tr></thead><tbody>${state.editItems.map((item, index) => `<tr><td><b>${escapeHtml(item.c)}</b></td><td><div class="detailProductIdentity">${detailItemImage(item)}<span>${escapeHtml(itemName(item))}</span></div></td><td class="num"><div class="qtyControl"><button type="button" data-qty-minus="${index}" aria-label="数量を減らす">−</button><input data-qty-input="${index}" type="number" min="0" max="9999" step="1" value="${Number(item.q || 0)}" aria-label="${escapeHtml(item.c)}の数量"><button type="button" data-qty-plus="${index}" aria-label="数量を増やす">＋</button></div></td><td class="num">${formatMoney(item.p)}</td><td class="num" data-subtotal="${index}"><b>${formatMoney(Number(item.p || 0) * Number(item.q || 0))}</b></td></tr>`).join('')}</tbody></table><div class="detailTotal"><span>合計</span><span id="editedTotal">${formatMoney(orderTotal(order))}</span></div><div class="productAdder"><input id="addProductCode" type="text" placeholder="追加する品番を入力（例 1053）" aria-label="追加する品番"><button id="addProductButton" class="secondary" type="button">商品を追加</button><div id="productSuggest" class="productSuggest">品番を完全一致で入力してください。商品マスターから名称・価格を取得します。</div></div><div class="saveRow"><button id="saveEditButton" class="primary" type="button">変更を保存</button></div></section></div>`;
     $('editPhone').closest('.editField').insertAdjacentHTML('afterend', `<div class="editField full"><label for="editShippingAddress">発送先住所（任意）</label><textarea id="editShippingAddress" maxlength="500" autocomplete="shipping street-address">${escapeHtml(edit.shippingAddress)}</textarea></div>`);
     const metadata = document.createElement('details');
     metadata.className = 'detailMetadata';
@@ -589,6 +601,7 @@
       state.priceIndex = rows.filter(row => master.has(String(row['品番'] || '').trim().toUpperCase())).map(row => ({
         product: master.get(String(row['品番'] || '').trim().toUpperCase()),
         code: normalizePriceCode(row['品番']),
+        wholesalePrice: String(row['新卸価格'] || '').trim(),
         names: normalizeSearchText(['JA','KO','EN','ZH'].map(lang => row[`商品名_${lang}`] || '').join(' ')),
       }));
       state.productMaster = master;
@@ -615,7 +628,7 @@
       .filter(entry => entry.rank < 9).sort((a,b) => a.rank-b.rank || a.code.localeCompare(b.code,'ja',{numeric:true}));
     const shown = matches.slice(0, 60);
     $('priceSearchStatus').textContent = matches.length ? `${matches.length}件${matches.length > 60 ? '（先頭60件を表示）' : ''}${shown[0]?.rank === 0 ? ' · 品番が完全一致' : ''}` : '該当する商品がありません';
-    $('priceResults').innerHTML = shown.length ? shown.map(({ product, rank }) => `<article class="priceProduct${rank === 0 ? ' exact' : ''}" data-price-code="${escapeHtml(product.c)}"><div class="priceProductImage">${product.img ? `<img src="${escapeHtml(product.img)}" alt="${escapeHtml(product.c)} 商品画像" loading="lazy">` : '<span>画像なし</span>'}</div><div>${rank === 0 ? '<div class="priceExact">✓ 品番が完全一致</div>' : ''}<div class="priceProductCode">${escapeHtml(product.c)}</div><div class="priceProductName">${escapeHtml(itemName(product))}</div><div class="priceProductAmount">${formatMoney(product.p)}</div></div></article>`).join('') : '<div class="empty">該当する商品がありません。<br>品番や商品名を変えて検索してください。</div>';
+    $('priceResults').innerHTML = shown.length ? shown.map(({ product, rank, wholesalePrice }) => `<article class="priceProduct${rank === 0 ? ' exact' : ''}" data-price-code="${escapeHtml(product.c)}"><div class="priceProductImage">${product.img ? `<img src="${escapeHtml(product.img)}" alt="${escapeHtml(product.c)} 商品画像" loading="lazy">` : '<span>画像なし</span>'}</div><div>${rank === 0 ? '<div class="priceExact">✓ 品番が完全一致</div>' : ''}<div class="priceProductCode">${escapeHtml(product.c)}</div><div class="priceProductName">${escapeHtml(itemName(product))}</div><div class="priceProductAmount">${wholesalePrice ? `新卸価格 ${escapeHtml(wholesalePrice)}` : '価格未設定'}</div></div></article>`).join('') : '<div class="empty">該当する商品がありません。<br>品番や商品名を変えて検索してください。</div>';
     $('priceResults').querySelectorAll('img').forEach(img => img.addEventListener('error', () => { img.parentElement.innerHTML = '<span>画像なし</span>'; }, { once:true }));
     $('priceResults').scrollTop = 0;
   }
@@ -796,44 +809,21 @@
     showToast(`${order.order_no} を${statusLabel(restoreStatus)}へ戻しました。`);
   }
 
-  function customerReceiptUrl(order) {
-    const token = String(order?.public_token || '').trim();
-    if (!/^[A-Za-z0-9_-]{30,80}$/.test(token)) return '';
+  function customerReceiptUrl(token) {
+    if (!/^[0-9a-f-]{36}\.[0-9a-f]{64}$/i.test(token)) return '';
     const configured = String(config.publicAppUrl || '').trim();
     const fallback = `${location.origin}${location.pathname.replace(/staff\.html(?:\?.*)?$/i, '')}`;
     const base = (configured || fallback).replace(/#.*$/, '');
-    return `${base}#online-receipt=${encodeURIComponent(token)}`;
+    return `${base}#customer-receipt=${encodeURIComponent(token)}`;
   }
 
-  function staffOrderUrl(order) {
-    const ref = String(order?.public_token || order?.id || '').trim();
-    if (!ref) return '';
-    const configured = String(config.publicAppUrl || '').trim();
-    const fallback = `${location.origin}${location.pathname.replace(/staff\.html(?:\?.*)?$/i, '')}`;
-    const base = configured || fallback;
-    const staffPage = new URL(String(config.staffPage || 'staff.html'), base).toString().replace(/#.*$/, '');
-    return `${staffPage}#order=${encodeURIComponent(ref)}`;
-  }
-
-  function qrImageDataUrl(text, size = 132) {
-    if (!text || !window.QRCode) return '';
-    const host = document.createElement('div');
-    host.style.cssText = 'position:fixed;left:-9999px;top:0;background:#fff;padding:4px';
-    document.body.appendChild(host);
-    try {
-      new QRCode(host, { text, width: size, height: size, correctLevel: QRCode.CorrectLevel.M });
-      const canvas = host.querySelector('canvas');
-      const image = host.querySelector('img');
-      return canvas?.toDataURL('image/png') || image?.src || '';
-    } finally {
-      setTimeout(() => host.remove(), 1200);
-    }
-  }
-
-  function openCustomerQr() {
+  async function openCustomerQr() {
     if (!state.current) return;
     if (!requireSavedEditor()) return;
-    const url = customerReceiptUrl(state.current);
+    const order = state.current;
+    const result = await apiJson(`/functions/v1/${encodeURIComponent(config.functionName || 'exhibition-order')}?issueReceiptFor=${encodeURIComponent(order.id)}`);
+    if (state.current?.id !== order.id || !$('detailDialog').open) return;
+    const url = customerReceiptUrl(result?.receipt || '');
     if (!url) {
       showToast('この注文にはお客様用QRを作成できる公開トークンがありません。最新情報に更新してください。', 6000);
       return;
@@ -871,31 +861,61 @@
 
   function revisedMark(order) {
     const revision = Number(order.revision_count || order.order_data?._revisionCount || 0);
-    return order.status === 'resend_required' || revision > 0 ? `<div class="revisedMark">REVISED ORDER / 修正版 / Revision ${revision}</div>` : '';
+    return order.status === 'resend_required' || revision > 0 ? `<div class="revisedMark">수정본 · ${revision}차</div>` : '';
   }
 
   function printItemNames(item) {
     const names = Array.isArray(item?.n) ? item.n : [String(item?.n || ''), ''];
-    const ja = String(names[0] || item?.c || '');
-    const ko = String(names[1] || '');
-    return `<span class="receiptItemName">${escapeHtml(ja)}</span>${ko && ko !== ja ? `<span class="receiptItemSub">${escapeHtml(ko)}</span>` : ''}`;
+    const name = String(names[names.length >= 4 ? 2 : 1] || names[0] || item?.c || '');
+    return `<span class="receiptItemName">${escapeHtml(name)}</span>`;
   }
 
-  function buildPrint(order, cardUrl = '', wrapperClass = 'printOrder', orderQrImage = '') {
-    const data = order.order_data || {}, items = data.items || [];
-    const hasBusinessCard = Boolean(order.business_card_original_path || order.business_card_preview_path);
-    const businessCard = cardUrl ? `<div class="receiptBusinessCard"><div class="receiptBusinessCardLabel">名刺写真 / 명함 사진<small>お客様からお預かりした名刺画像 / 고객 명함 이미지</small></div><div class="receiptBusinessCardImage"><img src="${escapeHtml(cardUrl)}" alt="名刺写真 / 명함 사진"></div></div>` : hasBusinessCard ? '<div class="receiptBusinessCard receiptBusinessCardMissing"><div class="receiptBusinessCardLabel">名刺写真 / 명함 사진</div><div>画像を取得できませんでした。スタッフ画面で原本を確認してください。<br>명함 이미지를 불러오지 못했습니다. 직원 화면에서 원본을 확인해 주세요.</div></div>' : '';
-    const shippingAddress = data.shippingAddress ? `<div class="receiptShippingAddress"><div class="receiptInfoLabel">Shipping address / 배송지 주소</div><div class="receiptInfoValue">${escapeHtml(data.shippingAddress).replace(/\n/g, '<br>')}</div></div>` : '';
-    const notes = data.notes ? `<div class="receiptNote"><b>備考 / 비고</b>${escapeHtml(data.notes).replace(/\n/g, '<br>')}</div>` : '';
-    const orderQr = `<div class="receiptOrderQrBlock"><div><span>受付番号 / 접수 번호</span><strong>${escapeHtml(order.order_no)}</strong><small>スタッフ確認用 / 직원 확인용</small></div>${orderQrImage ? `<img src="${escapeHtml(orderQrImage)}" alt="${escapeHtml(order.order_no)} スタッフ確認用QR">` : ''}</div>`;
-    return `<section class="${wrapperClass}">${revisedMark(order)}
-      <div class="receiptHeaderSimple"><div class="receiptBrandBlock"><img class="receiptBrandLogo" src="assets/sun_nishimura_logo.jpg" alt="SAN NISHIMURA"><div><div class="receiptBrandName">SAN NISHIMURA CO., LTD.</div><div class="receiptBrandSub">サンニシムラ株式会社 / 선 니시무라 주식회사<br>Korea Distributor: KY-S Corporation | TEL +82-2-3789-2440</div></div></div><div class="receiptDocMeta"><div class="receiptDocTitle">確定注文書 / 확정 주문서</div><div class="receiptDocSub">Confirmed exhibition order sheet</div><div class="receiptMetaLine"><b>状態 / 상태</b> ${escapeHtml(statusLabel(order.status))}<br><b>作成日時 / 작성일시</b> ${escapeHtml(new Date(order.created_at).toLocaleString('ja-JP'))}</div></div></div>
-      <div class="receiptInfoBand"><div class="receiptInfoCard"><div class="receiptInfoLabel">Company / 회사명</div><div class="receiptInfoValue">${escapeHtml(data.customerCompany || '-')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Name / 성명</div><div class="receiptInfoValue">${escapeHtml(data.customerName || '-')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Phone / 연락처</div><div class="receiptInfoValue">${escapeHtml(data.customerPhone || '-')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Event / 전시회</div><div class="receiptInfoValue">${escapeHtml(eventNameOf(order))}<br>${escapeHtml(dateOf(order))}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Distributor / 대리점</div><div class="receiptInfoValue">${escapeHtml(data.distributor || config.distributorName || 'KY-S Corporation')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">Staff / 담당자</div><div class="receiptInfoValue">${escapeHtml(order.assigned_name || data.staffName || staffName())}</div></div></div>
+  function buildPrint(order, cardUrls, batchId = '') {
+    const data = order.order_data || {}, items = Array.isArray(data.items) ? data.items : [];
+    const businessCards = cardUrls.map((url, index) => {
+      const image = url ? `<div class="receiptBusinessCardImage"><img src="${escapeHtml(url)}" alt="명함 사진"></div>`
+        : '<div class="receiptBusinessCardMissing">명함 이미지를 불러오지 못했습니다.</div>';
+      return `<section class="printOrder printBusinessCard" data-print-number="${escapeHtml(order.order_no)}"><h2>명함 ${index + 1} / 접수번호 ${escapeHtml(order.order_no)}</h2><div class="receiptBusinessCard">${image}</div></section>`;
+    }).join('');
+    const shippingAddress = data.shippingAddress ? `<div class="receiptShippingAddress"><div class="receiptInfoLabel">배송지 주소</div><div class="receiptInfoValue">${escapeHtml(data.shippingAddress).replace(/\n/g, '<br>')}</div></div>` : '';
+    const notes = data.notes ? `<div class="receiptNote"><b>비고</b>${escapeHtml(data.notes).replace(/\n/g, '<br>')}</div>` : '';
+    const receiptNumber = `<div class="receiptOrderQrBlock"><div><span>접수번호</span><strong>${escapeHtml(order.order_no)}</strong></div></div>`;
+    return `<section class="printOrder" data-print-number="${escapeHtml(order.order_no)}">${revisedMark(order)}
+      <div class="receiptHeaderSimple"><div class="receiptBrandBlock"><img class="receiptBrandLogo" src="assets/sun_nishimura_logo.jpg" alt="SAN NISHIMURA"><div><div class="receiptBrandName">SAN NISHIMURA CO., LTD.</div><div class="receiptBrandSub">선 니시무라 주식회사</div></div></div><div class="receiptDocMeta"><div class="receiptDocTitle">주문서</div><div class="receiptMetaLine"><b>주문일시</b> ${escapeHtml(new Date(order.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }))}</div></div></div>
+      <div class="receiptInfoBand"><div class="receiptInfoCard"><div class="receiptInfoLabel">매장명</div><div class="receiptInfoValue">${escapeHtml(data.customerCompany || '-')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">성명</div><div class="receiptInfoValue">${escapeHtml(data.customerName || '-')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">연락처</div><div class="receiptInfoValue">${escapeHtml(data.customerPhone || '-')}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">전시회</div><div class="receiptInfoValue">${escapeHtml(eventNameOf(order))}<br>${escapeHtml(dateOf(order))}</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">대리점</div><div class="receiptInfoValue">KY-S Corporation.</div></div><div class="receiptInfoCard"><div class="receiptInfoLabel">담당자</div><div class="receiptInfoValue">${escapeHtml(order.assigned_name || data.staffName || staffName())}</div></div></div>
       ${shippingAddress}
-      ${businessCard}
-      <div class="receiptSection"><div class="receiptSectionHead"><div class="receiptSectionTitle">注文明細 / 주문 내역</div><div class="receiptSectionHint">Main order details</div></div><table class="receiptTable"><colgroup><col class="code"><col class="image"><col><col class="qty"><col class="unit"><col class="subtotal"></colgroup><thead><tr><th>品番 / 품번</th><th></th><th>商品名 / 상품명</th><th class="num">数量 / 수량</th><th class="num">単価 / 단가</th><th class="num">金額 / 금액</th></tr></thead><tbody>${items.map((item) => `<tr><td><b>${escapeHtml(item.c)}</b></td><td>${item.img ? `<div class="receiptThumb"><img src="${escapeHtml(item.img)}" alt="${escapeHtml(item.c)}"></div>` : ''}</td><td>${printItemNames(item)}</td><td class="num">${escapeHtml(item.q)}</td><td class="num">${formatMoney(item.p)}</td><td class="num"><b>${formatMoney(Number(item.p || 0) * Number(item.q || 0))}</b></td></tr>`).join('')}</tbody></table><div class="receiptImageNote">※ 商品画像は参考表示です。 / 상품 이미지는 참고용입니다.</div></div>
-      <div class="receiptFooterGrid"><div class="receiptMemoStack">${notes}<div class="receiptNote"><b>ご案内 / 안내</b>本書は展示会場で受け付けた注文をスタッフが確認した注文書です。最終在庫・納期は代理店よりご案内します。<br><br>본 문서는 전시장에서 접수한 주문을 직원이 확인한 주문서입니다. 최종 재고 및 납기는 대리점에서 안내합니다.</div></div><div><div class="receiptSummaryBox"><div class="receiptSummaryRow"><span>点数 / 수량 합계</span><span>${totalQty(order)}</span></div><div class="receiptSummaryRow total"><span>合計 / 합계</span><span>${formatMoney(orderTotal(order))}</span></div></div><div class="receiptCurrencyNote">Currency / 통화 : KRW</div></div></div>
-      ${orderQr}<div class="receiptFooterMini"><div>KY-S Corporation | 3F, 16 Sowol-ro, Jung-gu, Seoul, Korea</div><div>TEL +82-2-3789-2440 / FAX +82-2-3789-2441${state.batch?.batchId ? ` / ${escapeHtml(state.batch.batchId)}` : ''}</div></div></section>`;
+      <div class="receiptSection"><div class="receiptSectionHead"><div class="receiptSectionTitle">주문 내역</div></div><table class="receiptTable"><colgroup><col class="code"><col class="image"><col><col class="qty"><col class="unit"><col class="subtotal"></colgroup><thead><tr><th colspan="6">접수번호 ${escapeHtml(order.order_no)}</th></tr><tr><th>품번</th><th></th><th>상품명</th><th class="num">수량</th><th class="num">단가</th><th class="num">금액</th></tr></thead><tbody>${items.map((item) => `<tr><td><b>${escapeHtml(item.c)}</b></td><td>${item.img ? `<div class="receiptThumb"><img src="${escapeHtml(item.img)}" alt="${escapeHtml(item.c)}"></div>` : '<small>이미지 없음</small>'}</td><td>${printItemNames(item)}</td><td class="num">${escapeHtml(item.q)}</td><td class="num">${formatMoney(item.p)}</td><td class="num"><b>${formatMoney(Number(item.p || 0) * Number(item.q || 0))}</b></td></tr>`).join('')}</tbody></table><div class="receiptImageNote">※ 상품 이미지는 참고용입니다.</div></div>
+      <div class="receiptFooterGrid"><div class="receiptMemoStack">${notes}<div class="receiptNote"><b>안내</b>본 문서는 전시장에서 접수한 주문 내역입니다. 최종 재고 및 납기는 대리점에서 안내합니다.</div></div><div><div class="receiptSummaryBox"><div class="receiptSummaryRow"><span>수량 합계</span><span>${totalQty(order)}</span></div><div class="receiptSummaryRow total"><span>총 주문 금액</span><span>${formatMoney(orderTotal(order))}</span></div></div><div class="receiptCurrencyNote">통화 KRW</div></div></div>
+      ${receiptNumber}<div class="receiptFooterMini"><div>KY-S Corporation. | 3F, 16 Sowol-ro, Jung-gu, Seoul, Korea</div><div>TEL +82-2-3789-2440 / FAX +82-2-3789-2441${batchId ? ` / ${escapeHtml(batchId)}` : ''}</div></div></section>${businessCards}`;
+  }
+
+  function setPrintContent(html) {
+    const area = $('printArea');
+    area.innerHTML = html;
+    const style = document.createElement('style');
+    const sections = [...area.querySelectorAll('[data-print-number]')];
+    style.textContent = sections.map((section, index) => {
+      const name = `orderSheet${index}`;
+      section.style.setProperty('page', name);
+      const label = JSON.stringify(`접수번호 ${section.dataset.printNumber}`);
+      return `@page ${name} { @top-right { content: ${label}; font-size: 8pt; } }`;
+    }).join('\n');
+    area.prepend(style);
+  }
+
+  async function signedExtraBusinessCards(order) {
+    const paths = order.order_data?._additionalBusinessCardPaths;
+    if (!Array.isArray(paths)) return [];
+    return Promise.all(paths.slice(0, 4).map(path => createSignedUrl(path).catch(error => {
+      console.warn('additional business card URL unavailable', error);
+      return '';
+    })));
+  }
+
+  async function signedBusinessCardUrls(order) {
+    const primary = order.business_card_original_path || order.business_card_preview_path;
+    const [main, extras] = await Promise.all([signedBusinessCardUrl(order), signedExtraBusinessCards(order)]);
+    return primary ? [main, ...extras] : extras;
   }
 
   async function signedBusinessCardUrl(order) {
@@ -927,6 +947,10 @@
 
   async function openPrintWhenImagesReady() {
     await waitForPrintImages();
+    const area = $('printArea');
+    const failed = [...area.querySelectorAll('img')].filter(img => !img.complete || !img.naturalWidth).length;
+    const missingCards = area.querySelectorAll('.receiptBusinessCardMissing').length;
+    if ((failed || missingCards) && !window.confirm(`画像を取得できなかった箇所が${failed + missingCards}件あります。このまま印刷しますか？`)) return;
     window.print();
   }
 
@@ -934,11 +958,58 @@
     if (!state.current) return;
     if (!requireSavedEditor()) return;
     const order = state.current;
-    const card = await signedBusinessCardUrl(order);
-    const qr = qrImageDataUrl(staffOrderUrl(order));
-    $('printArea').innerHTML = buildPrint(order, card, 'printOrder', qr);
+    const card = await signedBusinessCardUrls(order);
+    setPrintContent(buildPrint(order, card));
     try { await updateOrder(order, { printed_at: new Date().toISOString() }); } catch (error) { if (error.message !== 'CONFLICT') throw error; }
     await openPrintWhenImagesReady();
+  }
+
+  async function printAllOrders() {
+    if (!requireSavedEditor()) return;
+    const cutoff = encodeURIComponent(new Date().toISOString());
+    const base = `/rest/v1/exhibition_orders?select=${encodeURIComponent(legacySelect)}&expires_at=gt.${cutoff}&created_at=lte.${cutoff}&status=neq.deleted&order=id.asc`;
+    const orders = new Map();
+    let expectedCount;
+    do {
+      const offset = orders.size;
+      const response = await apiFetch(`${base}&offset=${offset}&limit=200`, {
+        headers: { Accept: 'application/json', Prefer: 'count=exact' },
+      });
+      const countMatch = response.headers.get('Content-Range')?.match(/\/(\d+)$/);
+      if (!response.ok && !(response.status === 416 && countMatch?.[1] === '0' && offset === 0)) {
+        throw new Error('PDF用の注文一覧を取得できませんでした。');
+      }
+      const count = countMatch ? Number(countMatch[1]) : null;
+      if (count === null || (expectedCount !== undefined && count !== expectedCount)) {
+        throw new Error('出力対象件数を確認できませんでした。注文一覧を再取得してください。');
+      }
+      expectedCount = count;
+      if (count === 0 && offset === 0) break;
+      const page = await response.json();
+      if (!Array.isArray(page) || !page.length) throw new Error('出力対象の注文をすべて取得できませんでした。');
+      for (const order of page) {
+        if (!order.id || orders.has(order.id)) throw new Error('注文一覧が更新されました。もう一度実行してください。');
+        orders.set(order.id, order);
+      }
+    } while (orders.size < expectedCount);
+
+    if (!expectedCount) throw new Error('出力対象の注文がありません。');
+    if (orders.size !== expectedCount) throw new Error('出力対象件数と取得件数が一致しません。');
+    const rows = [...orders.values()].sort((a, b) => String(a.order_no).localeCompare(String(b.order_no), 'ko', { numeric: true }));
+    if (!window.confirm(`全展示会の注文${rows.length}件を出力します。削除済み・保存期限切れの注文は除きます。続けますか？`)) return;
+    const amount = rows.reduce((sum, order) => sum + orderTotal(order), 0);
+    const cover = `<section class="printOrder"><h1>전시회 주문 목록</h1><p>총 ${rows.length}건 · ${formatMoney(amount)}</p><table class="receiptTable"><thead><tr><th>접수번호</th><th>주문일시</th><th>매장명</th><th>수량</th><th>주문 금액</th></tr></thead><tbody>${rows.map(order => `<tr><td>${escapeHtml(order.order_no)}</td><td>${escapeHtml(new Date(order.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }))}</td><td>${escapeHtml(order.order_data?.customerCompany || '미입력')}</td><td>${totalQty(order)}</td><td>${formatMoney(orderTotal(order))}</td></tr>`).join('')}</tbody></table></section>`;
+    const sheets = [];
+    for (let index = 0; index < rows.length; index += 8) {
+      const group = rows.slice(index, index + 8);
+      const cards = await Promise.all(group.map(signedBusinessCardUrls));
+      sheets.push(...group.map((order, cardIndex) => buildPrint(order, cards[cardIndex])));
+    }
+    setPrintContent(cover + sheets.join(''));
+    const originalTitle = document.title;
+    document.title = `Korea_Exhibition_Orders_${new Date().getFullYear()}`;
+    try { await openPrintWhenImagesReady(); }
+    finally { document.title = originalTitle; }
   }
 
   function selectedBatchOrders() {
@@ -1059,11 +1130,10 @@
       $('batchSelectAll').disabled = true;
       document.querySelectorAll('[data-batch-order]').forEach((input) => { input.disabled = true; });
     }
-    const urls = await Promise.all(rows.map(signedBusinessCardUrl));
-    const qrImages = rows.map((order) => qrImageDataUrl(staffOrderUrl(order)));
+    const urls = await Promise.all(rows.map(signedBusinessCardUrls));
     const qty = rows.reduce((sum, order) => sum + totalQty(order), 0), amount = rows.reduce((sum, order) => sum + orderTotal(order), 0);
     const cover = `<section class="batchCover"><img src="assets/sun_nishimura_logo.jpg" alt="SAN NISHIMURA" style="width:220px"><h1>Korea Exhibition Confirmed Orders</h1><h2>韓国展示会 確定注文明細</h2><table class="batchCoverTable"><tr><th>展示会</th><td>${escapeHtml(eventNameOf(rows[0]))}</td></tr><tr><th>対象日</th><td>${escapeHtml(dateOf(rows[0]))}</td></tr><tr><th>送信グループ番号</th><td>${escapeHtml(state.batch.batchId)}</td></tr><tr><th>作成日時</th><td>${escapeHtml(new Date().toLocaleString('ja-JP'))}</td></tr><tr><th>注文件数</th><td>${rows.length}件</td></tr><tr><th>合計数量</th><td>${qty}点</td></tr><tr><th>合計金額</th><td>${formatMoney(amount)}</td></tr><tr><th>作成担当</th><td>${escapeHtml(staffName())}</td></tr><tr><th>韓国代理店</th><td>KY-S Corporation</td></tr></table></section>`;
-    $('printArea').innerHTML = cover + rows.map((order, index) => buildPrint(order, urls[index], 'printOrder', qrImages[index])).join('');
+    setPrintContent(cover + rows.map((order, index) => buildPrint(order, urls[index], state.batch.batchId)).join(''));
     $('openBatchMailButton').disabled = false;
     $('batchMessage').textContent = `${state.batch.batchId} の印刷画面を開きます。保存先でPDFを選択してください。`;
     updateBatchDialogSummary();
@@ -1188,6 +1258,16 @@
       } finally { button.disabled = false; }
     });
     $('logoutButton').addEventListener('click', signOut);
+    $('newStaffOrderButton').addEventListener('click', () => withBusy(['newStaffOrderButton'], async () => {
+      await ensureToken();
+      const frame = $('staffIntakeFrame');
+      if (!frame.getAttribute('src')) frame.src = 'index.html?mode=staff';
+      $('staffIntakeDialog').showModal();
+    }).catch(error => showToast(`注文画面を開けません：${humanError(error)}`)));
+    $('closeStaffIntakeButton').addEventListener('click', () => $('staffIntakeDialog').close());
+    $('staffIntakeDialog').addEventListener('close', () => {
+      loadOrders({ silent: true }).catch(error => showToast(`注文一覧を更新できません：${humanError(error)}`));
+    });
     $('priceCheckButton').addEventListener('click', openPriceLookup);
     $('closePriceDialog').addEventListener('click', () => $('priceDialog').close());
     $('priceSearchInput').addEventListener('input', renderPriceResults);
@@ -1198,6 +1278,7 @@
     $('sentOrdersButton').addEventListener('click', () => { document.querySelector('.utilityMenu')?.removeAttribute('open'); $('sentOrdersDialog').showModal(); });
     $('sentOrdersTopClose').addEventListener('click', () => $('sentOrdersDialog').close());
     $('historyList').addEventListener('click', (event) => { const restore = event.target.closest('[data-restore-id]'); if (restore) withBusy([], () => restoreDeleted(restore.dataset.restoreId)).catch((error) => showToast(`復元失敗：${humanError(error)}`)); });
+    $('printAllOrdersButton').addEventListener('click', () => withBusy(['printAllOrdersButton'], printAllOrders).catch((error) => showToast(`PDF準備失敗：${humanError(error)}`, 6000)));
     $('batchButton').addEventListener('click', () => openBatchDialog().catch((error) => showToast(`送信準備失敗：${humanError(error)}`)));
     $('batchHistoryButton').addEventListener('click', () => openBatchHistory().catch((error) => showToast(`履歴表示失敗：${humanError(error)}`)));
     $('batchHistoryTopClose').addEventListener('click', () => $('batchHistoryDialog').close());
@@ -1216,7 +1297,7 @@
     $('searchInput').addEventListener('input', render);
     $('eventFilter').addEventListener('change', () => { populateFilters(); render(); });
     $('dateFilter').addEventListener('change', render);
-    $('showUnsentButton').addEventListener('click', () => { $('dateFilter').value = 'all'; render(); requestAnimationFrame(() => $('column-completed').scrollIntoView({ behavior: 'smooth', block: 'start' })); });
+    $('showUnsentButton').addEventListener('click', () => { $('dateFilter').value = 'all'; $('legacyWorkflow').open = true; render(); requestAnimationFrame(() => $('column-completed').scrollIntoView({ behavior: 'smooth', block: 'start' })); });
     $('soundButton').addEventListener('click', () => { state.soundEnabled = !state.soundEnabled; if (state.soundEnabled) { beep(); $('soundButton').textContent = '🔔 通知音ON'; } else $('soundButton').textContent = '🔕 通知音OFF'; });
     document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.tab)));
     $('detailTopClose').addEventListener('click', closeDetailSafely);
@@ -1225,7 +1306,7 @@
     $('startButton').addEventListener('click', () => withBusy(['startButton'], startOrder).catch((error) => showToast(`更新失敗：${humanError(error)}`)));
     $('completeButton').addEventListener('click', () => withBusy(['completeButton'], completeOrder).catch((error) => showToast(`確定失敗：${humanError(error)}`)));
     $('reopenButton').addEventListener('click', () => withBusy(['reopenButton'], reopenOrder).catch((error) => showToast(`更新失敗：${humanError(error)}`)));
-    $('customerQrButton').addEventListener('click', openCustomerQr);
+    $('customerQrButton').addEventListener('click', () => withBusy(['customerQrButton'], openCustomerQr).catch(error => showToast(`QR作成失敗：${humanError(error)}`, 6000)));
     $('customerQrTopClose').addEventListener('click', () => $('customerQrDialog').close());
     $('copyCustomerQrButton').addEventListener('click', () => copyCustomerQrUrl().catch((error) => showToast(`コピー失敗：${humanError(error)}`)));
     $('deleteButton').addEventListener('click', openDeleteDialog);

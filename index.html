@@ -88,6 +88,8 @@
     @keyframes receiptSpin{to{transform:rotate(360deg)}}
     @media(max-width:760px){.receiptImagePanel{padding:10px;border-radius:15px}.receiptImagePanelTitle{font-size:15px}.receiptImagePreviewFrame{min-height:180px;max-height:64vh;padding:7px}.receiptActions button:disabled{opacity:.58;cursor:wait}}
 
+    .staffCheckoutItems{list-style:none;margin:8px 0 0;padding:0}.staffCheckoutItems li{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid #d1d5db}.staffCheckoutItems .thumb{width:42px;height:42px;flex:none}
+    .staffIntake .customerRequiredGrid label:has(#customerName),.staffIntake .customerRequiredGrid .requiredBadge,.staffIntake .customerMore,.staffIntake .shippingAddressField,.staffIntake .customerPrivacy,.staffIntake .handoffCustomer,.staffIntake #editOrderFromHandoff{display:none!important}
   </style>
   <link rel="stylesheet" href="ui-refresh.css">
 </head>
@@ -173,7 +175,9 @@
           <div><div class="businessCardCaptureTitle" data-i18n="cardPhotoTitle">名刺写真（任意）</div><div class="businessCardCaptureHint" data-i18n="cardPhotoHint">名刺を撮影して注文控えに添付できます。</div></div>
         </div>
         <input id="businessCardInput" type="file" accept="image/*" capture="environment" hidden>
-        <div class="businessCardButtons"><button id="captureBusinessCard" class="secondary" type="button" data-i18n="cardPhotoChoose">名刺を撮影・選択</button><button id="removeBusinessCard" class="danger" type="button" style="display:none" data-i18n="cardPhotoRemove">写真を削除</button></div>
+        <input id="additionalBusinessCardInput" type="file" accept="image/*" capture="environment" hidden>
+        <div class="businessCardButtons"><button id="captureBusinessCard" class="secondary" type="button" data-i18n="cardPhotoChoose">名刺を撮影・選択</button><button id="removeBusinessCard" class="danger" type="button" style="display:none" data-i18n="cardPhotoRemove">写真を削除</button><button id="addBusinessCard" class="secondary hidden" type="button">名刺を追加</button></div>
+        <div id="additionalBusinessCards"></div>
         <div id="businessCardPreview" class="businessCardPreview"><div><div class="businessCardPreviewFrame"><img id="businessCardPreviewImage" alt="名刺写真 / 명함 사진"></div><div class="businessCardPreviewStatus">名刺写真を控えに追加します / 명함 사진을 주문서에 추가합니다</div></div></div><div id="onlineUploadStatus" class="onlineUploadStatus" role="status" aria-live="polite"></div>
       </div>
       <details class="customerMore"><summary data-i18n="otherInfo">その他の情報（任意）</summary><div class="customerOptionalGrid">
@@ -308,10 +312,30 @@
     function recentCodes(){try{const list=JSON.parse(localStorage.getItem('exhibitionRecentCodes')||'[]');return Array.isArray(list)?list.filter(code=>typeof code==='string'&&products.some(p=>p.code===code)).slice(0,6):[];}catch{return [];}}
     function saveRecentCode(code){try{localStorage.setItem('exhibitionRecentCodes',JSON.stringify([code,...recentCodes().filter(c=>c!==code)].slice(0,6)));}catch{}}
     function clearProductSearch(){clearTimeout(recentSearchTimer);$('searchInput').value='';renderResults();window.scrollTo({top:0,behavior:'instant'});}
+    const staffIntake = new URLSearchParams(location.search).get('mode') === 'staff';
+    const draftStore = staffIntake ? sessionStorage : localStorage;
+    const cartDraftKey = staffIntake ? 'staffOrderDraft' : 'qrDraftOrder';
+    const additionalCards = [];
+    let processingCard = false;
     function init(){
+      if(location.hash.startsWith('#customer-receipt=')){ showCustomerReceipt(); return; }
       if(location.hash.startsWith('#receipt=')||location.hash.startsWith('#staff=')||location.hash.startsWith('#online-receipt=')||location.hash.startsWith('#online-staff=')){ showReceiptFromHash(); return; }
       const savedLang=localStorage.getItem('qrDisplayLang'); if(savedLang&&['ja','ko'].includes(savedLang)) $('langSelect').value=savedLang;
-      if(new URLSearchParams(location.search).get('mode')==='order')browseMode='order';
+      const mode=new URLSearchParams(location.search).get('mode');
+      if(!mode && /^https?:$/.test(location.protocol)){
+        location.replace(new URL('staff.html',location.href));
+        return;
+      }
+      if(staffIntake || mode==='order')browseMode='order';
+      if(staffIntake){
+        document.body.classList.add('staffIntake');
+        $('langSelect').value='ja';
+        $('browseModeToggle').style.display='none';
+        ['customerCompany','customerName','customerPhone'].forEach(id=>{
+          $(id).required=false;
+          $(id).removeAttribute('aria-required');
+        });
+      }
       $('browseModeToggle').onclick=()=>setBrowseMode(browseMode==='price'?'order':'price');
       restoreCustomerDraft(); attachEvents(); setupKeypadPanel(); initPriceMode(); applyI18n(); initFixedStackLayout();
       $('results').innerHTML=`<div class="empty">${sanitize(txt('loading'))}</div>`;
@@ -324,7 +348,10 @@
         en:{quickCheckoutLabel:'Continue to order',quickCheckoutHint:'Enter customer details and issue a reception number',customerSheetTitle:'Customer information',customerSheetHint:'Enter only the information needed to receive the order.',closeCustomerDialog:'Close',saveCustomerInfo:'Save and return',submit:'Issue reception number'},
         zh:{quickCheckoutLabel:'继续下单',quickCheckoutHint:'填写客户信息并生成受理编号',customerSheetTitle:'客户信息',customerSheetHint:'请仅填写订单受理所需的信息。',closeCustomerDialog:'关闭',saveCustomerInfo:'保存并返回',submit:'生成受理编号'}
       };
-      const values=copy[lang]||copy.ja;
+      const values=staffIntake ? {
+        ...copy.ja, quickCheckoutLabel:'注文内容へ進む', quickCheckoutHint:'名刺・店舗名・電話番号からお客様を確認',
+        customerSheetHint:'名刺を撮影するか、店舗名・電話番号を入力してください。', submit:'注文を確定',
+      } : copy[lang]||copy.ja;
       Object.entries(values).forEach(([id,value])=>{const el=$(id);if(el)el.textContent=value;});
       const submit=$('createQr');if(submit&&!onlineRequestBusy)submit.textContent=onlineEditMode?(lang==='ko'?'수정 내용을 저장':'修正内容を保存'):values.submit;
     }
@@ -363,7 +390,10 @@
     function currentPriceMode(){ return 'with'; }
     function pricesVisible(){ return true; }
     function roundKrw100(value){ const n=Number(value)||0; return Math.round(n/100)*100; }
-    function priceDisplay(value){ return fmt(roundKrw100(value)); }
+    function searchPriceDisplay(product, lang){
+      const labels={ja:'新卸価格',ko:'신규 도매가',en:'New wholesale price',zh:'新批发价'};
+      return product.wholesalePrice ? `${labels[lang]} ${product.wholesalePrice}` : txt('toBeConfirmed',lang);
+    }
     function initPriceMode(){ if($('priceMode')) $('priceMode').value='with'; if($('currencySelect')) $('currencySelect').value='KRW'; localStorage.removeItem('qrPriceMode'); }
     function setPriceMode(){ if($('priceMode')) $('priceMode').value='with'; }
     function syncPriceModeToggle(){}
@@ -437,6 +467,8 @@
       $('quickCheckout').onclick=()=>openCustomerSheet(!customerInfoComplete());
       $('captureBusinessCard').onclick=()=>{ const input=$('businessCardInput'); input.value=''; input.click(); };
       $('businessCardInput').addEventListener('change',handleBusinessCardSelection);
+      $('addBusinessCard').onclick=()=>{const input=$('additionalBusinessCardInput');input.value='';input.click();};
+      $('additionalBusinessCardInput').addEventListener('change',handleBusinessCardSelection);
       $('removeBusinessCard').onclick=clearBusinessCardImage;
       $('createQr').onclick=createQrReceipt;
       ['customerCompany','customerName','customerPhone','shippingAddress','distributor','staffName','eventName','notes'].forEach(id=>$(id)?.addEventListener('input',()=>{saveCustomerDraft();updateCustomerStatus();if(['customerCompany','customerName','customerPhone'].includes(id))$(id).classList.remove('invalid');}));
@@ -470,7 +502,7 @@
       requestAnimationFrame(updateFixedStackLayout);
       setTimeout(updateFixedStackLayout,150);
     }
-    function customerInfoComplete(){return !!($('customerCompany')?.value.trim()&&$('customerName')?.value.trim()&&$('customerPhone')?.value.trim());}
+    function customerInfoComplete(){if(staffIntake)return Boolean(businessCardOriginalFile||additionalCards.length||$('customerCompany').value.trim()||$('customerPhone').value.trim());return !!($('customerCompany')?.value.trim()&&$('customerName')?.value.trim()&&$('customerPhone')?.value.trim());}
     function newSubmissionId(){
       if(crypto.randomUUID)return crypto.randomUUID();
       return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,char=>{const value=Math.random()*16|0;return (char==='x'?value:(value&3|8)).toString(16);});
@@ -479,14 +511,14 @@
       try{
         const draft={};
         ['customerCompany','customerName','customerPhone','shippingAddress','distributor','staffName','eventName','notes'].forEach(id=>{draft[id]=$(id)?.value||'';});
-        localStorage.setItem(CUSTOMER_DRAFT_KEY,JSON.stringify(draft));
+        draftStore.setItem(staffIntake ? 'staffCustomerDraft' : CUSTOMER_DRAFT_KEY,JSON.stringify(draft));
       }catch(err){console.warn('customer draft save failed',err);}
     }
     function restoreCustomerDraft(){
       try{
-        const draft=JSON.parse(localStorage.getItem(CUSTOMER_DRAFT_KEY)||'{}');
+        const draft=JSON.parse(draftStore.getItem(staffIntake ? 'staffCustomerDraft' : CUSTOMER_DRAFT_KEY)||'{}');
         ['customerCompany','customerName','customerPhone','shippingAddress','distributor','staffName','eventName','notes'].forEach(id=>{if($(id)&&typeof draft[id]==='string'&&draft[id])$(id).value=draft[id];});
-      }catch(err){localStorage.removeItem(CUSTOMER_DRAFT_KEY);}
+      }catch(err){draftStore.removeItem(staffIntake ? 'staffCustomerDraft' : CUSTOMER_DRAFT_KEY);}
       if($('eventName')&&!$('eventName').value&&ONLINE_CONFIG.eventName)$('eventName').value=String(ONLINE_CONFIG.eventName);
       if($('distributor')&&!$('distributor').value&&ONLINE_CONFIG.distributorName)$('distributor').value=String(ONLINE_CONFIG.distributorName);
     }
@@ -509,6 +541,11 @@
       if(!preview||!img||!remove)return;
       const has=!!businessCardImageData; preview.classList.toggle('show',has); remove.style.display=has?'inline-flex':'none';
       if(has)img.src=businessCardImageData; else img.removeAttribute('src');
+      $('addBusinessCard').classList.toggle('hidden',!staffIntake||(!has&&!additionalCards.length)||additionalCards.length>=4);
+      $('additionalBusinessCards').innerHTML=additionalCards.map((card,index)=>`<div class="businessCardPreview show"><div class="businessCardPreviewFrame"><img src="${sanitize(card.dataUrl)}" alt="追加の名刺 ${index+1}"></div><button class="secondary" type="button" data-remove-extra-card="${index}">この写真を削除</button></div>`).join('');
+      $('additionalBusinessCards').querySelectorAll('[data-remove-extra-card]').forEach(button=>{
+        button.onclick=()=>{additionalCards.splice(Number(button.dataset.removeExtraCard),1);businessCardVersion++;updateBusinessCardPreview();renderCheckoutSummary();};
+      });
       if(has){
         const detail=businessCardOriginalFile?`元画像 ${(businessCardOriginalFile.size/1024/1024).toFixed(1)}MB`:(businessCardExisting?'保存済み':'プレビュー');
         setOnlineStatus(onlineConfigured()?`名刺画像を保持しています（${detail}） / 명함 이미지를 보관하고 있습니다.`:'オンライン設定前のため、この端末の控えだけに表示されます。 / 온라인 설정 전이므로 이 기기의 주문서에만 표시됩니다。',onlineConfigured()?'success':'error');
@@ -527,27 +564,36 @@
       return {blob,dataUrl,width:w,height:h};
     }
     async function handleBusinessCardSelection(e){
-      const file=e.target.files?.[0]; if(!file)return;
+      const file=e.target.files?.[0]; if(!file||processingCard||onlineRequestBusy)return;
+      const extra=e.target.id==='additionalBusinessCardInput';
+      if(extra&&(!staffIntake||additionalCards.length>=4))return;
       if(!String(file.type||'').startsWith('image/')){alert('画像ファイルを選択してください。 / 이미지 파일을 선택해 주세요.');return;}
       if(file.size>15*1024*1024){alert('名刺写真は15MB以下で撮影・選択してください。 / 명함 사진은 15MB 이하로 촬영·선택해 주세요.');return;}
       try{
+        processingCard=true;
+        $('createQr').disabled=true;
         setOnlineStatus(currentLang()==='ko'?'명함 이미지를 최적화하고 있습니다…':'名刺画像を最適化しています…','info');
         const preview=await createBusinessCardPreview(file);
-        businessCardOriginalFile=file;businessCardPreviewBlob=preview.blob;businessCardImageData=preview.dataUrl;businessCardExisting=false;businessCardRemoveRequested=false;businessCardVersion++;updateBusinessCardPreview();
+        if(extra)additionalCards.push(preview);
+        else{businessCardOriginalFile=file;businessCardPreviewBlob=preview.blob;businessCardImageData=preview.dataUrl;businessCardExisting=false;businessCardRemoveRequested=false;}
+        businessCardVersion++;updateBusinessCardPreview();renderCheckoutSummary();
       }catch(err){ console.error(err); alert('名刺写真を読み込めませんでした。JPEG・PNG形式で撮り直してください。 / 명함 사진을 불러올 수 없습니다. JPEG 또는 PNG 형식으로 다시 촬영해 주세요.'); }
+      finally{processingCard=false;$('createQr').disabled=onlineRequestBusy;}
     }
     function businessCardStorageKey(orderNo){return `koreaOrderBusinessCard:${String(orderNo||'')}`;}
     function saveBusinessCardForReceipt(orderNo){try{const key=businessCardStorageKey(orderNo);if(businessCardImageData)sessionStorage.setItem(key,businessCardImageData);else sessionStorage.removeItem(key);}catch(err){console.warn('business card session save failed',err);}}
     function loadBusinessCardForReceipt(orderNo){try{return sessionStorage.getItem(businessCardStorageKey(orderNo))||'';}catch(err){return '';}}
     function openCustomerSheet(focusMissing=false){
+      if(staffIntake&&!order.length){alert('商品をカートに追加してください。');return;}
       const d=$('customerDialog'); if(!d.open)d.showModal();
       renderCheckoutSummary();
-      if(focusMissing)setTimeout(()=>{const target=['customerCompany','customerName','customerPhone'].map($).find(x=>!x.value.trim());target?.focus();},120);
+      if(focusMissing&&!staffIntake)setTimeout(()=>{const target=['customerCompany','customerName','customerPhone'].map($).find(x=>!x.value.trim());target?.focus();},120);
     }
     function renderCheckoutSummary(){
       const el=$('checkoutSummary'); if(!el)return;
+      const lines=staffIntake?`<ul class="staffCheckoutItems">${order.map(item=>`<li>${thumbHtml(item)}<span>${sanitize(item.code)} · ${sanitize(nameOf(item))}<br>${sanitize(fmt(item.price))} × ${item.qty} = ${sanitize(fmt(item.price*item.qty))}</span></li>`).join('')}</ul>`:'';
       const qty=order.reduce((sum,item)=>sum+Number(item.qty||0),0),total=order.reduce((sum,item)=>sum+Number(item.price||0)*Number(item.qty||0),0),ko=currentLang()==='ko';
-      el.innerHTML=`<div class="checkoutGuideTitle">${ko?'접수 번호 발급 전 확인':'受付番号の発行前に確認'}</div><div class="checkoutGuideText">${ko?`${order.length}개 품번 / ${qty}점 / 합계 ${sanitize(fmt(total))}`:`${order.length}品番・${qty}点・合計 ${sanitize(fmt(total))}`}<br>${ko?'회사명':'会社名'}：${sanitize($('customerCompany')?.value.trim()||'-')}　${ko?'명함':'名刺'}：${businessCardOriginalFile?(ko?'있음':'あり'):(ko?'없음':'なし')}</div>`;
+      el.innerHTML=`<div class="checkoutGuideTitle">${ko?'접수 번호 발급 전 확인':'受付番号の発行前に確認'}</div><div class="checkoutGuideText">${ko?`${order.length}개 품번 / ${qty}점 / 합계 ${sanitize(fmt(total))}`:`${order.length}品番・${qty}点・合計 ${sanitize(fmt(total))}`}<br>${ko?'회사명':'会社名'}：${sanitize($('customerCompany')?.value.trim()||'-')}　${ko?'명함':'名刺'}：${businessCardOriginalFile?(ko?'있음':'あり'):(ko?'없음':'なし')}</div>${lines}`;
     }
     function updateCustomerStatus(){
       const complete=customerInfoComplete(),name=$('customerCompany')?.value.trim()||'',status=$('cartCustomerStatus');
@@ -562,7 +608,7 @@
     }
     function toggleCartPanel(){if(window.innerWidth<=760)setCartExpanded(!$('cartPanel').classList.contains('expanded'));}
     function prepareProducts(list){ return list.map(p=>{ p._codeSearch=normalizeProductCodeSearch(p.code); p._codeNoDash=p._codeSearch.replace(/-/g,''); p._search=normalizeKeywordText([...Object.values(p.names||{}),...Object.values(p.usages||{}),...Object.values(p.benefits||{})].join(' ')); return p; }).sort((a,b)=>codeCollator.compare(String(a.code),String(b.code))); }
-    function restoreOrder(){ try{ const saved=JSON.parse(localStorage.getItem('qrDraftOrder')||'[]'); order=saved.map(s=>{ const p=products.find(x=>String(x.code)===String(s.code))||s.snapshot; return p?{...p,qty:Math.max(1,Number(s.qty)||1),_draftFallback:!products.some(x=>String(x.code)===String(s.code))}:null; }).filter(Boolean); }catch(err){ order=[]; } }
+    function restoreOrder(){ try{ const saved=JSON.parse(draftStore.getItem(cartDraftKey)||'[]'); order=saved.map(s=>{ const p=products.find(x=>String(x.code)===String(s.code))||s.snapshot; return p?{...p,qty:Math.max(1,Number(s.qty)||1),_draftFallback:!products.some(x=>String(x.code)===String(s.code))}:null; }).filter(Boolean); }catch(err){ order=[]; } }
     async function loadDefaultCsv(){
       if(catalogLoading)return;
       catalogLoading=true;renderResults();
@@ -627,7 +673,7 @@
       const exactItem=list.find(({m})=>m?.rank===0),resultStatus=$('searchResultStatus');
       if(exactItem)recentSearchTimer=setTimeout(()=>saveRecentCode(exactItem.p.code),800);
       if($('productCount')) $('productCount').value=`${products.length.toLocaleString('ja-JP')} / ${list.length.toLocaleString('ja-JP')}`; if(resultStatus){resultStatus.classList.toggle('exactMatchStatus',Boolean(exactItem));resultStatus.textContent=exactItem?`✓ ${txt('exactProductFound',lang)}：${exactItem.p.code}`:lang==='ko'?`${list.length.toLocaleString('ko-KR')}개 표시 / ${products.length.toLocaleString('ko-KR')}개 상품`:`${list.length.toLocaleString('ja-JP')}件表示 / ${products.length.toLocaleString('ja-JP')}商品`;}
-      $('results').innerHTML=list.length?list.map(({p,m})=>`<article class="product${m?.rank===0?' exactMatchProduct':''}" data-product-code="${sanitize(p.code)}"${m?.rank===0?' data-exact-match="true"':''}>${m?.rank===0?`<div class="exactMatchSignal"><span class="exactMatchCheck" aria-hidden="true">✓</span><span>${sanitize(txt('exactProductFound',lang))}</span></div>`:''}${thumbHtml(p)}<div class="productInfo"><div class="code">${sanitize(p.code)}</div><div class="name">${sanitize(nameOf(p,lang))}</div><div class="price">${sanitize(priceDisplay(p.price,p.currency||$('currencySelect').value))}</div><div class="metaLine">${m?.rank!==0&&m?.label?`<span class="badge ${m.className}">${sanitize(m.label)}</span>`:''}${catalogLabel(p.catalog,lang)?`<span class="badge">${sanitize(catalogLabel(p.catalog,lang))}</span>`:''}</div></div><div class="productActions"><button class="secondary small" data-detail="${sanitize(p.code)}">${txt('detail')} ↗</button><div class="productQty" hidden><button type="button" data-result-minus="${sanitize(p.code)}" aria-label="${sanitize(p.code)} ${sanitize(txt('qty',lang))} −">−</button><output aria-label="${sanitize(txt('qty',lang))}"></output></div><button class="small" data-add="${sanitize(p.code)}" aria-label="${sanitize(p.code)} ${sanitize(txt('add',lang))}">＋ ${txt('add')}</button></div></article>`).join(''):`<div class="empty">${txt('notFound')}</div>`;
+      $('results').innerHTML=list.length?list.map(({p,m})=>`<article class="product${m?.rank===0?' exactMatchProduct':''}" data-product-code="${sanitize(p.code)}"${m?.rank===0?' data-exact-match="true"':''}>${m?.rank===0?`<div class="exactMatchSignal"><span class="exactMatchCheck" aria-hidden="true">✓</span><span>${sanitize(txt('exactProductFound',lang))}</span></div>`:''}${thumbHtml(p)}<div class="productInfo"><div class="code">${sanitize(p.code)}</div><div class="name">${sanitize(nameOf(p,lang))}</div><div class="price">${sanitize(searchPriceDisplay(p,lang))}</div><div class="metaLine">${m?.rank!==0&&m?.label?`<span class="badge ${m.className}">${sanitize(m.label)}</span>`:''}${catalogLabel(p.catalog,lang)?`<span class="badge">${sanitize(catalogLabel(p.catalog,lang))}</span>`:''}</div></div><div class="productActions"><button class="secondary small" data-detail="${sanitize(p.code)}">${txt('detail')} ↗</button><div class="productQty" hidden><button type="button" data-result-minus="${sanitize(p.code)}" aria-label="${sanitize(p.code)} ${sanitize(txt('qty',lang))} −">−</button><output aria-label="${sanitize(txt('qty',lang))}"></output></div><button class="small" data-add="${sanitize(p.code)}" aria-label="${sanitize(p.code)} ${sanitize(txt('add',lang))}">＋ ${txt('add')}</button></div></article>`).join(''):`<div class="empty">${txt('notFound')}</div>`;
       $('results').querySelectorAll('[data-add]').forEach(btn=>btn.onclick=()=>addProduct(btn.dataset.add));
       $('results').querySelectorAll('[data-detail]').forEach(btn=>btn.onclick=()=>showProductDetail(btn.dataset.detail));
       $('results').querySelectorAll('[data-result-minus]').forEach(btn=>btn.onclick=()=>{const idx=order.findIndex(item=>String(item.code)===btn.dataset.resultMinus);if(idx<0)return;if(order[idx].qty<=1)order.splice(idx,1);else order[idx].qty--;renderOrder();});
@@ -651,7 +697,7 @@
     }
     function showToast(message){ const el=$('toast'); if(!el)return; el.textContent=message; el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),1800); }
     function addProduct(code){ if(browseMode!=='order')return;const p=products.find(x=>String(x.code)===String(code)); if(!p)return; const existing=order.find(x=>String(x.code)===String(code)); if(existing) existing.qty=Math.min(9999,existing.qty+1); else order.push({...p, qty:1}); renderOrder(); showToast(`${nameOf(p)} — ${txt('addedToOrder')}`); }
-    function showProductDetail(code){ const p=products.find(x=>String(x.code)===String(code)); if(!p)return; const lang=currentLang(); $('detailBody').innerHTML=`<div class="detailHero">${thumbHtml(p)}<div><div class="detailCode">${sanitize(p.code)}</div><div class="detailTitle">${sanitize(nameOf(p,lang))}</div><div class="detailPrice">${sanitize(priceDisplay(p.price,p.currency||$('currencySelect').value))}</div>${detailInfoHtml(p,lang)}${officialLinkHtml(p,lang)}<div class="metaLine">${catalogLabel(p.catalog,lang)?`<span class="badge">${sanitize(catalogLabel(p.catalog,lang))}</span>`:''}</div><div class="row wrap" style="margin-top:14px"><button data-add-detail="${sanitize(p.code)}">${txt('add')}</button><button class="secondary" onclick="document.getElementById('detailDialog').close()">${txt('close')}</button></div></div></div>`; $('detailBody').querySelector('[data-add-detail]').onclick=()=>{addProduct(code);$('detailDialog').close();}; $('detailDialog').showModal(); }
+    function showProductDetail(code){ const p=products.find(x=>String(x.code)===String(code)); if(!p)return; const lang=currentLang(); $('detailBody').innerHTML=`<div class="detailHero">${thumbHtml(p)}<div><div class="detailCode">${sanitize(p.code)}</div><div class="detailTitle">${sanitize(nameOf(p,lang))}</div><div class="detailPrice">${sanitize(searchPriceDisplay(p,lang))}</div>${detailInfoHtml(p,lang)}${officialLinkHtml(p,lang)}<div class="metaLine">${catalogLabel(p.catalog,lang)?`<span class="badge">${sanitize(catalogLabel(p.catalog,lang))}</span>`:''}</div><div class="row wrap" style="margin-top:14px"><button data-add-detail="${sanitize(p.code)}">${txt('add')}</button><button class="secondary" onclick="document.getElementById('detailDialog').close()">${txt('close')}</button></div></div></div>`; $('detailBody').querySelector('[data-add-detail]').onclick=()=>{addProduct(code);$('detailDialog').close();}; $('detailDialog').showModal(); }
     function renderOrder(){
       if(!$('orderItems'))return;
       const lang=currentLang(),showPrices=pricesVisible();
@@ -665,7 +711,7 @@
       $('cartDockTotal').textContent=fmt(total);
       $('cartItemCount').textContent=currentLang()==='ko'?`카트 ${qty}점 · ${order.length}품번`:`カート ${qty}点・${order.length}品番`;
       $('miniCartItems').innerHTML=order.length?order.slice(-6).reverse().map(i=>`<span class="miniCartChip">${sanitize(i.code)} × ${sanitize(i.qty)}</span>`).join(''):`<span class="miniCartEmpty">商品を追加するとここに表示されます</span>`;
-      localStorage.setItem('qrDraftOrder',JSON.stringify(order.map(i=>({code:i.code,qty:i.qty,snapshot:{code:i.code,names:i.names,price:i.price,currency:i.currency||'KRW',image:i.image||'',catalog:i.catalog||''}}))));updateCustomerStatus();renderCheckoutSummary();syncProductQuantities();
+      draftStore.setItem(cartDraftKey,JSON.stringify(order.map(i=>({code:i.code,qty:i.qty,snapshot:{code:i.code,names:i.names,price:i.price,currency:i.currency||'KRW',image:i.image||'',catalog:i.catalog||''}}))));updateCustomerStatus();renderCheckoutSummary();syncProductQuantities();
     }
     function changeQty(idx,delta){ order[idx].qty=Math.min(9999,Math.max(1,Number(order[idx].qty||1)+delta)); renderOrder(); }
     async function handleFile(e){ const file=e.target.files?.[0]; if(!file)return; const ext=file.name.split('.').pop().toLowerCase(); try{ if(ext==='csv'){ products=prepareProducts(parseCsv(await file.text()).map(normalizeRow).filter(p=>p.code)); }else{ if(!(await ensureLib('XLSX'))) throw new Error('XLSX library is not loaded. Please try CSV.'); const buf=await file.arrayBuffer(); const wb=XLSX.read(buf,{type:'array'}); const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}); products=prepareProducts(rows.map(normalizeRow).filter(p=>p.code)); } catalogReady=products.length>0; restoreOrder(); alert(`${products.length} products loaded`); renderResults(); renderOrder(); }catch(err){ alert('Import error: '+err.message); } }
@@ -705,6 +751,7 @@
           ko:String(get(row,['メリット_KO','メリットKO','benefit_ko'])||'').trim()
         },
         price:roundKrw100(Number(String(priceRaw).replace(/[^0-9.-]/g,''))||0), 
+        wholesalePrice:String(get(row,['新卸価格'])||'').trim(),
         currency:'KRW',
         packQty, 
         image:image && !/^https?:|^data:|^images\/|^product-images\//i.test(image) ? `product-images/${image}` : image, 
@@ -715,7 +762,15 @@
       }; 
     }
     function currentDraftSignature(){ return JSON.stringify({lang:currentLang(),event:$('eventName').value.trim(),distributor:$('distributor').value.trim(),staff:$('staffName').value.trim(),customer:$('customerCompany').value.trim(),customerName:$('customerName').value.trim(),customerPhone:$('customerPhone').value.trim(),shippingAddress:$('shippingAddress').value.trim(),notes:$('notes').value.trim(),businessCardVersion,items:order.map(i=>[i.code,Number(i.qty||1)])}); }
-    function validateRequiredCustomer(){ const fields=[$('customerCompany'),$('customerName'),$('customerPhone')], missing=fields.filter(field=>!field.value.trim()), error=$('requiredCustomerError'); fields.forEach(field=>field.classList.toggle('invalid',missing.includes(field))); error.style.display=missing.length?'block':'none'; if(!missing.length)return true; missing[0].focus(); return false; }
+    function validateRequiredCustomer(){
+      if(staffIntake){
+        if(order.some(item=>item._draftFallback||!Number.isSafeInteger(item.price)||item.price<=0)){
+          alert('商品マスターの価格が未設定の明細があります。カートを確認してください。');
+          return false;
+        }
+        return customerInfoComplete()||confirm('名刺・店舗名・電話番号が未入力です。お客様を特定する情報がないまま確定しますか？');
+      }
+      const fields=[$('customerCompany'),$('customerName'),$('customerPhone')], missing=fields.filter(field=>!field.value.trim()), error=$('requiredCustomerError'); fields.forEach(field=>field.classList.toggle('invalid',missing.includes(field))); error.style.display=missing.length?'block':'none'; if(!missing.length)return true; missing[0].focus(); return false; }
     function buildReceiptData(){ const lang=currentLang(), total=order.reduce((sum,item)=>sum+Number(item.price||0)*Number(item.qty||0),0), now=new Date(), eventDate=String(ONLINE_CONFIG.eventDate||new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(now)); return {v:10,status:'submitted',clientSubmissionId:clientSubmissionId||newSubmissionId(),lang,orderNo:'PENDING',createdAt:now.toISOString(),date:now.toLocaleString(lang==='ko'?'ko-KR':'ja-JP'),eventId:String(ONLINE_CONFIG.eventId||'korea-exhibition'),eventName:$('eventName').value.trim()||String(ONLINE_CONFIG.eventName||''),eventDate,eventDay:Number(ONLINE_CONFIG.eventDay||1),distributor:$('distributor').value.trim(),staffName:$('staffName').value.trim(),customerCompany:$('customerCompany').value.trim(),customerName:$('customerName').value.trim(),customerPhone:$('customerPhone').value.trim(),shippingAddress:$('shippingAddress').value.trim(),notes:$('notes').value.trim(),businessCardImage:businessCardImageData,priceMode:'with',currency:'KRW',total,items:order.map(i=>({c:i.code,n:[nameOf(i,'ja'),nameOf(i,'ko')],q:Number(i.qty||1),p:Number(i.price||0),img:imageOf(i)}))}; }
     function buildStaffCheckData(data){ const {businessCardImage,...safeData}=data||{}; return {...safeData,view:'staff',status:'pending_staff_check'}; }
     function compactReceiptPayload(data,mode='receipt'){
@@ -767,10 +822,18 @@
       const form=new FormData();form.append('order',JSON.stringify(safeOnlineOrderData(data)));
       if(businessCardOriginalFile)form.append('businessCardOriginal',businessCardOriginalFile,businessCardOriginalFile.name||'business-card-original.jpg');
       if(businessCardPreviewBlob)form.append('businessCardPreview',businessCardPreviewBlob,'business-card-preview.jpg');
+      additionalCards.forEach((card,index)=>form.append('additionalBusinessCards',card.blob,`business-card-${index+2}.jpg`));
       if(onlineOrderToken){form.append('token',onlineOrderToken);form.append('expectedUpdatedAt',onlineOrderUpdatedAt);if(businessCardRemoveRequested)form.append('removeBusinessCard','1');}
+      const headers=onlineHeaders();
+      if(staffIntake){
+        let token;
+        try{token=JSON.parse(localStorage.getItem('koreaExhibitionStaffSessionV3')||'null')?.access_token;}catch{}
+        if(!token){const error=new Error('staff_login_required');error.status=401;throw error;}
+        headers.Authorization=`Bearer ${token}`;
+      }
       const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),120000);
       try{
-        const res=await fetch(onlineFunctionUrl(),{method:onlineOrderToken?'PATCH':'POST',headers:onlineHeaders(),body:form,signal:controller.signal});
+        const res=await fetch(staffIntake?`${onlineFunctionUrl()}?staffIntake=1`:onlineFunctionUrl(),{method:onlineOrderToken&&!staffIntake?'PATCH':'POST',headers,body:form,signal:controller.signal});
         const json=await res.json().catch(()=>({}));if(!res.ok){const error=new Error(json.error||`UPLOAD_${res.status}`);error.status=res.status;error.payload=json;throw error;}return json;
       }finally{clearTimeout(timer)}
     }
@@ -781,6 +844,12 @@
       const data=json.order||{};data.businessCardImage=json.businessCardPreviewUrl||json.businessCardOriginalUrl||'';data.businessCardOriginalUrl=json.businessCardOriginalUrl||'';data.onlineToken=String(json.token||token);data.onlineOrderId=String(json.id||'');data.onlineUpdatedAt=String(json.updatedAt||'');data.onlineExpiresAt=json.expiresAt||'';data.editable=json.editable!==false;return data;
     }
     async function showQrForCurrentOrder(){
+      if(staffIntake){
+        $('qrDialog').querySelector('.primaryQrBox b').textContent='お客様用の韓国語控えQR';
+        $('qrDialog').querySelector('.primaryQrBox small').textContent='お客様の端末で読み取ってください。';
+        $('qrDialog').querySelector('.customerNextBox div').textContent=`注文合計 ${fmt(pendingReceiptData?.total||0)}`;
+        $('copyUrl').textContent='控えURLをコピー';
+      }
       $('receiptUrl').textContent=lastStaffQrUrl;
       $('handoffOrderNo').textContent=pendingReceiptData?.orderNo||'-';
       $('qrCode').innerHTML='';
@@ -789,13 +858,17 @@
       try{
         const qrData=await qrImageDataUrl(lastStaffQrUrl,220);
         if(!qrData)throw new Error('QR library unavailable');
-        $('qrCode').innerHTML=`<img src="${sanitize(qrData)}" width="220" height="220" alt="スタッフ確認用QR">`;
+        $('qrCode').innerHTML=`<img src="${sanitize(qrData)}" width="220" height="220" alt="${staffIntake?'お客様用控えQR':'スタッフ確認用QR'}">`;
       }catch(err){
         warn.style.display='block';warn.textContent='QRを生成できませんでした。受付番号でご確認ください。';
       }
     }
     async function createQrReceipt(){
-      if(onlineRequestBusy)return;
+      if(onlineRequestBusy||processingCard)return;
+      if(staffIntake&&onlineOrderToken){
+        if(!$('qrDialog').open)$('qrDialog').showModal();
+        return;
+      }
       if(!order.length){alert(txt('noItems'));return;}
       if(!validateRequiredCustomer()){openCustomerSheet(true);return;}
       if(!onlineConfigured()){
@@ -809,7 +882,7 @@
         if(!$('qrDialog').open)$('qrDialog').showModal();
         return;
       }
-      if(!onlineEditMode){if(!pendingReceiptData||pendingDraftSignature!==signature){clientSubmissionId=newSubmissionId();pendingReceiptData=buildReceiptData();}}
+      if(!onlineEditMode){if(!pendingReceiptData||pendingDraftSignature!==signature){clientSubmissionId=staffIntake?(sessionStorage.getItem('staffOrderSubmissionId')||newSubmissionId()):newSubmissionId();if(staffIntake)sessionStorage.setItem('staffOrderSubmissionId',clientSubmissionId);pendingReceiptData=buildReceiptData();}}
       else{
         const latestDraft=buildReceiptData();
         pendingReceiptData={...(pendingReceiptData||{}),...latestDraft,orderNo:pendingReceiptData?.orderNo||currentReceiptData?.orderNo||'PENDING',createdAt:pendingReceiptData?.createdAt||currentReceiptData?.createdAt||latestDraft.createdAt,date:pendingReceiptData?.date||currentReceiptData?.date||latestDraft.date,clientSubmissionId:clientSubmissionId||pendingReceiptData?.clientSubmissionId||currentReceiptData?.clientSubmissionId};
@@ -819,17 +892,19 @@
       try{
         setOnlineBusy(true,onlineEditMode?'同じ受付番号の注文内容を更新しています… / 같은 접수 번호의 주문 내용을 수정하고 있습니다…':(businessCardOriginalFile?'名刺画像と注文を送信しています… / 명함 이미지와 주문을 전송하고 있습니다…':'注文を送信しています… / 주문을 전송하고 있습니다…'));
         const online=await uploadOnlineOrder(pendingReceiptData);
-        onlineOrderToken=String(online.token||onlineOrderToken||'');onlineOrderId=String(online.id||onlineOrderId||'');onlineOrderUpdatedAt=String(online.updatedAt||onlineOrderUpdatedAt||'');onlineOrderExpiresAt=String(online.expiresAt||'');
+        onlineOrderToken=String((staffIntake?online.receipt:online.token)||onlineOrderToken||'');onlineOrderId=String(online.id||onlineOrderId||'');onlineOrderUpdatedAt=String(online.updatedAt||onlineOrderUpdatedAt||'');onlineOrderExpiresAt=String(online.expiresAt||'');
         if(!onlineOrderToken||!online.orderNo)throw new Error('ORDER_RESPONSE_MISSING');
         pendingReceiptData.orderNo=String(online.orderNo);
+        if(staffIntake&&Number.isFinite(online.total))pendingReceiptData.total=online.total;
+        if(staffIntake&&online.duplicatePrevented)alert('この注文はすでに保存されています。受付番号と控えで保存内容を確認してください。');
         pendingReceiptData.createdAt=String(online.createdAt||pendingReceiptData.createdAt);
         pendingReceiptData.date=new Date(pendingReceiptData.createdAt).toLocaleString(currentLang()==='ko'?'ko-KR':'ja-JP');
         pendingReceiptData.status=String(online.status||pendingReceiptData.status||'submitted');
         pendingReceiptData.onlineToken=onlineOrderToken;pendingReceiptData.onlineOrderId=onlineOrderId;pendingReceiptData.onlineUpdatedAt=onlineOrderUpdatedAt;pendingReceiptData.onlineExpiresAt=onlineOrderExpiresAt;pendingReceiptData.editable=online.editable!==false;
-        lastReceiptUrl=onlineViewUrl(onlineOrderToken,'receipt');
-        lastStaffQrUrl=staffOrderUrlByToken(onlineOrderToken);
-        onlineEditMode=true;businessCardExisting=online.hasBusinessCard!==false&&(businessCardExisting||!!businessCardOriginalFile||!!businessCardPreviewBlob);businessCardRemoveRequested=false;
-        saveHistory(true,pendingReceiptData);
+        lastReceiptUrl=staffIntake?`${String(ONLINE_CONFIG.publicAppUrl||location.href).split('#')[0]}#customer-receipt=${encodeURIComponent(onlineOrderToken)}`:onlineViewUrl(onlineOrderToken,'receipt');
+        lastStaffQrUrl=staffIntake?lastReceiptUrl:staffOrderUrlByToken(onlineOrderToken);
+        onlineEditMode=!staffIntake;businessCardExisting=online.hasBusinessCard!==false&&(businessCardExisting||!!businessCardOriginalFile||!!businessCardPreviewBlob);businessCardRemoveRequested=false;
+        if(!staffIntake)saveHistory(true,pendingReceiptData);
         setOnlineStatus(online.status==='submitted'&&Number(online.revisionCount||0)>0?'修正内容を保存しました。受付番号は変わりません。 / 수정 내용을 저장했습니다. 접수 번호는 그대로입니다.':'注文を受け付けました。 / 주문이 접수되었습니다.','success');
         if($('customerDialog')?.open)$('customerDialog').close();
         await showQrForCurrentOrder();
@@ -837,6 +912,7 @@
       }catch(err){
         console.error(err);
         const detail=String(err?.message||'');
+        if(staffIntake&&err?.status===401){alert('ログイン期限が切れました。注文入力を閉じ、スタッフ画面に再ログインしてから再試行してください。');return;}
         if(err?.status===409&&/order_already_confirmed/.test(detail)){pendingReceiptData.editable=false;alert('スタッフが注文を確定したため、これ以上修正できません。最新の注文控えを確認してください。');setOnlineStatus('スタッフ確定済みのため修正できません。 / 직원 확정 완료로 수정할 수 없습니다.','error');return;}
         if(err?.status===409&&/order_changed/.test(detail)){onlineOrderUpdatedAt=String(err.payload?.updatedAt||onlineOrderUpdatedAt);alert('スタッフまたは別の画面で注文が更新されました。最新内容を読み直してから、もう一度修正してください。');setOnlineStatus('注文が更新されています。控えから最新内容を読み直してください。','error');return;}
         const cardError=/storage|image|名刺|preview/i.test(detail);
@@ -847,6 +923,7 @@
       }finally{setOnlineBusy(false);}
     }
     async function openCustomerReceipt(){
+      if(staffIntake){if(lastReceiptUrl)window.open(lastReceiptUrl,'_blank','noopener');return;}
       if(!pendingReceiptData||!onlineOrderToken){alert('注文データがありません。');return;}
       lastReceiptUrl=onlineViewUrl(onlineOrderToken,'receipt');
       $('qrDialog').close();
@@ -895,7 +972,9 @@
       $('searchInput').value='';renderResults();
       ['customerCompany','customerName','customerPhone','shippingAddress','staffName','notes'].forEach(id=>{if($(id))$(id).value='';});
       pendingReceiptData=null;pendingDraftSignature='';lastReceiptUrl='';lastStaffQrUrl='';onlineOrderToken='';onlineOrderId='';onlineOrderUpdatedAt='';onlineOrderExpiresAt='';onlineEditMode=false;clientSubmissionId='';businessCardExisting=false;businessCardRemoveRequested=false;
-      localStorage.removeItem(CUSTOMER_DRAFT_KEY);
+      draftStore.removeItem(staffIntake ? 'staffCustomerDraft' : CUSTOMER_DRAFT_KEY);
+      if(staffIntake)sessionStorage.removeItem('staffOrderSubmissionId');
+      additionalCards.length=0;
       clearBusinessCardImage();updateCustomerStatus();
       showToast('新しい注文を開始しました。 / 새 주문을 시작했습니다.');
     }
@@ -943,7 +1022,7 @@
       const width=900,margin=36,inner=width-margin*2,items=Array.isArray(data.items)?data.items:[],rowHeight=92,shippingHeight=data.shippingAddress?76:0,cardHeight=data.businessCardImage?210:0,notesText=String(data.notes||''),notesLines=Math.max(1,Math.ceil(notesText.length/38)),notesHeight=notesText?Math.max(132,58+notesLines*22):132;
       const height=Math.min(14000,Math.max(1360,36+124+170+shippingHeight+cardHeight+54+items.length*rowHeight+notesHeight+176));
       const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;const ctx=canvas.getContext('2d',{alpha:false});if(!ctx)throw new Error('Canvas unavailable');ctx.fillStyle='#fff';ctx.fillRect(0,0,width,height);ctx.textBaseline='alphabetic';
-      const imageSources=[RECEIPT_BRAND.logo,data.businessCardImage,data.qrDataUrl,...items.map(item=>item.img||'')],images=await Promise.all(imageSources.map(src=>loadReceiptCanvasImage(src))),logo=images[0],card=images[1],orderQr=images[2],itemImages=images.slice(3);
+      const imageSources=[RECEIPT_BRAND.logo,data.businessCardImage,...items.map(item=>item.img||'')],images=await Promise.all(imageSources.map(src=>loadReceiptCanvasImage(src))),logo=images[0],card=images[1],itemImages=images.slice(2);
       let y=36;
       if(!drawContainedCanvasImage(ctx,logo,margin,y,260,62)){ctx.fillStyle='#111827';ctx.font=canvasFont(27,950);ctx.fillText('SAN NISHIMURA',margin,y+34);}
       ctx.fillStyle='#111827';ctx.font=canvasFont(14,850);ctx.fillText('SAN NISHIMURA CO., LTD.',margin,y+83);ctx.fillStyle='#64748b';ctx.font=canvasFont(12,650);ctx.fillText('サンニシムラ株式会社 / 선 니시무라 주식회사',margin,y+103);
@@ -960,7 +1039,7 @@
       y+=12;const summaryW=300,memoW=inner-summaryW-10,footerBoxH=notesHeight;
       roundedCanvasRect(ctx,margin,y,memoW,footerBoxH,9,'#f8fafc','#d1d5db');ctx.fillStyle='#111827';ctx.font=canvasFont(14,900);ctx.fillText(notesText?'備考 / 비고':'ご案内 / 안내',margin+13,y+25);ctx.fillStyle='#475569';ctx.font=canvasFont(13,650);const memoText=notesText||'本書は展示会場で受け付けた注文控えです。最終在庫・納期は代理店よりご案内します。';drawCanvasLines(ctx,memoText,margin+13,y+50,memoW-26,20,Math.max(3,Math.floor((footerBoxH-56)/20)));
       roundedCanvasRect(ctx,margin+memoW+10,y,summaryW,footerBoxH,9,'#fff','#111827',2);ctx.fillStyle='#475569';ctx.font=canvasFont(14,800);ctx.fillText('点数 / 수량 합계',margin+memoW+24,y+35);ctx.textAlign='right';ctx.fillStyle='#111827';ctx.font=canvasFont(18,900);ctx.fillText(String(items.reduce((sum,item)=>sum+Number(item.q||0),0)),width-margin-14,y+35);ctx.textAlign='left';ctx.strokeStyle='#d1d5db';ctx.beginPath();ctx.moveTo(margin+memoW+22,y+55);ctx.lineTo(width-margin-14,y+55);ctx.stroke();ctx.fillStyle='#111827';ctx.font=canvasFont(18,900);ctx.fillText('合計 / 합계',margin+memoW+24,y+91);ctx.textAlign='right';ctx.font=canvasFont(26,950);ctx.fillText(fmt(data.total),width-margin-14,y+94);ctx.textAlign='left';ctx.fillStyle='#64748b';ctx.font=canvasFont(11,650);ctx.fillText('Currency / 통화 : KRW',margin+memoW+24,y+footerBoxH-18);y+=footerBoxH+16;
-      const qrWidth=300,qrHeight=62,qrX=width-margin-qrWidth;roundedCanvasRect(ctx,qrX,y,qrWidth,qrHeight,7,'#f8fafc','#cbd5e1');ctx.fillStyle='#64748b';ctx.font=canvasFont(9,850);ctx.fillText('受付番号 / 접수 번호',qrX+10,y+16);ctx.fillStyle='#1f2937';ctx.font=canvasFont(16,900);ctx.fillText(String(data.orderNo||'-'),qrX+10,y+38);ctx.fillStyle='#64748b';ctx.font=canvasFont(8,650);ctx.fillText('スタッフ確認用QR',qrX+10,y+53);if(orderQr)drawContainedCanvasImage(ctx,orderQr,qrX+qrWidth-54,y+6,50,50);y+=qrHeight+10;
+      const qrWidth=300,qrHeight=62,qrX=width-margin-qrWidth;roundedCanvasRect(ctx,qrX,y,qrWidth,qrHeight,7,'#f8fafc','#cbd5e1');ctx.fillStyle='#64748b';ctx.font=canvasFont(9,850);ctx.fillText('受付番号 / 접수 번호',qrX+10,y+16);ctx.fillStyle='#1f2937';ctx.font=canvasFont(16,900);ctx.fillText(String(data.orderNo||'-'),qrX+10,y+38);ctx.fillStyle='#64748b';ctx.font=canvasFont(8,650);y+=qrHeight+10;
       ctx.strokeStyle='#d1d5db';ctx.beginPath();ctx.moveTo(margin,y);ctx.lineTo(width-margin,y);ctx.stroke();ctx.fillStyle='#64748b';ctx.font=canvasFont(11,650);ctx.fillText(`${RECEIPT_BRAND.distributorName} | ${RECEIPT_BRAND.distributorAddr1} ${RECEIPT_BRAND.distributorAddr2}`,margin,y+23);ctx.textAlign='right';ctx.fillText(`TEL ${RECEIPT_BRAND.tel} / FAX ${RECEIPT_BRAND.fax}`,width-margin,y+23);ctx.textAlign='left';
       return canvas;
     }
@@ -1003,6 +1082,33 @@
       })();
       return receiptImagePreviewPromise;
     }
+    async function showCustomerReceipt(){
+      document.documentElement.lang='ko';
+      document.body.classList.add('receiptOnly');
+      document.querySelector('.receiptPage').style.display='block';
+      ['receiptLangSelect','receiptRoleNotice','backToApp','receiptImagePanel','editOrderFromReceipt'].forEach(id=>$(id).style.display='none');
+      const area=$('receiptPrintArea'), print=$('printReceipt');
+      print.textContent='PDF 저장 · 인쇄';
+      print.disabled=true;
+      area.textContent='주문 내역을 불러오는 중입니다…';
+      const controller=new AbortController(), timeout=setTimeout(()=>controller.abort(),15000);
+      try{
+        const token=location.hash.slice('#customer-receipt='.length);
+        const response=await fetch(`${onlineFunctionUrl()}?receipt=${encodeURIComponent(token)}`,{headers:onlineHeaders(),cache:'no-store',signal:controller.signal});
+        if(!response.ok)throw new Error('RECEIPT_UNAVAILABLE');
+        const data=await response.json();
+        const items=Array.isArray(data.items)?data.items:[];
+        if(!data.orderNo||!items.length)throw new Error('RECEIPT_UNAVAILABLE');
+        const money=value=>`₩${Number(value).toLocaleString('ko-KR')}`;
+        const total=items.reduce((sum,item)=>sum+item.p*item.q,0);
+        area.innerHTML=`<h1>주문 내역서</h1><p><b>접수번호 ${sanitize(data.orderNo)}</b><br>주문일시 ${sanitize(new Date(data.createdAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}))}</p><table class="receiptTable"><thead><tr><th>품번</th><th>상품명</th><th class="num">수량</th><th class="num">단가</th><th class="num">금액</th></tr></thead><tbody>${items.map(item=>`<tr><td>${sanitize(item.c)}</td><td>${sanitize(receiptItemText(item,'n','ko'))}</td><td class="num">${sanitize(item.q)}</td><td class="num">${money(item.p)}</td><td class="num">${money(item.p*item.q)}</td></tr>`).join('')}</tbody></table><p class="receiptSummaryRow total"><b>총 주문 금액</b><b>${money(total)}</b></p>`;
+        print.disabled=false;
+        print.onclick=()=>window.print();
+      }catch(error){
+        area.textContent='주문 내역을 불러올 수 없습니다. 직원에게 문의해 주세요.';
+      }finally{clearTimeout(timeout);}
+    }
+
     async function showReceiptFromHash(){
       document.body.classList.add('receiptOnly');
       document.querySelectorAll('dialog[open]').forEach(dialog=>dialog.close());
@@ -1078,8 +1184,6 @@
       role.innerHTML=`<b>${sanitize(roleTitle)}</b><span>${sanitize(roleText)}</span>${isStaffReceiptView?`<small>${sanitize(txt('staffReceiptEnglish','en'))}</small>`:''}`;
       currentReceiptData=data;
       ['editOrderFromReceipt','editOrderFromImage'].forEach(id=>{const button=$(id);if(button)button.style.display=(!isStaffReceiptView&&customerEditable)?'':'none';});
-      const stableStaffUrl=data.onlineToken?staffOrderUrlByToken(data.onlineToken):(onlineOrderToken?staffOrderUrlByToken(onlineOrderToken):'');
-      data.staffOrderUrl=stableStaffUrl;data.qrDataUrl=stableStaffUrl?await qrImageDataUrl(stableStaffUrl,150):'';
       const itemsHtml=(data.items||[]).map(i=>`<tr><td><b>${sanitize(i.c)}</b></td><td>${thumbHtml({code:i.c,names:{ja:receiptItemText(i,'n','ja'),ko:receiptItemText(i,'n','ko')},image:i.img||''},'receiptThumb')}</td><td>${receiptItemDualName(i,lang)}</td><td class="num">${sanitize(i.q)}</td><td class="num">${fmt(i.p)}</td><td class="num"><b>${fmt(Number(i.p||0)*Number(i.q||0))}</b></td></tr>`).join('');
       const notesBlock=data.notes?`<div class="receiptNote"><b>備考 / 비고</b>${sanitize(data.notes).split('\n').join('<br>')}</div>`:'';
       const businessCardBlock=data.businessCardImage?`<div class="receiptBusinessCard"><div class="receiptBusinessCardLabel">名刺写真 / 명함 사진<small>お客様からお預かりした名刺画像 / 고객 명함 이미지</small>${data.businessCardOriginalUrl?`<a class="receiptBusinessCardOriginal" href="${sanitize(data.businessCardOriginalUrl)}" target="_blank" rel="noopener noreferrer">原寸画像を開く / 원본 이미지 열기</a>`:''}</div><div class="receiptBusinessCardImage"><img src="${sanitize(data.businessCardImage)}" alt="名刺写真 / 명함 사진"></div></div>`:'';
@@ -1144,7 +1248,7 @@
             <div class="receiptCurrencyNote">Currency / 통화 : KRW</div>
           </div>
         </div>
-        <div class="receiptOrderQrBlock"><div><span>受付番号 / 접수 번호</span><strong>${sanitize(data.orderNo)}</strong><small>スタッフ確認用 / 직원 확인용</small></div>${data.qrDataUrl?`<img src="${sanitize(data.qrDataUrl)}" alt="${sanitize(data.orderNo)} スタッフ確認用QR">`:''}</div>
+        <div class="receiptOrderQrBlock"><div><span>受付番号 / 접수 번호</span><strong>${sanitize(data.orderNo)}</strong></div></div>
         <div class="receiptFooterMini">
           <div>${sanitize(RECEIPT_BRAND.distributorName)} | ${sanitize(RECEIPT_BRAND.distributorAddr1)} ${sanitize(RECEIPT_BRAND.distributorAddr2)}</div>
           <div>TEL ${sanitize(RECEIPT_BRAND.tel)} / FAX ${sanitize(RECEIPT_BRAND.fax)}</div>

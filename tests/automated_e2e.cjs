@@ -125,7 +125,7 @@ async function customerFlow(browser) {
   await page.waitForFunction(() => document.querySelector('#receiptPrintArea')?.textContent.includes('K260803-001'));
   const receipt = await page.textContent('#receiptPrintArea');
   if (!receipt.includes('スタッフ確認待ち') || !receipt.includes('1053') || !receipt.includes('04524 Seoul Test Address') || !receipt.includes('K260803-001')) throw new Error('控えの状態・商品・発送先住所・受付番号が不正です');
-  if (!await page.locator('#receiptPrintArea .receiptOrderQrBlock img').count()) throw new Error('注文控え・印刷用データにQRがありません');
+  if (await page.locator('#receiptPrintArea .receiptOrderQrBlock img').count()) throw new Error('注文控えの紙面にQRが残っています');
   const receiptQrLayout = await page.evaluate(() => { const block=document.querySelector('#receiptPrintArea .receiptOrderQrBlock'),footer=document.querySelector('#receiptPrintArea .receiptFooterMini'),img=block?.querySelector('img'),strong=block?.querySelector('strong'); return { beforeFooter:block?.nextElementSibling===footer, blockWidth:block?.getBoundingClientRect().width||0, imageWidth:img?.getBoundingClientRect().width||0, fontSize:Number.parseFloat(getComputedStyle(strong).fontSize)||0 }; });
   if (!receiptQrLayout.beforeFooter || receiptQrLayout.blockWidth > 350 || receiptQrLayout.imageWidth > 52 || receiptQrLayout.fontSize > 16) throw new Error(`受付番号・QRが控え下部の小型表示になっていません: ${JSON.stringify(receiptQrLayout)}`);
   if (!await page.locator('#editOrderFromReceipt').isVisible() || !await page.locator('#editOrderFromImage').isVisible()) throw new Error('注文控え・画像保存画面に注文修正ボタンがありません');
@@ -174,6 +174,7 @@ async function staffFlow(browser) {
     .replace("customerPhone:'010-1234',notes:''", "customerPhone:'010-1234',shippingAddress:'04524 Seoul Test Address',notes:''")
     .replace(']}};window.fetch=', `]}};const __orders=[__order];window.__addSecondOrder=()=>{if(__orders.length>1)return;const second=JSON.parse(JSON.stringify(__order));Object.assign(second,{id:'00000000-0000-0000-0000-000000000002',order_no:'K260804-002',status:'completed',assigned_name:'増田',created_at:'2026-08-04T08:00:00.000Z',updated_at:'2026-08-04T08:00:01.000Z',event_date:'2026-08-04',event_day:2,pending_batch_id:null});second.order_data={...second.order_data,customerCompany:'Day 2 Optical',customerName:'Lee',shippingAddress:'04600 Seoul Day 2 Address',eventDate:'2026-08-04',eventDay:2};__orders.push(second)};window.fetch=`)
     .replace("JSON.stringify([{...__order,status:__status,assigned_name:['submitted','new'].includes(__status)?null:'増田'}])", "JSON.stringify(__orders.map(order=>({...order,status:order===__order?__status:order.status,assigned_name:order.assigned_name||(order===__order&&['submitted','new'].includes(__status)?null:'増田')})))")
+    .replace("if(url.includes('/auth/v1/token'))", `if(url.includes('issueReceiptFor='))return new Response(JSON.stringify({receipt:'00000000-0000-0000-0000-000000000001.${'a'.repeat(64)}'}),{status:200});if(url.includes('status=neq.deleted')&&url.includes('limit=200'))return new Response(JSON.stringify(__orders),{status:200,headers:{'Content-Range':'0-'+(__orders.length-1)+'/'+__orders.length}});if(url.includes('/auth/v1/token'))`)
     .replace('product-images/1053_1.jpg', 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==');
   await page.setContent(staffHtml(enhancedMock), { waitUntil: 'domcontentloaded' });
   await page.fill('#email', 'staff@example.com'); await page.fill('#password', 'password'); await page.click('#loginButton');
@@ -182,14 +183,14 @@ async function staffFlow(browser) {
   if (!(await page.textContent('#detailTitle')).includes('K260803-001')) throw new Error('スタッフ用QRの直リンクで該当注文が開きません');
   await page.click('#closeDetail');
   await page.evaluate(() => { const input = document.querySelector('#searchInput'); input.value = '０１０－１２３４'; input.dispatchEvent(new Event('input', { bubbles: true })); });
-  await page.waitForFunction(() => document.querySelectorAll('[data-order-id]').length === 1);
-  if (await page.locator('[data-order-id]').count() !== 1) throw new Error('スタッフ画面で全角数字の電話番号検索ができません');
+  await page.waitForFunction(() => document.querySelectorAll('#list-history [data-order-id]').length === 1);
+  if (await page.locator('#list-history [data-order-id]').count() !== 1) throw new Error('スタッフ画面で全角数字の電話番号検索ができません');
   await page.evaluate(() => { const input = document.querySelector('#searchInput'); input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })); });
-  await page.evaluate(() => { window.__stableOrderCard = document.querySelector('[data-order-id]'); });
+  await page.evaluate(() => { window.__stableOrderCard = document.querySelector('#list-history [data-order-id]'); });
   await page.evaluate(() => document.querySelector('#refreshButton').click());
   await page.waitForFunction(() => !document.querySelector('#refreshButton').disabled);
-  if (!await page.evaluate(() => window.__stableOrderCard === document.querySelector('[data-order-id]'))) throw new Error('無変更の自動更新で注文一覧が再描画されています');
-  await page.click('[data-order-id]'); await page.waitForSelector('#detailDialog[open]');
+  if (!await page.evaluate(() => window.__stableOrderCard === document.querySelector('#list-history [data-order-id]'))) throw new Error('無変更の自動更新で注文一覧が再描画されています');
+  await page.click('#list-history [data-order-id]'); await page.waitForSelector('#detailDialog[open]');
   if (!await page.locator('.detailProductThumb').count()) throw new Error('スタッフ注文詳細に商品画像欄が表示されません');
   if (await page.inputValue('#editShippingAddress') !== '04524 Seoul Test Address') throw new Error('スタッフ画面に発送先住所が表示されません');
   await page.fill('#editCompany', 'Protected Optical');
@@ -201,32 +202,45 @@ async function staffFlow(browser) {
   await page.fill('#editCompany', 'Test Optical'); await page.click('#saveEditButton');
   await page.click('#customerQrButton'); await page.waitForSelector('#customerQrDialog[open]');
   if (!await page.locator('#customerQrCode img, #customerQrCode canvas').count()) throw new Error('お客様用QRが生成されません');
+  const customerUrl = await page.textContent('#customerQrLink');
+  if (!customerUrl.includes('#customer-receipt=') || customerUrl.includes('A'.repeat(43))) throw new Error('控えURLに編集用トークンが含まれています');
+  const receiptPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const receiptMock = `history.replaceState(null,'',${JSON.stringify(new URL(customerUrl).hash)});window.fetch=async input=>String(input).includes('?receipt=')?new Response(JSON.stringify({orderNo:'K260803-001',createdAt:'2026-08-03T08:00:00.000Z',items:[{c:'1053',n:['ヤットコ','플라이어'],q:2,p:120000}]}),{status:200}):new Response('',{status:404});`;
+  await receiptPage.setContent(customerHtml(receiptMock));
+  await receiptPage.waitForFunction(() => document.querySelector('#receiptPrintArea').textContent.includes('₩240,000'));
+  if (await receiptPage.locator('html').getAttribute('lang') !== 'ko' || await receiptPage.locator('#editOrderFromReceipt, #editOrderFromImage, #backToApp').filter({ visible: true }).count()) throw new Error('お客様控えが韓国語の閲覧専用になっていません');
+  await receiptPage.close();
   await page.click('#customerQrTopClose');
   await page.click('#startButton'); await page.waitForFunction(() => document.querySelector('#progressCount')?.textContent === '1');
   await page.click('#completeButton'); await page.waitForFunction(() => document.querySelector('#completedCount')?.textContent === '1');
-  const confirmedText = await page.textContent('.confirmedOrderRow');
+  await page.locator('#legacyWorkflow').evaluate(element => { element.open = true; });
+  const confirmedText = await page.textContent('#list-completed .confirmedOrderRow');
   if (!confirmedText.includes('Test Optical') || !confirmedText.includes('Kim') || !confirmedText.includes('増田') || !confirmedText.includes('K260803-001')) throw new Error('注文確定分の会社名・お客様名を含む一行表示が不正です');
   await page.click('#closeDetail');
   const patchCountBeforeConfirmedView = await page.evaluate(() => window.__orderPatchCount());
-  await page.click('.confirmedOrderRow'); await page.waitForSelector('#detailDialog[open]');
+  await page.click('#list-completed .confirmedOrderRow'); await page.waitForSelector('#detailDialog[open]');
   const patchCountAfterConfirmedView = await page.evaluate(() => window.__orderPatchCount());
   if (patchCountAfterConfirmedView !== patchCountBeforeConfirmedView) throw new Error('注文確定分を開いただけで注文データが更新されています');
   await page.click('#printButton'); await page.waitForFunction(() => window.__printed === true);
   if (!(await page.textContent('#printArea')).includes('04525 Seoul Updated Address')) throw new Error('スタッフ注文書に発送先住所が反映されません');
-  if (!await page.locator('#printArea .receiptOrderQrBlock img').count() || !(await page.textContent('#printArea .receiptOrderQrBlock')).includes('K260803-001')) throw new Error('スタッフ注文書に受付番号とQRがありません');
+  if (await page.locator('#printArea .receiptOrderQrBlock img').count() || !(await page.textContent('#printArea .receiptOrderQrBlock')).includes('K260803-001')) throw new Error('スタッフ注文書の受付番号またはQRの非表示が不正です');
   if (!await page.evaluate(() => document.querySelector('#printArea .receiptOrderQrBlock')?.nextElementSibling?.classList.contains('receiptFooterMini'))) throw new Error('スタッフ注文書の受付番号・QRがフッター直前にありません');
   await page.evaluate(() => {
+    const cardPage = document.createElement('section');
+    cardPage.className = 'printOrder printBusinessCard';
+    cardPage.innerHTML = '<h2>명함 / 접수번호 K260803-001</h2>';
     const card = document.createElement('div');
     card.className = 'receiptBusinessCard';
     card.innerHTML = '<div class="receiptBusinessCardLabel">名刺写真 / 명함 사진<small>印刷サイズ検証</small></div><div class="receiptBusinessCardImage"><img src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22600%22 height=%22300%22%3E%3Crect width=%22600%22 height=%22300%22 fill=%22%23ffffff%22/%3E%3C/svg%3E" alt="名刺写真"></div>';
-    document.querySelector('#printArea .receiptShippingAddress')?.after(card);
+    cardPage.append(card);
+    document.querySelector('#printArea').append(cardPage);
   });
   await page.emulateMedia({ media: 'print' });
   const printedCard = await page.locator('#printArea .receiptBusinessCardImage img').boundingBox();
   if (!printedCard || printedCard.height < 130) throw new Error('名刺画像が注文書で十分な大きさになっていません');
   const singleOrderPdf = await page.pdf({ format: 'A4', preferCSSPageSize: true, printBackground: true });
   const singleOrderPageCount = (singleOrderPdf.toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length;
-  if (singleOrderPageCount !== 1) throw new Error(`注文書が${singleOrderPageCount}ページになっています`);
+  if (singleOrderPageCount !== 2) throw new Error(`注文書が${singleOrderPageCount}ページになっています`);
   await page.emulateMedia({ media: 'screen' });
   await page.click('#deleteButton'); await page.selectOption('#deleteReason', { label: 'テスト注文' }); await page.click('#confirmDeleteButton');
   await page.waitForFunction(() => !document.querySelector('#detailDialog').open);
@@ -235,6 +249,14 @@ async function staffFlow(browser) {
   await page.evaluate(() => { window.__printed = false; });
   await page.evaluate(() => window.__addSecondOrder()); await page.click('#refreshButton');
   await page.waitForFunction(() => document.querySelector('#completedCount')?.textContent === '2');
+  await page.click('#printAllOrdersButton');
+  await page.waitForFunction(() => window.__printed === true);
+  if (await page.locator('#printArea .printOrder').count() !== 3 || !(await page.textContent('#printArea .printOrder')).includes('전시회 주문 목록')) throw new Error('全件PDFに2件の注文と一覧が含まれていません');
+  await page.emulateMedia({ media: 'print' });
+  const allPages = await pdfPageTexts(await page.pdf({ format: 'A4', preferCSSPageSize: true }));
+  await page.emulateMedia({ media: 'screen' });
+  if (allPages.length !== 3 || !allPages[0].includes('K260804-002') || !allPages[1].includes('K260803-001') || !allPages[2].includes('K260804-002')) throw new Error(`全件PDFのA4ページ構成や受付番号が不正です ${JSON.stringify(allPages.map(text => text.slice(0, 140)))}`);
+  await page.evaluate(() => { window.__printed = false; });
   await page.click('#batchButton'); await page.waitForSelector('#batchDialog[open]');
   const batchOptions = await page.locator('#batchDateSelect option').evaluateAll((options) => options.map((option) => ({ value: option.value, text: option.textContent })));
   if (batchOptions.length !== 2 || !batchOptions.some((option) => option.text.includes('2026/08/03')) || !batchOptions.some((option) => option.text.includes('2026/08/04'))) throw new Error('日付別の一括送信選択肢が不正です');
@@ -284,7 +306,7 @@ async function responsiveSmoke(browser) {
   await staff.setContent(staffHtml(staffMock), { waitUntil: 'domcontentloaded' });
   await staff.fill('#email', 'mobile@example.com'); await staff.fill('#password', 'password'); await staff.click('#loginButton');
   await staff.waitForSelector('#dashboardView:not(.hidden)');
-  if (!await staff.locator('.summary').isVisible() || await staff.locator('[data-tab]').count() !== 2) throw new Error('スマホスタッフ画面の表示が不正です');
+  if (!await staff.locator('#staffOrderHistory').isVisible() || !await staff.locator('#newStaffOrderButton').isVisible() || await staff.locator('.summary').isVisible()) throw new Error('スマホスタッフ画面の表示が不正です');
   if (staffErrors.length) throw new Error(staffErrors.join('\n'));
   await staff.close();
 }
@@ -304,7 +326,7 @@ async function staffPriceLookup(browser) {
   await page.fill('#priceSearchInput','１０５３');
   await page.click('#priceRetryButton');
   await page.waitForSelector('[data-price-code="1053"].exact');
-  if (!(await page.textContent('[data-price-code="1053"]')).includes('₩83,300')) throw new Error('価格確認で商品マスターのKRW価格が表示されません');
+  if ((await page.textContent('[data-price-code="1053"] .priceProductAmount')).trim() !== '新卸価格 8330') throw new Error('スタッフ価格確認にQ列の価格が表示されません');
   await page.fill('#priceSearchInput','ヤットコ');
   await page.waitForSelector('[data-price-code="1053"]');
   await page.fill('#priceSearchInput','푸시록');
@@ -354,7 +376,7 @@ async function platformPrintSmoke(browser) {
     const mock = `history.replaceState(null,'','#online-receipt=${token}');const __nativeFetch=window.fetch.bind(window);window.fetch=async(input,init={})=>String(input).includes('/functions/v1/exhibition-order')?new Response(JSON.stringify({id:'00000000-0000-0000-0000-000000000099',token:'${token}',orderNo:'K260804-PRINT',updatedAt:'2026-08-04T08:00:01.000Z',editable:true,order:${JSON.stringify(order)},status:'submitted',expiresAt:'2026-08-18T08:00:00.000Z',businessCardOriginalUrl:'',businessCardPreviewUrl:''}),{status:200,headers:{'Content-Type':'application/json'}}):__nativeFetch(input,init);`;
     await page.setContent(customerHtml(mock), { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => document.querySelectorAll('#receiptPrintArea .receiptTable tbody tr').length === 34, null, { timeout: 30000 });
-    await page.waitForSelector('#receiptPrintArea .receiptOrderQrBlock img', { state: 'attached' });
+    if (await page.locator('#receiptPrintArea .receiptOrderQrBlock img').count()) throw new Error('控えにQRが印刷されます');
     if (platform.mobile && !(await page.textContent('#deviceSaveText')).includes('長押し')) throw new Error(`${platform.name}: 共通の長押し保存案内が表示されません`);
     await page.emulateMedia({ media: 'print' });
     const layout = await page.evaluate(() => ({
@@ -362,12 +384,11 @@ async function platformPrintSmoke(browser) {
       rowBreak: getComputedStyle(document.querySelector('.receiptTable tbody tr')).breakInside,
       qrBreak: getComputedStyle(document.querySelector('.receiptOrderQrBlock')).breakInside,
       qrBlockWidth: document.querySelector('.receiptOrderQrBlock').getBoundingClientRect().width,
-      qrImageWidth: document.querySelector('.receiptOrderQrBlock img').getBoundingClientRect().width,
       qrBeforeFooter: document.querySelector('.receiptOrderQrBlock').nextElementSibling?.classList.contains('receiptFooterMini'),
       summaryBreak: getComputedStyle(document.querySelector('.receiptSummaryBox')).breakInside,
       pageWidth: document.querySelector('#receiptPrintArea').getBoundingClientRect().width,
     }));
-    if (layout.tableDisplay !== 'table' || layout.rowBreak !== 'avoid' || layout.qrBreak !== 'avoid' || layout.summaryBreak !== 'avoid' || !layout.qrBeforeFooter || layout.qrBlockWidth > 240 || layout.qrImageWidth > 40) throw new Error(`${platform.name}: 印刷用CSSまたはフッターQR配置が不正です ${JSON.stringify(layout)}`);
+    if (layout.tableDisplay !== 'table' || layout.rowBreak !== 'avoid' || layout.qrBreak !== 'avoid' || layout.summaryBreak !== 'avoid' || !layout.qrBeforeFooter || layout.qrBlockWidth > 240) throw new Error(`${platform.name}: 印刷用CSSまたはフッターQR配置が不正です ${JSON.stringify(layout)}`);
     const pdf = await page.pdf({ format: 'A4', preferCSSPageSize: true, printBackground: true });
     const pages = await pdfPageTexts(pdf);
     if (pages.length < 2 || pages.length > 8) throw new Error(`${platform.name}: 複数ページ数が不自然です (${pages.length})`);
@@ -376,6 +397,51 @@ async function platformPrintSmoke(browser) {
     if (errors.length) throw new Error(`${platform.name}: ${errors.join('\n')}`);
     await page.close();
   }
+}
+
+async function staffIntakeFlow(browser) {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const errors = [];
+  page.on('pageerror', error => errors.push(String(error)));
+  page.on('dialog', dialog => dialog.accept());
+  await page.route('https://app.test/index.html?mode=staff', route => route.fulfill({
+    contentType: 'text/html',
+    body: customerHtml(`
+      localStorage.setItem('koreaExhibitionStaffSessionV3',JSON.stringify({access_token:'staff-access'}));
+      window.staffAttempts=[];
+      const originalFetch=window.fetch.bind(window);
+      window.fetch=async(input,init={})=>{
+        if(!String(input).includes('staffIntake=1'))return originalFetch(input,init);
+        const order=JSON.parse(init.body.get('order'));
+        window.staffAttempts.push({order,method:init.method,auth:init.headers.Authorization,card:init.body.has('businessCardOriginal'),extras:init.body.getAll('additionalBusinessCards').length});
+        if(window.staffAttempts.length===1)throw new Error('Failed to fetch');
+        return new Response(JSON.stringify({receipt:'00000000-0000-0000-0000-000000000001.${'a'.repeat(64)}',orderNo:'K-0005',status:'confirmed',total:83300}),{status:201});
+      };
+    `, false),
+  }));
+  await page.goto('https://app.test/index.html?mode=staff');
+  await page.waitForFunction(() => catalogReady);
+  await page.fill('#searchInput', '1053');
+  await page.click('[data-add="1053"]');
+  await page.click('#quickCheckout');
+  if (await page.locator('#customerName').isVisible() || await page.locator('#customerCompany').getAttribute('required') !== null) throw new Error('スタッフ受付に必須の氏名や店舗名が残っています');
+  const card = { name: 'card.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWfcAAAAASUVORK5CYII=', 'base64') };
+  await page.locator('#businessCardInput').setInputFiles(card);
+  await page.waitForSelector('#businessCardPreview.show');
+  await page.locator('#additionalBusinessCardInput').setInputFiles(card);
+  await page.waitForSelector('#additionalBusinessCards img');
+  if (!(await page.textContent('#checkoutSummary')).includes('₩83,300')) throw new Error('注文確定前に注文単価を確認できません');
+  await page.click('#createQr');
+  await page.waitForFunction(() => window.staffAttempts.length === 1 && !document.getElementById('createQr').disabled);
+  await page.click('#createQr');
+  await page.waitForSelector('#qrDialog[open]');
+  const attempts = await page.evaluate(() => window.staffAttempts);
+  if (attempts.length !== 2 || attempts.some(attempt => attempt.method !== 'POST' || attempt.auth !== 'Bearer staff-access' || !attempt.card || attempt.extras !== 1) || attempts[0].order.clientSubmissionId !== attempts[1].order.clientSubmissionId) throw new Error('スタッフ受付が再送時に同じ注文IDと認証を使用していません');
+  if (!(await page.textContent('#receiptUrl')).includes('#customer-receipt=') || await page.locator('#editOrderFromHandoff').isVisible()) throw new Error('確定直後のQRが閲覧専用控えを開きません');
+  await page.click('#newOrder');
+  if (await page.evaluate(() => order.length || sessionStorage.getItem('staffOrderSubmissionId'))) throw new Error('次の注文に前のカートや受付IDが残っています');
+  if (errors.length) throw new Error(errors.join('\n'));
+  await page.close();
 }
 
 async function priceFirstFlow(browser) {
@@ -387,6 +453,7 @@ async function priceFirstFlow(browser) {
   await page.selectOption('#langSelect','ja');
   await page.fill('#searchInput','１０５３');
   await page.waitForSelector('[data-exact-match="true"]');
+  if ((await page.textContent('[data-exact-match="true"] .price')).trim() !== '新卸価格 8330') throw new Error('Q列の新卸価格が表示されません');
   if(await page.locator('#cartPanel').isVisible() || await page.locator('[data-add="1053"]').isVisible())throw new Error('Price mode exposes ordering');
   await page.waitForFunction(()=>JSON.parse(localStorage.getItem('exhibitionRecentCodes')||'[]').includes('1053'));
   await page.click('#nextProductSearch');
@@ -416,6 +483,7 @@ async function priceFirstFlow(browser) {
   const browser = await chromium.launch(launchOptions());
   try {
     await priceFirstFlow(browser);
+    await staffIntakeFlow(browser);
     await customerFlow(browser);
     await customerFailure(browser);
     await staffFlow(browser);

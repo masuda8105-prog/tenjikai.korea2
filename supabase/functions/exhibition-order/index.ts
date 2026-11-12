@@ -107,19 +107,19 @@ function extensionFor(file: File): string {
   return found?.[1]?.toLowerCase() ?? "jpg";
 }
 
-function validateOrder(order: any): string | null {
+function validateOrder(order: any, staffIntake = false): string | null {
   if (!order || typeof order !== "object") return "注文データがありません。";
-  if (!String(order.customerCompany ?? "").trim()) return "会社名がありません。";
-  if (!String(order.customerName ?? "").trim()) return "氏名がありません。";
-  if (!String(order.customerPhone ?? "").trim()) return "電話番号がありません。";
+  if (!staffIntake && !String(order.customerCompany ?? "").trim()) return "会社名がありません。";
+  if (!staffIntake && !String(order.customerName ?? "").trim()) return "氏名がありません。";
+  if (!staffIntake && !String(order.customerPhone ?? "").trim()) return "電話番号がありません。";
   if (!Array.isArray(order.items) || order.items.length < 1) return "注文明細がありません。";
   if (order.items.length > 1000) return "1件の注文は1000品番までです。";
   for (const item of order.items) {
     if (!String(item?.c ?? "").trim()) return "品番が空の明細があります。";
     const qty = Number(item?.q ?? 0);
     const unitPrice = Number(item?.p ?? 0);
-    if (!Number.isFinite(qty) || qty < 1 || qty > 9999) return "数量が不正です。";
-    if (!Number.isFinite(unitPrice) || unitPrice < 0) return "価格が不正です。";
+    if (!Number.isFinite(qty) || qty < 1 || qty > 9999 || (staffIntake && !Number.isInteger(qty))) return "数量が不正です。";
+    if (!Number.isFinite(unitPrice) || unitPrice < 0 || (staffIntake && (!Number.isSafeInteger(unitPrice) || unitPrice === 0))) return "価格が不正です。";
   }
   return null;
 }
@@ -170,6 +170,11 @@ async function createOrder(req: Request): Promise<Response> {
   if (!originAllowed(req)) return json(req, { error: "origin_not_allowed" }, 403);
   if (!apiKeyAllowed(req)) return json(req, { error: "invalid_api_key" }, 401);
 
+  const staffIntake = new URL(req.url).searchParams.get("staffIntake") === "1";
+  const staff = staffIntake ? await activeStaff(req) : null;
+  if (staff instanceof Response) return staff;
+  const status = staff ? "confirmed" : "submitted";
+
   let form: FormData;
   try {
     form = await req.formData();
@@ -187,23 +192,29 @@ async function createOrder(req: Request): Promise<Response> {
     return json(req, { error: "invalid_order_json" }, 400);
   }
 
-  const validationError = validateOrder(clientOrder);
+  const validationError = validateOrder(clientOrder, staffIntake);
   if (validationError) return json(req, { error: validationError }, 400);
+  if (staff) {
+    const total = clientOrder.items.reduce((sum: number, item: { p: unknown; q: unknown }) => sum + Number(item.p) * Number(item.q), 0);
+    if (!Number.isSafeInteger(total)) return json(req, { error: "注文合計が範囲外です。" }, 400);
+    clientOrder.total = total;
+  }
   const clientSubmissionId = validSubmissionId(clientOrder.clientSubmissionId);
   if (!clientSubmissionId) return json(req, { error: "client_submission_id_invalid" }, 400);
 
   const { data: existing, error: existingError } = await supabase
     .from("exhibition_orders")
-    .select("id, public_token, order_no, status, created_at, updated_at, expires_at, business_card_original_path, business_card_preview_path")
+    .select("id, public_token, order_no, order_data, status, created_at, updated_at, expires_at, business_card_original_path, business_card_preview_path")
     .eq("client_submission_id", clientSubmissionId)
     .maybeSingle();
   if (existingError && existingError.code !== "42703") {
     return json(req, { error: existingError.message }, 500);
   }
   if (existing) {
+    if (Boolean(existing.order_data?._staffIntake) !== staffIntake) return json(req, { error: "submission_conflict" }, 409);
     return json(req, {
       id: existing.id,
-      token: existing.public_token,
+      ...(staff ? { receipt: await makeReceiptCredential(existing.id, existing.public_token), total: Number(existing.order_data?.total) || 0 } : { token: existing.public_token }),
       orderNo: existing.order_no,
       status: existing.status,
       createdAt: existing.created_at,
@@ -218,6 +229,12 @@ async function createOrder(req: Request): Promise<Response> {
   const preview = form.get("businessCardPreview");
   const originalFile = original instanceof File && original.size > 0 ? original : null;
   const previewFile = preview instanceof File && preview.size > 0 ? preview : null;
+  const additionalCards = staff ? form.getAll("additionalBusinessCards") : [];
+  if (additionalCards.length > 4 || additionalCards.some(file =>
+    !(file instanceof File) || file.type !== "image/jpeg" || file.size === 0 || file.size > 5 * 1024 * 1024
+  )) {
+    return json(req, { error: "名刺は合計5枚まで、追加画像は1枚5MB以下のJPEGにしてください。" }, 400);
+  }
 
   if (originalFile && (!originalFile.type.startsWith("image/") || originalFile.size > 15 * 1024 * 1024)) {
     return json(req, { error: "名刺の元画像は15MB以下の画像ファイルにしてください。" }, 400);
@@ -228,10 +245,23 @@ async function createOrder(req: Request): Promise<Response> {
 
   const id = crypto.randomUUID();
   const token = randomToken(32);
-  const orderNo = await issueOrderNo();
+  const receipt = staff ? await makeReceiptCredential(id, token) : '';
+  let orderNo: string;
+  if (staff) {
+    const { data, error } = await supabase.rpc("next_korea_staff_order_no");
+    if (error || typeof data !== "string" || !/^K-\d{4,}$/.test(data)) {
+      return json(req, { error: "staff_order_number_unavailable" }, 503);
+    }
+    orderNo = data;
+  } else {
+    orderNo = await issueOrderNo();
+  }
   const createdAt = new Date().toISOString();
   const order = {
     ...clientOrder,
+    _staffIntake: staffIntake,
+    _additionalBusinessCardPaths: [],
+    ...(staff ? { staffName: staff.name } : {}),
     v: 10,
     clientSubmissionId,
     eventId: cleanText(clientOrder.eventId, 120) || "korea-exhibition",
@@ -239,7 +269,7 @@ async function createOrder(req: Request): Promise<Response> {
     eventDate: validEventDate(clientOrder.eventDate),
     eventDay: Math.max(1, Math.min(99, Number(clientOrder.eventDay) || 1)),
     orderNo,
-    status: "submitted",
+    status,
     createdAt,
     date: createdAt,
   };
@@ -249,6 +279,8 @@ async function createOrder(req: Request): Promise<Response> {
     ? `${basePath}/original-${cleanFileName(originalFile.name).replace(/\.[^.]+$/, "")}.${extensionFor(originalFile)}`
     : null;
   const previewPath = previewFile ? `${basePath}/preview.jpg` : null;
+  const additionalPaths = additionalCards.map((_, index) => `${basePath}/business-card-${index + 2}.jpg`);
+  order._additionalBusinessCardPaths = additionalPaths;
   const uploaded: string[] = [];
 
   try {
@@ -260,6 +292,11 @@ async function createOrder(req: Request): Promise<Response> {
       await uploadFile(previewPath, previewFile);
       uploaded.push(previewPath);
     }
+    for (const [index, file] of additionalCards.entries()) {
+      const path = additionalPaths[index];
+      await uploadFile(path, file as File);
+      uploaded.push(path);
+    }
 
     const expiresAt = new Date(Date.now() + RETENTION_DAYS * 86400000).toISOString();
     const { error } = await supabase.from("exhibition_orders").insert({
@@ -267,7 +304,8 @@ async function createOrder(req: Request): Promise<Response> {
       public_token: token,
       order_no: orderNo,
       order_data: order,
-      status: "submitted",
+      status,
+      ...(staff ? { assigned_to: staff.id, assigned_name: staff.name, completed_at: createdAt } : {}),
       client_submission_id: clientSubmissionId,
       event_id: order.eventId,
       event_name: order.eventName || null,
@@ -282,13 +320,14 @@ async function createOrder(req: Request): Promise<Response> {
       if (uploaded.length) await supabase.storage.from(BUCKET).remove(uploaded);
       const { data: raced } = await supabase
         .from("exhibition_orders")
-        .select("id, public_token, order_no, status, created_at, updated_at, expires_at, business_card_original_path, business_card_preview_path")
+        .select("id, public_token, order_no, order_data, status, created_at, updated_at, expires_at, business_card_original_path, business_card_preview_path")
         .eq("client_submission_id", clientSubmissionId)
         .maybeSingle();
       if (raced) {
+        if (Boolean(raced.order_data?._staffIntake) !== staffIntake) return json(req, { error: "submission_conflict" }, 409);
         return json(req, {
           id: raced.id,
-          token: raced.public_token,
+          ...(staff ? { receipt: await makeReceiptCredential(raced.id, raced.public_token), total: Number(raced.order_data?.total) || 0 } : { token: raced.public_token }),
           orderNo: raced.order_no,
           status: raced.status,
           createdAt: raced.created_at,
@@ -303,13 +342,13 @@ async function createOrder(req: Request): Promise<Response> {
 
     return json(req, {
       id,
-      token,
+      ...(staff ? { receipt, total: Number(order.total) || 0 } : { token }),
       orderNo,
-      status: "submitted",
+      status,
       createdAt,
       updatedAt: createdAt,
       expiresAt,
-      hasBusinessCard: Boolean(originalPath || previewPath),
+      hasBusinessCard: Boolean(originalPath || previewPath || additionalPaths.length),
     }, 201);
   } catch (error) {
     if (uploaded.length) await supabase.storage.from(BUCKET).remove(uploaded).catch(() => undefined);
@@ -515,11 +554,78 @@ async function signedUrl(path: string | null): Promise<string> {
   return data?.signedUrl ?? "";
 }
 
+const ORDER_UUID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+const RECEIPT_SIGNATURE = /^[0-9a-f]{64}$/;
+
+async function activeStaff(req: Request): Promise<{ id: string; name: string } | Response> {
+  const jwt = req.headers.get("Authorization")?.match(/^Bearer (\S+)$/i)?.[1];
+  if (!jwt) return json(req, { error: "staff_login_required" }, 401);
+  const { data: { user }, error } = await supabase.auth.getUser(jwt);
+  if (error || !user) return json(req, { error: "staff_login_required" }, 401);
+  const staff = await supabase.from("exhibition_staff").select("display_name").eq("user_id", user.id).eq("active", true).maybeSingle();
+  if (staff.error) return json(req, { error: "staff_lookup_failed" }, 500);
+  if (!staff.data) return json(req, { error: "staff_required" }, 403);
+  return { id: user.id, name: staff.data.display_name };
+}
+
+async function receiptKey(token: string) {
+  return crypto.subtle.importKey("raw", new TextEncoder().encode(token), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
+}
+
+function receiptMessage(id: string) {
+  return new TextEncoder().encode(`customer-receipt-v1:${id}`);
+}
+
+async function makeReceiptCredential(id: string, token: string) {
+  const bytes = new Uint8Array(await crypto.subtle.sign("HMAC", await receiptKey(token), receiptMessage(id)));
+  return `${id}.${Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("")}`;
+}
+
+async function customerReceipt(req: Request, url: URL): Promise<Response> {
+  const issuing = url.searchParams.has("issueReceiptFor");
+  const [id, signature, extra] = issuing
+    ? [url.searchParams.get("issueReceiptFor") ?? "", "", undefined]
+    : (url.searchParams.get("receipt") ?? "").split(".");
+  if (!ORDER_UUID.test(id) || (!issuing && (!RECEIPT_SIGNATURE.test(signature) || extra !== undefined))) {
+    return json(req, { error: "order_not_found" }, 404);
+  }
+
+  if (issuing) {
+    const staff = await activeStaff(req);
+    if (staff instanceof Response) return staff;
+  }
+
+  const { data, error } = await supabase.from("exhibition_orders")
+    .select("id, public_token, order_no, order_data, created_at")
+    .eq("id", id).neq("status", "deleted").gt("expires_at", new Date().toISOString()).maybeSingle();
+  if (error) return json(req, { error: "read_failed" }, 500);
+  if (!data?.public_token) return json(req, { error: "order_not_found" }, 404);
+
+  // A receipt signature cannot be used as the legacy order edit token.
+  if (issuing) return json(req, { receipt: await makeReceiptCredential(data.id, data.public_token) });
+  const bytes = Uint8Array.from(signature.match(/../g) ?? [], part => parseInt(part, 16));
+  if (!await crypto.subtle.verify("HMAC", await receiptKey(data.public_token), bytes, receiptMessage(data.id))) {
+    return json(req, { error: "order_not_found" }, 404);
+  }
+  const items = Array.isArray(data.order_data?.items) ? data.order_data.items : [];
+  return json(req, {
+    orderNo: data.order_no,
+    createdAt: data.created_at,
+    items: items.map((item: { c?: unknown; n?: unknown; p?: unknown; q?: unknown }) => ({
+      c: typeof item?.c === "string" ? item.c : "",
+      n: Array.isArray(item?.n) ? item.n.map(value => typeof value === "string" ? value : "") : typeof item?.n === "string" ? item.n : "",
+      p: Number(item?.p) || 0,
+      q: Number(item?.q) || 0,
+    })),
+  });
+}
+
 async function getOrder(req: Request): Promise<Response> {
   if (!originAllowed(req)) return json(req, { error: "origin_not_allowed" }, 403);
   if (!apiKeyAllowed(req)) return json(req, { error: "invalid_api_key" }, 401);
 
   const url = new URL(req.url);
+  if (url.searchParams.has("receipt") || url.searchParams.has("issueReceiptFor")) return customerReceipt(req, url);
   const token = (url.searchParams.get("token") ?? "").trim();
   if (!/^[A-Za-z0-9_-]{30,80}$/.test(token)) return json(req, { error: "invalid_token" }, 400);
 
@@ -530,6 +636,7 @@ async function getOrder(req: Request): Promise<Response> {
     .maybeSingle();
   if (error) return json(req, { error: error.message }, 500);
   if (!data) return json(req, { error: "order_not_found" }, 404);
+  if (data.order_data?._staffIntake) return json(req, { error: "order_not_found" }, 404);
   if (new Date(data.expires_at).getTime() <= Date.now()) return json(req, { error: "order_expired" }, 410);
 
   try {

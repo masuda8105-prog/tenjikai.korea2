@@ -43,29 +43,42 @@ Deno.serve(async (req) => {
   let deletedFiles = 0;
   const storageErrors: string[] = [];
   for (let page = 0; page < 10; page += 1) {
+    const cutoff = new Date().toISOString();
     const { data, error } = await supabase
       .from("exhibition_orders")
-      .select("id, business_card_original_path, business_card_preview_path")
-      .lt("expires_at", new Date().toISOString())
+      .select("id, extra_cards:order_data->_additionalBusinessCardPaths, business_card_original_path, business_card_preview_path")
+      .lt("expires_at", cutoff)
       .limit(500);
     if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
     const rows = data ?? [];
     if (!rows.length) break;
     const paths = rows
-      .flatMap((row) => [row.business_card_original_path, row.business_card_preview_path])
+      .flatMap((row) => {
+        const extra = Array.isArray(row.extra_cards) ? row.extra_cards : [];
+        const prefix = new RegExp(`^[A-Za-z0-9_-]+/\\d{4}-\\d{2}-\\d{2}/${row.id}/business-card-[2-5]\\.jpg$`);
+        return [row.business_card_original_path, row.business_card_preview_path, ...extra.filter(path => typeof path === "string" && prefix.test(path))];
+      })
       .filter((path): path is string => Boolean(path));
-    const { error: deleteError } = await supabase.from("exhibition_orders").delete().in("id", rows.map((row) => row.id));
+    for (let index = 0; index < paths.length; index += 100) {
+      const group = paths.slice(index, index + 100);
+      const { error: removeError } = await supabase.storage.from(BUCKET).remove(group);
+      if (removeError) {
+        storageErrors.push(removeError.message);
+        break;
+      }
+      deletedFiles += group.length;
+    }
+    // Retain the references so the next cleanup can retry a partial removal.
+    if (storageErrors.length) break;
+    const { error: deleteError } = await supabase.from("exhibition_orders")
+      .delete().in("id", rows.map((row) => row.id)).lt("expires_at", cutoff);
     if (deleteError) return new Response(JSON.stringify({ error: deleteError.message }), { status: 500 });
     deletedOrders += rows.length;
-    if (paths.length) {
-      const { error: removeError } = await supabase.storage.from(BUCKET).remove(paths);
-      if (removeError) storageErrors.push(removeError.message);
-      else deletedFiles += paths.length;
-    }
     if (rows.length < 500) break;
   }
 
   return new Response(JSON.stringify({ deletedOrders, deletedFiles, storageErrors }), {
+    status: storageErrors.length ? 500 : 200,
     headers: { "Content-Type": "application/json; charset=utf-8" },
   });
 });
