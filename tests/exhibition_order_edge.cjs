@@ -75,6 +75,7 @@ function createBody() {
 }
 
 (async () => {
+  assert.equal((await request('', { body: createBody() })).status, 403);
   assert.equal((await request('staffIntake=1', { body: createBody() })).status, 401);
   assert.equal((await request('staffIntake=1', { jwt: 'non-staff', body: createBody() })).status, 403);
   const created = await request('staffIntake=1', { jwt: 'staff', body: createBody() });

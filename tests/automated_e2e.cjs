@@ -213,7 +213,7 @@ async function staffFlow(browser) {
   await page.click('#customerQrTopClose');
   await page.click('#startButton'); await page.waitForFunction(() => document.querySelector('#progressCount')?.textContent === '1');
   await page.click('#completeButton'); await page.waitForFunction(() => document.querySelector('#completedCount')?.textContent === '1');
-  await page.locator('#legacyWorkflow').evaluate(element => { element.open = true; });
+  await page.locator('#legacyWorkflow').evaluate(element => { element.classList.remove('hidden'); element.open = true; });
   const confirmedText = await page.textContent('#list-completed .confirmedOrderRow');
   if (!confirmedText.includes('Test Optical') || !confirmedText.includes('Kim') || !confirmedText.includes('増田') || !confirmedText.includes('K260803-001')) throw new Error('注文確定分の会社名・お客様名を含む一行表示が不正です');
   await page.click('#closeDetail');
@@ -419,6 +419,10 @@ async function staffIntakeFlow(browser) {
       };
     `, false),
   }));
+  await page.route('https://app.test/index.html?mode=order', route => route.fulfill({contentType:'text/html', body:customerHtml('', false)}));
+  await page.route('https://app.test/staff.html', route => route.fulfill({contentType:'text/html', body:'<h1>スタッフ画面</h1>'}));
+  await page.goto('https://app.test/index.html?mode=order');
+  await page.waitForURL('https://app.test/staff.html');
   await page.goto('https://app.test/index.html?mode=staff');
   await page.waitForFunction(() => catalogReady);
   await page.fill('#searchInput', '1053');
@@ -435,6 +439,7 @@ async function staffIntakeFlow(browser) {
   await page.waitForFunction(() => window.staffAttempts.length === 1 && !document.getElementById('createQr').disabled);
   await page.click('#createQr');
   await page.waitForSelector('#qrDialog[open]');
+  if (!(await page.textContent('#qrDialog .modalHead')).includes('注文が確定しました')) throw new Error('スタッフ注文が確定画面を表示しません');
   const attempts = await page.evaluate(() => window.staffAttempts);
   if (attempts.length !== 2 || attempts.some(attempt => attempt.method !== 'POST' || attempt.auth !== 'Bearer staff-access' || !attempt.card || attempt.extras !== 1) || attempts[0].order.clientSubmissionId !== attempts[1].order.clientSubmissionId) throw new Error('スタッフ受付が再送時に同じ注文IDと認証を使用していません');
   if (!(await page.textContent('#receiptUrl')).includes('#customer-receipt=') || await page.locator('#editOrderFromHandoff').isVisible()) throw new Error('確定直後のQRが閲覧専用控えを開きません');

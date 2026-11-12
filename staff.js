@@ -427,7 +427,7 @@
   function renderUnsentAlert(base) {
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
     const old = base.filter((order) => ['confirmed', 'completed', 'resend_required'].includes(order.status) && dateOf(order) < today);
-    $('unsentAlert').classList.toggle('hidden', old.length === 0);
+    $('unsentAlert').classList.toggle('hidden', old.length === 0 || !$('legacyWorkflow').open);
     $('unsentAlertText').textContent = `前日までの代理店未送信注文が${old.length}件あります。`;
   }
 
@@ -1297,6 +1297,17 @@
     $('searchInput').addEventListener('input', render);
     $('eventFilter').addEventListener('change', () => { populateFilters(); render(); });
     $('dateFilter').addEventListener('change', render);
+    $('legacyWorkflowButton').addEventListener('click', () => {
+      const panel = $('legacyWorkflow');
+      panel.open = panel.classList.toggle('hidden') === false;
+      $('legacyWorkflowButton').setAttribute('aria-expanded', String(panel.open));
+      renderUnsentAlert(filteredBase());
+      if (panel.open) panel.scrollIntoView({ block: 'start' });
+    });
+    $('legacyWorkflow').addEventListener('toggle', () => {
+      $('legacyWorkflowButton').setAttribute('aria-expanded', String($('legacyWorkflow').open));
+      renderUnsentAlert(filteredBase());
+    });
     $('showUnsentButton').addEventListener('click', () => { $('dateFilter').value = 'all'; $('legacyWorkflow').open = true; render(); requestAnimationFrame(() => $('column-completed').scrollIntoView({ behavior: 'smooth', block: 'start' })); });
     $('soundButton').addEventListener('click', () => { state.soundEnabled = !state.soundEnabled; if (state.soundEnabled) { beep(); $('soundButton').textContent = '🔔 通知音ON'; } else $('soundButton').textContent = '🔕 通知音OFF'; });
     document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.tab)));

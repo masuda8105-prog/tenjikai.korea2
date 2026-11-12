@@ -147,33 +147,14 @@ async function uploadFile(path: string, file: File): Promise<void> {
   if (error) throw new Error(`storage upload failed: ${error.message}`);
 }
 
-function fallbackOrderNo(): string {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Seoul",
-    year: "2-digit",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const parts = Object.fromEntries(formatter.formatToParts(new Date()).map((part) => [part.type, part.value]));
-  const suffix = crypto.randomUUID().replaceAll("-", "").slice(0, 5).toUpperCase();
-  return `K${parts.year}${parts.month}${parts.day}-${suffix}`;
-}
-
-async function issueOrderNo(): Promise<string> {
-  const { data, error } = await supabase.rpc("next_korea_order_no");
-  if (!error && typeof data === "string" && data) return data;
-  console.warn("next_korea_order_no unavailable; using collision-resistant fallback", error?.message ?? "");
-  return fallbackOrderNo();
-}
-
 async function createOrder(req: Request): Promise<Response> {
   if (!originAllowed(req)) return json(req, { error: "origin_not_allowed" }, 403);
   if (!apiKeyAllowed(req)) return json(req, { error: "invalid_api_key" }, 401);
 
-  const staffIntake = new URL(req.url).searchParams.get("staffIntake") === "1";
-  const staff = staffIntake ? await activeStaff(req) : null;
+  if (new URL(req.url).searchParams.get("staffIntake") !== "1") return json(req, { error: "staff_order_required" }, 403);
+  const staff = await activeStaff(req);
   if (staff instanceof Response) return staff;
-  const status = staff ? "confirmed" : "submitted";
+  const status = "confirmed";
 
   let form: FormData;
   try {
@@ -192,13 +173,11 @@ async function createOrder(req: Request): Promise<Response> {
     return json(req, { error: "invalid_order_json" }, 400);
   }
 
-  const validationError = validateOrder(clientOrder, staffIntake);
+  const validationError = validateOrder(clientOrder, true);
   if (validationError) return json(req, { error: validationError }, 400);
-  if (staff) {
-    const total = clientOrder.items.reduce((sum: number, item: { p: unknown; q: unknown }) => sum + Number(item.p) * Number(item.q), 0);
-    if (!Number.isSafeInteger(total)) return json(req, { error: "注文合計が範囲外です。" }, 400);
-    clientOrder.total = total;
-  }
+  const total = clientOrder.items.reduce((sum: number, item: { p: unknown; q: unknown }) => sum + Number(item.p) * Number(item.q), 0);
+  if (!Number.isSafeInteger(total)) return json(req, { error: "注文合計が範囲外です。" }, 400);
+  clientOrder.total = total;
   const clientSubmissionId = validSubmissionId(clientOrder.clientSubmissionId);
   if (!clientSubmissionId) return json(req, { error: "client_submission_id_invalid" }, 400);
 
@@ -211,10 +190,11 @@ async function createOrder(req: Request): Promise<Response> {
     return json(req, { error: existingError.message }, 500);
   }
   if (existing) {
-    if (Boolean(existing.order_data?._staffIntake) !== staffIntake) return json(req, { error: "submission_conflict" }, 409);
+    if (!existing.order_data?._staffIntake) return json(req, { error: "submission_conflict" }, 409);
     return json(req, {
       id: existing.id,
-      ...(staff ? { receipt: await makeReceiptCredential(existing.id, existing.public_token), total: Number(existing.order_data?.total) || 0 } : { token: existing.public_token }),
+      receipt: await makeReceiptCredential(existing.id, existing.public_token),
+      total: Number(existing.order_data?.total) || 0,
       orderNo: existing.order_no,
       status: existing.status,
       createdAt: existing.created_at,
@@ -229,7 +209,7 @@ async function createOrder(req: Request): Promise<Response> {
   const preview = form.get("businessCardPreview");
   const originalFile = original instanceof File && original.size > 0 ? original : null;
   const previewFile = preview instanceof File && preview.size > 0 ? preview : null;
-  const additionalCards = staff ? form.getAll("additionalBusinessCards") : [];
+  const additionalCards = form.getAll("additionalBusinessCards");
   if (additionalCards.length > 4 || additionalCards.some(file =>
     !(file instanceof File) || file.type !== "image/jpeg" || file.size === 0 || file.size > 5 * 1024 * 1024
   )) {
@@ -245,23 +225,17 @@ async function createOrder(req: Request): Promise<Response> {
 
   const id = crypto.randomUUID();
   const token = randomToken(32);
-  const receipt = staff ? await makeReceiptCredential(id, token) : '';
-  let orderNo: string;
-  if (staff) {
-    const { data, error } = await supabase.rpc("next_korea_staff_order_no");
-    if (error || typeof data !== "string" || !/^K-\d{4,}$/.test(data)) {
-      return json(req, { error: "staff_order_number_unavailable" }, 503);
-    }
-    orderNo = data;
-  } else {
-    orderNo = await issueOrderNo();
+  const receipt = await makeReceiptCredential(id, token);
+  const { data: orderNo, error: orderNumberError } = await supabase.rpc("next_korea_staff_order_no");
+  if (orderNumberError || typeof orderNo !== "string" || !/^K-\d{4,}$/.test(orderNo)) {
+    return json(req, { error: "staff_order_number_unavailable" }, 503);
   }
   const createdAt = new Date().toISOString();
   const order = {
     ...clientOrder,
-    _staffIntake: staffIntake,
+    _staffIntake: true,
     _additionalBusinessCardPaths: [],
-    ...(staff ? { staffName: staff.name } : {}),
+    staffName: staff.name,
     v: 10,
     clientSubmissionId,
     eventId: cleanText(clientOrder.eventId, 120) || "korea-exhibition",
@@ -305,7 +279,9 @@ async function createOrder(req: Request): Promise<Response> {
       order_no: orderNo,
       order_data: order,
       status,
-      ...(staff ? { assigned_to: staff.id, assigned_name: staff.name, completed_at: createdAt } : {}),
+      assigned_to: staff.id,
+      assigned_name: staff.name,
+      completed_at: createdAt,
       client_submission_id: clientSubmissionId,
       event_id: order.eventId,
       event_name: order.eventName || null,
@@ -324,10 +300,11 @@ async function createOrder(req: Request): Promise<Response> {
         .eq("client_submission_id", clientSubmissionId)
         .maybeSingle();
       if (raced) {
-        if (Boolean(raced.order_data?._staffIntake) !== staffIntake) return json(req, { error: "submission_conflict" }, 409);
+        if (!raced.order_data?._staffIntake) return json(req, { error: "submission_conflict" }, 409);
         return json(req, {
           id: raced.id,
-          ...(staff ? { receipt: await makeReceiptCredential(raced.id, raced.public_token), total: Number(raced.order_data?.total) || 0 } : { token: raced.public_token }),
+          receipt: await makeReceiptCredential(raced.id, raced.public_token),
+          total: Number(raced.order_data?.total) || 0,
           orderNo: raced.order_no,
           status: raced.status,
           createdAt: raced.created_at,
@@ -342,7 +319,8 @@ async function createOrder(req: Request): Promise<Response> {
 
     return json(req, {
       id,
-      ...(staff ? { receipt, total: Number(order.total) || 0 } : { token }),
+      receipt,
+      total,
       orderNo,
       status,
       createdAt,

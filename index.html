@@ -322,7 +322,7 @@
       if(location.hash.startsWith('#receipt=')||location.hash.startsWith('#staff=')||location.hash.startsWith('#online-receipt=')||location.hash.startsWith('#online-staff=')){ showReceiptFromHash(); return; }
       const savedLang=localStorage.getItem('qrDisplayLang'); if(savedLang&&['ja','ko'].includes(savedLang)) $('langSelect').value=savedLang;
       const mode=new URLSearchParams(location.search).get('mode');
-      if(!mode && /^https?:$/.test(location.protocol)){
+      if(!staffIntake && /^https?:$/.test(location.protocol)){
         location.replace(new URL('staff.html',location.href));
         return;
       }
@@ -331,6 +331,8 @@
         document.body.classList.add('staffIntake');
         $('langSelect').value='ja';
         $('browseModeToggle').style.display='none';
+        $('qrDialog').querySelector('.modalHead b').textContent='注文が確定しました';
+        $('qrDialog').querySelector('.customerNextBox b').textContent='お客様への注文控え';
         ['customerCompany','customerName','customerPhone'].forEach(id=>{
           $(id).required=false;
           $(id).removeAttribute('aria-required');

@@ -83,7 +83,7 @@
         <button id="newStaffOrderButton" type="button">新しい注文</button><button id="priceCheckButton" class="priceCheckButton" type="button">⌕ 価格確認</button>
         <div id="staffIdentity" class="staffIdentity"></div>
         <div class="syncState topSync"><span id="syncDot" class="dot"></span><span id="syncText">接続準備中</span></div>
-        <details class="utilityMenu"><summary>メニュー</summary><div class="utilityMenuBody"><div id="utilityIdentity" class="utilityIdentity"></div><button id="sentOrdersButton" class="menuWithCount" type="button"><span>送付済み注文</span><strong id="sentCount">0</strong></button><button id="soundButton" type="button">🔕 通知音OFF</button><button id="batchHistoryButton" type="button">送信履歴</button><button id="historyButton" type="button">削除履歴</button><button id="printAllOrdersButton" type="button">全注文をPDF出力</button><button id="refreshButton" type="button">最新情報に更新</button><button id="logoutButton" type="button">ログアウト</button></div></details>
+        <details class="utilityMenu"><summary>メニュー</summary><div class="utilityMenuBody"><div id="utilityIdentity" class="utilityIdentity"></div><button id="sentOrdersButton" class="menuWithCount" type="button"><span>送付済み注文</span><strong id="sentCount">0</strong></button><button id="soundButton" type="button">🔕 通知音OFF</button><button id="legacyWorkflowButton" type="button" aria-controls="legacyWorkflow" aria-expanded="false">旧注文・送付履歴の管理</button><button id="batchHistoryButton" type="button">送信履歴</button><button id="historyButton" type="button">削除履歴</button><button id="printAllOrdersButton" type="button">全注文をPDF出力</button><button id="refreshButton" type="button">最新情報に更新</button><button id="logoutButton" type="button">ログアウト</button></div></details>
       </div>
     </div></header>
 
@@ -102,7 +102,7 @@
         <div class="confirmedListHeader" aria-hidden="true"><span>受付日時</span><span>店舗名</span><span>金額</span><span>受付番号</span></div>
         <div id="list-history" class="orderList confirmedOrderList"></div>
       </section>
-      <details id="legacyWorkflow" class="filterPanel"><summary>旧受付・送付管理</summary>
+      <details id="legacyWorkflow" class="filterPanel hidden"><summary>旧注文・送付履歴の管理</summary>
       <nav class="summary statusTabs workflowNav" aria-label="注文対応の流れ">
         <button data-tab="open" class="active"><span class="workflowStepLabel"><small>未着手の注文</small><b>確認待ち</b></span><strong id="newCount" class="workflowCount">0</strong></button>
         <button data-tab="progress"><span class="workflowStepLabel"><small>対応中の注文</small><b>確認中</b></span><strong id="progressCount" class="workflowCount">0</strong></button>
@@ -203,8 +203,8 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <dialog id="staffIntakeDialog" aria-labelledby="staffIntakeTitle">
-    <div class="modalHead"><h2 id="staffIntakeTitle">注文受付</h2><button id="closeStaffIntakeButton" class="secondary" type="button">注文一覧へ戻る</button></div>
-    <iframe id="staffIntakeFrame" title="商品検索と注文受付" style="display:block;border:0;width:100%;height:calc(90dvh - 64px)"></iframe>
+    <div class="modalHead"><h2 id="staffIntakeTitle">注文入力</h2><button id="closeStaffIntakeButton" class="secondary" type="button">注文一覧へ戻る</button></div>
+    <iframe id="staffIntakeFrame" title="商品検索と注文入力" style="display:block;border:0;width:100%;height:calc(90dvh - 64px)"></iframe>
   </dialog>
   <section id="printArea"></section>
   <script src="vendor/qrcode.min.js"></script>
