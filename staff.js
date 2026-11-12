@@ -1261,9 +1261,14 @@
     $('newStaffOrderButton').addEventListener('click', () => withBusy(['newStaffOrderButton'], async () => {
       await ensureToken();
       const frame = $('staffIntakeFrame');
-      if (!frame.getAttribute('src')) frame.src = 'index.html?mode=staff&v=20261112-domestic';
+      if (!frame.getAttribute('src')) frame.src = 'index.html?mode=staff&v=20261112-receipt';
       $('staffIntakeDialog').showModal();
     }).catch(error => showToast(`注文画面を開けません：${humanError(error)}`)));
+    window.addEventListener('message', event => {
+      if (event.origin !== location.origin || event.source !== $('staffIntakeFrame').contentWindow || event.data?.type !== 'korea-staff-draft') return;
+      $('newStaffOrderLabel').textContent = event.data.hasDraft === true ? '入力途中の注文を再開' : '新しい注文';
+      $('newStaffOrderButton').firstElementChild.textContent = event.data.hasDraft === true ? '↩ ' : '＋ ';
+    });
     $('closeStaffIntakeButton').addEventListener('click', () => $('staffIntakeDialog').close());
     $('staffIntakeDialog').addEventListener('close', () => {
       loadOrders({ silent: true }).catch(error => showToast(`注文一覧を更新できません：${humanError(error)}`));

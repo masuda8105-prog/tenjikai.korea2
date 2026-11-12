@@ -111,6 +111,8 @@
     body.staffIntake #quickCheckout:disabled{opacity:.45;cursor:not-allowed}
     body.staffIntake #quickCheckoutHint{display:none}
     .staffCartSummary{display:none}
+    .customerReceiptView .receiptImagePreviewFrame{max-height:none;gap:10px}
+    .customerReceiptView .receiptPngSave{display:inline-flex;padding:10px 14px;border-radius:10px;background:#fff;color:#111827;font-weight:750;text-decoration:none}
     body.staffIntake .staffCartSummary{display:block;font-size:14px;font-weight:850;white-space:nowrap}
   </style>
   <link rel="stylesheet" href="ui-refresh.css">
@@ -355,7 +357,7 @@
         $('searchInput').setAttribute('aria-label','品番・商品名');
         $('langSelect').value='ja';
         $('browseModeToggle').style.display='none';
-        $('qrDialog').querySelector('.modalHead b').textContent='注文が確定しました';
+        $('qrDialog').querySelector('.modalHead b').textContent='3 / 3　注文が確定しました';
         $('qrDialog').querySelector('.customerNextBox b').textContent='お客様への注文控え';
         ['customerCompany','customerName','customerPhone'].forEach(id=>{
           $(id).required=false;
@@ -727,7 +729,10 @@
     function showProductDetail(code){ const p=products.find(x=>String(x.code)===String(code)); if(!p)return; const lang=currentLang(); $('detailBody').innerHTML=`<div class="detailHero">${thumbHtml(p)}<div><div class="detailCode">${sanitize(p.code)}</div><div class="detailTitle">${sanitize(nameOf(p,lang))}</div><div class="detailPrice">${sanitize(searchPriceDisplay(p,lang))}</div>${detailInfoHtml(p,lang)}${officialLinkHtml(p,lang)}<div class="metaLine">${catalogLabel(p.catalog,lang)?`<span class="badge">${sanitize(catalogLabel(p.catalog,lang))}</span>`:''}</div><div class="row wrap" style="margin-top:14px"><button data-add-detail="${sanitize(p.code)}">${txt('add')}</button><button class="secondary" onclick="document.getElementById('detailDialog').close()">${txt('close')}</button></div></div></div>`; $('detailBody').querySelector('[data-add-detail]').onclick=()=>{addProduct(code);$('detailDialog').close();}; $('detailDialog').showModal(); }
     function renderOrder(){
       if(!$('orderItems'))return;
-      if(staffIntake)$('quickCheckout').disabled=!order.length;
+      if(staffIntake){
+        $('quickCheckout').disabled=!order.length;
+        notifyStaffDraft();
+      }
       const lang=currentLang(),showPrices=pricesVisible();
       $('orderItems').innerHTML=order.length?order.map((item,idx)=>`<article class="lineItem">${thumbHtml(item)}<div><div class="code">${sanitize(item.code)}</div><div class="name">${sanitize(nameOf(item,lang))}${item._draftFallback?` <span class="badge matchPartial">要確認 / 확인 필요</span>`:''}</div><div class="qtyCtl"><button data-minus="${idx}" type="button" aria-label="数量を減らす">−</button><input data-qty="${idx}" type="number" min="1" max="9999" step="1" value="${item.qty}" inputmode="numeric" aria-label="数量"/><button data-plus="${idx}" type="button" aria-label="数量を増やす">＋</button></div></div><div class="right"><button class="danger small" data-del="${idx}">${sanitize(txt('delete',lang))}</button><div class="subtotal">${sanitize(showPrices?fmt(item.price*item.qty):txt('priceHidden',lang))}</div></div></article>`).join(''):`<div class="empty">${txt('empty')}</div>`;
       $('orderItems').querySelectorAll('[data-minus]').forEach(b=>b.onclick=()=>changeQty(+b.dataset.minus,-1));
@@ -741,6 +746,11 @@
       $('cartItemCount').textContent=currentLang()==='ko'?`카트 ${qty}점 · ${order.length}품번`:`カート ${qty}点・${order.length}品番`;
       $('miniCartItems').innerHTML=order.length?order.slice(-6).reverse().map(i=>`<span class="miniCartChip">${sanitize(i.code)} × ${sanitize(i.qty)}</span>`).join(''):`<span class="miniCartEmpty">商品を追加するとここに表示されます</span>`;
       draftStore.setItem(cartDraftKey,JSON.stringify(order.map(i=>({code:i.code,qty:i.qty,snapshot:{code:i.code,names:i.names,price:i.price,currency:i.currency||'KRW',image:i.image||'',catalog:i.catalog||''}}))));updateCustomerStatus();renderCheckoutSummary();syncProductQuantities();
+    }
+    function notifyStaffDraft(){
+      if(staffIntake&&window.parent!==window){
+        window.parent.postMessage({type:'korea-staff-draft',hasDraft:order.length>0&&!onlineOrderToken},location.origin);
+      }
     }
     function changeQty(idx,delta){ order[idx].qty=Math.min(9999,Math.max(1,Number(order[idx].qty||1)+delta)); renderOrder(); }
     async function handleFile(e){ const file=e.target.files?.[0]; if(!file)return; const ext=file.name.split('.').pop().toLowerCase(); try{ if(ext==='csv'){ products=prepareProducts(parseCsv(await file.text()).map(normalizeRow).filter(p=>p.code)); }else{ if(!(await ensureLib('XLSX'))) throw new Error('XLSX library is not loaded. Please try CSV.'); const buf=await file.arrayBuffer(); const wb=XLSX.read(buf,{type:'array'}); const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}); products=prepareProducts(rows.map(normalizeRow).filter(p=>p.code)); } catalogReady=products.length>0; restoreOrder(); alert(`${products.length} products loaded`); renderResults(); renderOrder(); }catch(err){ alert('Import error: '+err.message); } }
@@ -875,8 +885,9 @@
     async function showQrForCurrentOrder(){
       if(staffIntake){
         $('qrDialog').querySelector('.primaryQrBox b').textContent='お客様用の韓国語控えQR';
-        $('qrDialog').querySelector('.primaryQrBox small').textContent='お客様の端末で読み取ってください。';
+        $('qrDialog').querySelector('.primaryQrBox small').textContent='お客様の端末で読み取り、表示された控え画像を長押しで保存できます。';
         $('qrDialog').querySelector('.customerNextBox div').textContent=`注文合計 ${fmt(pendingReceiptData?.total||0)}`;
+        $('openReceipt').textContent='控え画像を開く';
         $('copyUrl').textContent='控えURLをコピー';
       }
       $('receiptUrl').textContent=lastStaffQrUrl;
@@ -923,6 +934,7 @@
         const online=await uploadOnlineOrder(pendingReceiptData);
         onlineOrderToken=String((staffIntake?online.receipt:online.token)||onlineOrderToken||'');onlineOrderId=String(online.id||onlineOrderId||'');onlineOrderUpdatedAt=String(online.updatedAt||onlineOrderUpdatedAt||'');onlineOrderExpiresAt=String(online.expiresAt||'');
         if(!onlineOrderToken||!online.orderNo)throw new Error('ORDER_RESPONSE_MISSING');
+        notifyStaffDraft();
         pendingReceiptData.orderNo=String(online.orderNo);
         if(staffIntake&&Number.isFinite(online.total))pendingReceiptData.total=online.total;
         if(staffIntake&&online.duplicatePrevented)alert('この注文はすでに保存されています。受付番号と控えで保存内容を確認してください。');
@@ -1113,9 +1125,10 @@
     }
     async function showCustomerReceipt(){
       document.documentElement.lang='ko';
-      document.body.classList.add('receiptOnly');
+      document.body.classList.add('receiptOnly','customerReceiptView');
       document.querySelector('.receiptPage').style.display='block';
       ['receiptLangSelect','receiptRoleNotice','backToApp','receiptImagePanel','editOrderFromReceipt'].forEach(id=>$(id).style.display='none');
+      $('editOrderFromImage').style.display='none';
       const area=$('receiptPrintArea'), print=$('printReceipt');
       print.textContent='PDF 저장 · 인쇄';
       print.disabled=true;
@@ -1130,12 +1143,111 @@
         if(!data.orderNo||!items.length)throw new Error('RECEIPT_UNAVAILABLE');
         const money=value=>`₩${Number(value).toLocaleString('ko-KR')}`;
         const total=items.reduce((sum,item)=>sum+item.p*item.q,0);
-        area.innerHTML=`<h1>주문 내역서</h1><p><b>접수번호 ${sanitize(data.orderNo)}</b><br>주문일시 ${sanitize(new Date(data.createdAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}))}</p><table class="receiptTable"><thead><tr><th>품번</th><th>상품명</th><th class="num">수량</th><th class="num">단가</th><th class="num">금액</th></tr></thead><tbody>${items.map(item=>`<tr><td>${sanitize(item.c)}</td><td>${sanitize(receiptItemText(item,'n','ko'))}</td><td class="num">${sanitize(item.q)}</td><td class="num">${money(item.p)}</td><td class="num">${money(item.p*item.q)}</td></tr>`).join('')}</tbody></table><p class="receiptSummaryRow total"><b>총 주문 금액</b><b>${money(total)}</b></p>`;
+        const date=new Date(data.createdAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'});
+        area.innerHTML=`<h1>주문 내역서</h1><p><b>접수번호 ${sanitize(data.orderNo)}</b><br>주문일시 ${sanitize(date)}</p><table class="receiptTable"><thead><tr><th>품번</th><th>상품명</th><th class="num">수량</th><th class="num">단가</th><th class="num">금액</th></tr></thead><tbody>${items.map(item=>`<tr><td>${sanitize(item.c)}</td><td>${sanitize(receiptItemText(item,'n','ko'))}</td><td class="num">${sanitize(item.q)}</td><td class="num">${money(item.p)}</td><td class="num">${money(item.p*item.q)}</td></tr>`).join('')}</tbody></table><p class="receiptSummaryRow total"><b>총 주문 금액</b><b>${money(total)}</b></p>`;
         print.disabled=false;
         print.onclick=()=>window.print();
+        $('receiptImagePanel').style.display='';
+        const prepareImage=()=>prepareCustomerReceiptImages({ orderNo:data.orderNo,date,items,total },money);
+        $('retryReceiptImage').onclick=prepareImage;
+        await prepareImage();
       }catch(error){
         area.textContent='주문 내역을 불러올 수 없습니다. 직원에게 문의해 주세요.';
       }finally{clearTimeout(timeout);}
+    }
+
+    async function prepareCustomerReceiptImages(receipt,money){
+      const preview=$('receiptImagePreview'), frame=preview.parentElement;
+      frame.querySelectorAll('[data-extra-receipt-image],[data-save-receipt-png]').forEach(element=>element.remove());
+      preview.removeAttribute('src');
+      setReceiptImageUi('preparing','ko');
+      try{
+        await document.fonts?.ready;
+        const itemsPerImage=32, pages=Math.ceil(receipt.items.length/itemsPerImage);
+        const images=[];
+        for(let page=0;page<pages;page++){
+          const items=receipt.items.slice(page*itemsPerImage,(page+1)*itemsPerImage);
+          images.push(customerReceiptImage(receipt,items,page,pages,money));
+        }
+        for(let index=0;index<images.length;index++){
+          const img=index===0?preview:new Image();
+          if(index>0){
+            img.className=preview.className;
+            img.dataset.extraReceiptImage='';
+            frame.appendChild(img);
+          }
+          img.alt=pages===1?'길게 눌러 저장하는 주문 내역서':`주문 내역서 ${index+1}페이지`;
+          img.src=images[index];
+          const save=document.createElement('a');
+          save.dataset.saveReceiptPng='';
+          save.className='secondary receiptPngSave';
+          save.href=images[index];
+          const number=String(receipt.orderNo).replace(/[^A-Za-z0-9_-]/g,'');
+          save.download=`order-${number||'receipt'}${pages>1?`-${index+1}`:''}.png`;
+          save.textContent=pages===1?'이미지 저장':`${index+1}페이지 이미지 저장`;
+          img.after(save);
+        }
+        setReceiptImageUi('ready','ko');
+      }catch(error){
+        console.error('customer receipt image failed',error);
+        setReceiptImageUi('error','ko');
+      }
+    }
+
+    function customerReceiptImage(receipt,items,page,pages,money){
+      const canvas=document.createElement('canvas'), width=880, left=30, right=width-left;
+      const ctx=canvas.getContext('2d',{alpha:false});
+      if(!ctx)throw new Error('Canvas unavailable');
+      canvas.width=width;
+      ctx.font=canvasFont(20,750);
+      const rows=items.map(item=>{
+        const code=canvasLines(ctx,item.c,142);
+        const name=canvasLines(ctx,receiptItemText(item,'n','ko'),292);
+        return {item,code,name,height:Math.max(52,24*Math.max(code.length,name.length)+18)};
+      });
+      canvas.height=258+rows.reduce((sum,row)=>sum+row.height,0);
+      ctx.fillStyle='#fff';
+      ctx.fillRect(0,0,width,canvas.height);
+      ctx.fillStyle='#111827';
+      ctx.font=canvasFont(34,900);
+      ctx.fillText('주문 내역서',left,55);
+      ctx.font=canvasFont(21,800);
+      ctx.fillText(`접수번호 ${receipt.orderNo}`,left,95);
+      ctx.font=canvasFont(18,650);
+      ctx.fillText(`주문일시 ${receipt.date}`,left,124);
+      let y=148;
+      ctx.fillStyle='#f1f5f9';
+      ctx.fillRect(left,y,right-left,43);
+      ctx.fillStyle='#334155';
+      ctx.font=canvasFont(18,800);
+      ctx.fillText('품번',left+10,y+28);
+      ctx.fillText('상품명',left+160,y+28);
+      ctx.textAlign='right';
+      ['수량','단가','금액'].forEach((label,index)=>ctx.fillText(label,[525,680,right-10][index],y+28));
+      y+=43;
+      for(const {item,code,name,height} of rows){
+        ctx.strokeStyle='#d0d5dd';
+        ctx.beginPath();ctx.moveTo(left,y+height);ctx.lineTo(right,y+height);ctx.stroke();
+        ctx.fillStyle='#111827';
+        ctx.font=canvasFont(20,750);
+        ctx.textAlign='left';
+        code.forEach((line,index)=>ctx.fillText(line,left+10,y+27+index*24));
+        name.forEach((line,index)=>ctx.fillText(line,left+160,y+27+index*24));
+        ctx.textAlign='right';
+        [String(item.q),money(item.p),money(item.p*item.q)].forEach((value,index)=>ctx.fillText(value,[525,680,right-10][index],y+27));
+        y+=height;
+      }
+      ctx.font=canvasFont(24,900);
+      ctx.fillText(`총 주문 금액  ${money(receipt.total)}`,right-10,y+42);
+      if(pages>1){
+        ctx.textAlign='left';
+        ctx.font=canvasFont(18,750);
+        ctx.fillText(`${page+1} / ${pages}`,left+10,y+42);
+      }
+      const image=canvas.toDataURL('image/png');
+      canvas.width=canvas.height=1;
+      if(!image.startsWith('data:image/png;base64,'))throw new Error('Receipt image could not be encoded');
+      return image;
     }
 
     async function showReceiptFromHash(){

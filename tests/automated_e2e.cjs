@@ -32,7 +32,7 @@ function staffHtml(mock) {
   html = html.replace('<link rel="stylesheet" href="ui-refresh.css">', `<style>${read('ui-refresh.css')}</style>`);
   html = html.replace('<script src="online-config.js"></script>', `<script>${storageShim}${mock}</script><script>${read('online-config.js')}</script>`);
   html = html.replace('<script src="vendor/qrcode.min.js"></script>', `<script>${read('vendor/qrcode.min.js')}</script>`);
-  html = html.replace('<script src="staff.js?v=20261112-domestic"></script>', `<script>${read('staff.js').replace("await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4/+esm')", "({createClient(){throw new Error('offline test')}})")}</script>`);
+  html = html.replace('<script src="staff.js?v=20261112-receipt"></script>', `<script>${read('staff.js').replace("await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4/+esm')", "({createClient(){throw new Error('offline test')}})")}</script>`);
   return html;
 }
 
@@ -209,6 +209,11 @@ async function staffFlow(browser) {
   await receiptPage.setContent(customerHtml(receiptMock));
   await receiptPage.waitForFunction(() => document.querySelector('#receiptPrintArea').textContent.includes('₩240,000'));
   if (await receiptPage.locator('html').getAttribute('lang') !== 'ko' || await receiptPage.locator('#editOrderFromReceipt, #editOrderFromImage, #backToApp').filter({ visible: true }).count()) throw new Error('お客様控えが韓国語の閲覧専用になっていません');
+  await receiptPage.waitForFunction(() => document.querySelector('#receiptImagePanel.ready #receiptImagePreview')?.naturalWidth > 0);
+  if (!(await receiptPage.textContent('#deviceSaveText')).includes('길게 눌러') || !(await receiptPage.getAttribute('#receiptImagePreview','src')).startsWith('data:image/png;base64,')) throw new Error('QR控えのPNGまたは韓国語の長押し案内が表示されません');
+  if (await receiptPage.locator('[data-save-receipt-png]').getAttribute('download') !== 'order-K260803-001.png') throw new Error('注文控えに画像保存リンクがありません');
+  await receiptPage.evaluate(() => prepareCustomerReceiptImages({orderNo:'K-0001',date:'2026-11-12',total:33000,items:Array.from({length:33},(_,i)=>({c:`P-${i+1}`,n:['テスト','테스트'],p:1000,q:1}))}, value=>`₩${value.toLocaleString('ko-KR')}`));
+  await receiptPage.waitForFunction(() => document.querySelector('[data-extra-receipt-image]')?.naturalWidth > 0);
   await receiptPage.close();
   await page.click('#customerQrTopClose');
   await page.click('#startButton'); await page.waitForFunction(() => document.querySelector('#progressCount')?.textContent === '1');
@@ -304,7 +309,7 @@ async function responsiveSmoke(browser) {
   staff.on('pageerror', (error) => staffErrors.push(String(error)));
   const staffMock = `window.fetch=async(input,init={})=>{const url=String(input);if(url.includes('/auth/v1/token'))return new Response(JSON.stringify({access_token:'mobile-access',refresh_token:'mobile-refresh',expires_in:3600,user:{id:'22222222-2222-2222-2222-222222222222',email:'mobile@example.com',user_metadata:{full_name:'Mobile Staff'}}}),{status:200,headers:{'Content-Type':'application/json'}});if(url.includes('/rest/v1/exhibition_staff'))return new Response(JSON.stringify([{display_name:'Mobile Staff',role:'staff',active:true}]),{status:200,headers:{'Content-Type':'application/json'}});if(url.includes('/rest/v1/exhibition_orders')||url.includes('/rest/v1/order_batches'))return new Response('[]',{status:200,headers:{'Content-Type':'application/json'}});throw new Error('unexpected fetch '+url)};`;
   await staff.route('https://staff.test/staff.html', route => route.fulfill({contentType:'text/html',body:staffHtml(staffMock)}));
-  await staff.route('https://staff.test/index.html?mode=staff&v=20261112-domestic', route => route.fulfill({contentType:'text/html',body:customerHtml('',false)}));
+  await staff.route('https://staff.test/index.html?mode=staff&v=20261112-receipt', route => route.fulfill({contentType:'text/html',body:customerHtml('',false)}));
   await staff.goto('https://staff.test/staff.html', { waitUntil: 'domcontentloaded' });
   await staff.fill('#email', 'mobile@example.com'); await staff.fill('#password', 'password'); await staff.click('#loginButton');
   await staff.waitForSelector('#dashboardView:not(.hidden)');
@@ -317,7 +322,12 @@ async function responsiveSmoke(browser) {
   await staff.setViewportSize({width:390,height:844});
   await staff.getByRole('button',{name:'新しい注文',exact:true}).click();
   await staff.waitForSelector('#staffIntakeDialog[open]');
-  await staff.frameLocator('#staffIntakeFrame').locator('#searchInput').waitFor({state:'visible'});
+  const intake=staff.frameLocator('#staffIntakeFrame');
+  await intake.locator('#searchInput').fill('1053');
+  await intake.locator('[data-add="1053"]').click();
+  await staff.getByRole('button',{name:'注文一覧へ戻る'}).click();
+  await staff.getByRole('button',{name:'入力途中の注文を再開',exact:true}).click();
+  if (await intake.locator('#orderItems [data-qty]').inputValue() !== '1') throw new Error('注文再開時に商品数量が保持されません');
   await staff.getByRole('button',{name:'注文一覧へ戻る'}).click();
   if (await staff.locator('#staffIntakeDialog').isVisible()) throw new Error('注文一覧へ戻れません');
   if (staffErrors.length) throw new Error(staffErrors.join('\n'));
