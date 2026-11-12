@@ -32,7 +32,7 @@ function staffHtml(mock) {
   html = html.replace('<link rel="stylesheet" href="ui-refresh.css">', `<style>${read('ui-refresh.css')}</style>`);
   html = html.replace('<script src="online-config.js"></script>', `<script>${storageShim}${mock}</script><script>${read('online-config.js')}</script>`);
   html = html.replace('<script src="vendor/qrcode.min.js"></script>', `<script>${read('vendor/qrcode.min.js')}</script>`);
-  html = html.replace('<script src="staff.js?v=20261009-ui"></script>', `<script>${read('staff.js').replace("await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4/+esm')", "({createClient(){throw new Error('offline test')}})")}</script>`);
+  html = html.replace('<script src="staff.js?v=20261112-layout"></script>', `<script>${read('staff.js').replace("await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4/+esm')", "({createClient(){throw new Error('offline test')}})")}</script>`);
   return html;
 }
 
@@ -303,10 +303,23 @@ async function responsiveSmoke(browser) {
   const staffErrors = [];
   staff.on('pageerror', (error) => staffErrors.push(String(error)));
   const staffMock = `window.fetch=async(input,init={})=>{const url=String(input);if(url.includes('/auth/v1/token'))return new Response(JSON.stringify({access_token:'mobile-access',refresh_token:'mobile-refresh',expires_in:3600,user:{id:'22222222-2222-2222-2222-222222222222',email:'mobile@example.com',user_metadata:{full_name:'Mobile Staff'}}}),{status:200,headers:{'Content-Type':'application/json'}});if(url.includes('/rest/v1/exhibition_staff'))return new Response(JSON.stringify([{display_name:'Mobile Staff',role:'staff',active:true}]),{status:200,headers:{'Content-Type':'application/json'}});if(url.includes('/rest/v1/exhibition_orders')||url.includes('/rest/v1/order_batches'))return new Response('[]',{status:200,headers:{'Content-Type':'application/json'}});throw new Error('unexpected fetch '+url)};`;
-  await staff.setContent(staffHtml(staffMock), { waitUntil: 'domcontentloaded' });
+  await staff.route('https://staff.test/staff.html', route => route.fulfill({contentType:'text/html',body:staffHtml(staffMock)}));
+  await staff.route('https://staff.test/index.html?mode=staff&v=20261112-layout', route => route.fulfill({contentType:'text/html',body:customerHtml('',false)}));
+  await staff.goto('https://staff.test/staff.html', { waitUntil: 'domcontentloaded' });
   await staff.fill('#email', 'mobile@example.com'); await staff.fill('#password', 'password'); await staff.click('#loginButton');
   await staff.waitForSelector('#dashboardView:not(.hidden)');
   if (!await staff.locator('#staffOrderHistory').isVisible() || !await staff.locator('#newStaffOrderButton').isVisible() || await staff.locator('.summary').isVisible()) throw new Error('スマホスタッフ画面の表示が不正です');
+  for (const width of [390, 820, 1440]) {
+    await staff.setViewportSize({width,height:844});
+    const button = await staff.locator('#newStaffOrderButton').boundingBox();
+    if (!button || button.height < 54 || button.y + button.height < 810 || button.width < Math.min(350,width-30)) throw new Error('新しい注文ボタンが画面下部に表示されません');
+  }
+  await staff.setViewportSize({width:390,height:844});
+  await staff.getByRole('button',{name:'新しい注文',exact:true}).click();
+  await staff.waitForSelector('#staffIntakeDialog[open]');
+  await staff.frameLocator('#staffIntakeFrame').locator('#searchInput').waitFor({state:'visible'});
+  await staff.getByRole('button',{name:'注文一覧へ戻る'}).click();
+  if (await staff.locator('#staffIntakeDialog').isVisible()) throw new Error('注文一覧へ戻れません');
   if (staffErrors.length) throw new Error(staffErrors.join('\n'));
   await staff.close();
 }

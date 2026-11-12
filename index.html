@@ -89,7 +89,8 @@
     @media(max-width:760px){.receiptImagePanel{padding:10px;border-radius:15px}.receiptImagePanelTitle{font-size:15px}.receiptImagePreviewFrame{min-height:180px;max-height:64vh;padding:7px}.receiptActions button:disabled{opacity:.58;cursor:wait}}
 
     .staffCheckoutItems{list-style:none;margin:8px 0 0;padding:0}.staffCheckoutItems li{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid #d1d5db}.staffCheckoutItems .thumb{width:42px;height:42px;flex:none}
-    .staffIntake .customerRequiredGrid label:has(#customerName),.staffIntake .customerRequiredGrid .requiredBadge,.staffIntake .customerMore,.staffIntake .shippingAddressField,.staffIntake .customerPrivacy,.staffIntake .handoffCustomer,.staffIntake #editOrderFromHandoff{display:none!important}
+    .staffIntake .appTopbar,.staffIntake .orderSteps,.staffIntake .staffTools,.staffIntake .customerRequiredGrid label:has(#customerName),.staffIntake .customerRequiredGrid .requiredBadge,.staffIntake .customerMore,.staffIntake .shippingAddressField,.staffIntake .customerPrivacy,.staffIntake .handoffCustomer,.staffIntake #editOrderFromHandoff{display:none!important}
+    body.staffIntake .searchDock{top:0;background:#f4f6f8}
   </style>
   <link rel="stylesheet" href="ui-refresh.css">
 </head>
@@ -351,7 +352,7 @@
         zh:{quickCheckoutLabel:'继续下单',quickCheckoutHint:'填写客户信息并生成受理编号',customerSheetTitle:'客户信息',customerSheetHint:'请仅填写订单受理所需的信息。',closeCustomerDialog:'关闭',saveCustomerInfo:'保存并返回',submit:'生成受理编号'}
       };
       const values=staffIntake ? {
-        ...copy.ja, quickCheckoutLabel:'注文内容へ進む', quickCheckoutHint:'名刺・店舗名・電話番号からお客様を確認',
+        ...copy.ja, quickCheckoutLabel:'注文内容へ進む', quickCheckoutHint:'名刺・店舗名・電話番号からお客様を確認', customerSheetTitle:'2 / 3　入力・確認',
         customerSheetHint:'名刺を撮影するか、店舗名・電話番号を入力してください。', submit:'注文を確定',
       } : copy[lang]||copy.ja;
       Object.entries(values).forEach(([id,value])=>{const el=$(id);if(el)el.textContent=value;});

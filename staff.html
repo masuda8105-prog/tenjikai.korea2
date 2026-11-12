@@ -40,6 +40,16 @@
     @media print{@page{size:A4 portrait;margin:6mm}html,body{width:100%!important;height:auto!important;min-height:0!important;margin:0!important;padding:0!important;background:#fff!important}#printArea{display:block!important;width:100%!important;margin:0!important;padding:0!important;overflow:visible!important}.printOrder{width:100%!important;min-height:0!important;height:auto!important;margin:0!important;padding:0!important;page-break-after:always!important;break-after:page!important;overflow:visible!important}.printOrder:last-child{page-break-after:auto!important;break-after:auto!important}.batchCover{display:block!important;width:100%!important;min-height:0!important;height:auto!important;max-height:none!important;margin:0!important;padding:8mm 10mm!important;overflow:visible!important;break-inside:avoid-page!important;page-break-inside:avoid!important;page-break-after:always!important;break-after:page!important}.receiptBusinessCardImage img{max-height:105px!important}.receiptHeaderSimple,.receiptInfoBand,.receiptBusinessCard,.receiptFooterGrid,.receiptFooterMini{break-inside:avoid!important;page-break-inside:avoid!important}}
     #staffOrderHistory .confirmedListHeader,#staffOrderHistory .confirmedOrderRow{min-width:0;grid-template-columns:68px minmax(0,1fr) minmax(64px,.55fr) minmax(58px,.7fr);gap:6px}
     #staffOrderHistory .confirmedOrderNo{white-space:normal;overflow-wrap:anywhere}
+    #dashboardView .topbar{background:#f4f6f8;color:#111827}
+    #dashboardView .topbarInner,#dashboardView .main{max-width:760px}
+    #dashboardView .main{padding-bottom:calc(92px + env(safe-area-inset-bottom))}
+    #newStaffOrderButton{position:fixed;z-index:45;left:max(14px,calc((100vw - 760px)/2 + 14px));right:max(14px,calc((100vw - 760px)/2 + 14px));bottom:max(14px,env(safe-area-inset-bottom));height:58px;border:0;border-radius:18px;background:#111827;color:#fff;font-size:16px;font-weight:850;box-shadow:0 12px 30px rgba(17,24,39,.24)}
+    #newStaffOrderButton:focus-visible{outline:3px solid #2563eb;outline-offset:3px}
+    #staffIntakeDialog{width:min(760px,100%);height:100dvh;max-width:none;max-height:none;margin:auto;border-radius:0;background:#f4f6f8}
+    #staffIntakeDialog .modalHead{height:64px;background:#f4f6f8}
+    #staffIntakeTitle{font-size:20px}
+    #staffIntakeStep{display:block;font-size:11px;font-weight:750;color:#475569;margin-bottom:2px}
+    #staffIntakeFrame{display:block;border:0;width:100%;height:calc(100dvh - 64px)}
     @media print{
       @page{@bottom-right{content:counter(page) ' / ' counter(pages);font-size:9pt}}
       .receiptTable thead{display:table-header-group}
@@ -80,7 +90,7 @@
     <header class="topbar"><div class="topbarInner">
       <div class="brand"><img src="assets/sun_nishimura_logo.jpg" alt="SAN NISHIMURA"><div><h1>韓国展示会 注文管理</h1><p>注文対応ワークスペース</p></div></div>
       <div class="topActions">
-        <button id="newStaffOrderButton" type="button">新しい注文</button><button id="priceCheckButton" class="priceCheckButton" type="button">⌕ 価格確認</button>
+        <button id="priceCheckButton" class="priceCheckButton" type="button">⌕ 価格確認</button>
         <div id="staffIdentity" class="staffIdentity"></div>
         <div class="syncState topSync"><span id="syncDot" class="dot"></span><span id="syncText">接続準備中</span></div>
         <details class="utilityMenu"><summary>メニュー</summary><div class="utilityMenuBody"><div id="utilityIdentity" class="utilityIdentity"></div><button id="sentOrdersButton" class="menuWithCount" type="button"><span>送付済み注文</span><strong id="sentCount">0</strong></button><button id="soundButton" type="button">🔕 通知音OFF</button><button id="legacyWorkflowButton" type="button" aria-controls="legacyWorkflow" aria-expanded="false">旧注文・送付履歴の管理</button><button id="batchHistoryButton" type="button">送信履歴</button><button id="historyButton" type="button">削除履歴</button><button id="printAllOrdersButton" type="button">全注文をPDF出力</button><button id="refreshButton" type="button">最新情報に更新</button><button id="logoutButton" type="button">ログアウト</button></div></details>
@@ -114,6 +124,7 @@
       <section id="column-completed" class="confirmedQueue" aria-labelledby="confirmedQueueTitle"><div class="confirmedQueueHead"><div class="confirmedTitleRow"><h2 id="confirmedQueueTitle">注文確定分</h2><strong id="completedCount" class="queueCount">0</strong></div><button id="batchButton" class="confirmedSendButton" type="button">確定注文をまとめて送る</button></div><div class="confirmedListHeader" aria-hidden="true"><span>時間</span><span>会社名・お客様名</span><span>担当者</span><span>注文番号</span></div><div id="list-completed" class="orderList confirmedOrderList"></div></section>
       </details>
     </main>
+    <button id="newStaffOrderButton" type="button"><span aria-hidden="true">＋ </span>新しい注文</button>
   </section>
 
   <dialog id="priceDialog" aria-labelledby="priceDialogTitle">
@@ -203,12 +214,12 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <dialog id="staffIntakeDialog" aria-labelledby="staffIntakeTitle">
-    <div class="modalHead"><h2 id="staffIntakeTitle">注文入力</h2><button id="closeStaffIntakeButton" class="secondary" type="button">注文一覧へ戻る</button></div>
-    <iframe id="staffIntakeFrame" title="商品検索と注文入力" style="display:block;border:0;width:100%;height:calc(90dvh - 64px)"></iframe>
+    <div class="modalHead"><div><small id="staffIntakeStep">1 / 3　商品</small><h2 id="staffIntakeTitle">商品を追加</h2></div><button id="closeStaffIntakeButton" class="secondary" type="button">注文一覧へ戻る</button></div>
+    <iframe id="staffIntakeFrame" title="商品検索と注文入力"></iframe>
   </dialog>
   <section id="printArea"></section>
   <script src="vendor/qrcode.min.js"></script>
   <script src="online-config.js"></script>
-  <script src="staff.js?v=20261009-ui"></script>
+  <script src="staff.js?v=20261112-layout"></script>
 </body>
 </html>

@@ -1261,7 +1261,7 @@
     $('newStaffOrderButton').addEventListener('click', () => withBusy(['newStaffOrderButton'], async () => {
       await ensureToken();
       const frame = $('staffIntakeFrame');
-      if (!frame.getAttribute('src')) frame.src = 'index.html?mode=staff';
+      if (!frame.getAttribute('src')) frame.src = 'index.html?mode=staff&v=20261112-layout';
       $('staffIntakeDialog').showModal();
     }).catch(error => showToast(`注文画面を開けません：${humanError(error)}`)));
     $('closeStaffIntakeButton').addEventListener('click', () => $('staffIntakeDialog').close());
