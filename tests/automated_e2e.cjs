@@ -32,7 +32,7 @@ function staffHtml(mock) {
   html = html.replace('<link rel="stylesheet" href="ui-refresh.css">', `<style>${read('ui-refresh.css')}</style>`);
   html = html.replace('<script src="online-config.js"></script>', `<script>${storageShim}${mock}</script><script>${read('online-config.js')}</script>`);
   html = html.replace('<script src="vendor/qrcode.min.js"></script>', `<script>${read('vendor/qrcode.min.js')}</script>`);
-  html = html.replace('<script src="staff.js?v=20261112-layout"></script>', `<script>${read('staff.js').replace("await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4/+esm')", "({createClient(){throw new Error('offline test')}})")}</script>`);
+  html = html.replace('<script src="staff.js?v=20261112-domestic"></script>', `<script>${read('staff.js').replace("await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4/+esm')", "({createClient(){throw new Error('offline test')}})")}</script>`);
   return html;
 }
 
@@ -304,7 +304,7 @@ async function responsiveSmoke(browser) {
   staff.on('pageerror', (error) => staffErrors.push(String(error)));
   const staffMock = `window.fetch=async(input,init={})=>{const url=String(input);if(url.includes('/auth/v1/token'))return new Response(JSON.stringify({access_token:'mobile-access',refresh_token:'mobile-refresh',expires_in:3600,user:{id:'22222222-2222-2222-2222-222222222222',email:'mobile@example.com',user_metadata:{full_name:'Mobile Staff'}}}),{status:200,headers:{'Content-Type':'application/json'}});if(url.includes('/rest/v1/exhibition_staff'))return new Response(JSON.stringify([{display_name:'Mobile Staff',role:'staff',active:true}]),{status:200,headers:{'Content-Type':'application/json'}});if(url.includes('/rest/v1/exhibition_orders')||url.includes('/rest/v1/order_batches'))return new Response('[]',{status:200,headers:{'Content-Type':'application/json'}});throw new Error('unexpected fetch '+url)};`;
   await staff.route('https://staff.test/staff.html', route => route.fulfill({contentType:'text/html',body:staffHtml(staffMock)}));
-  await staff.route('https://staff.test/index.html?mode=staff&v=20261112-layout', route => route.fulfill({contentType:'text/html',body:customerHtml('',false)}));
+  await staff.route('https://staff.test/index.html?mode=staff&v=20261112-domestic', route => route.fulfill({contentType:'text/html',body:customerHtml('',false)}));
   await staff.goto('https://staff.test/staff.html', { waitUntil: 'domcontentloaded' });
   await staff.fill('#email', 'mobile@example.com'); await staff.fill('#password', 'password'); await staff.click('#loginButton');
   await staff.waitForSelector('#dashboardView:not(.hidden)');
@@ -438,8 +438,10 @@ async function staffIntakeFlow(browser) {
   await page.waitForURL('https://app.test/staff.html');
   await page.goto('https://app.test/index.html?mode=staff');
   await page.waitForFunction(() => catalogReady);
+  if (!await page.locator('#searchCard #keypadPanel').count() || !await page.locator('#quickCheckout').isDisabled()) throw new Error('スタッフ商品画面のキー配置または空のカート表示が不正です');
   await page.fill('#searchInput', '1053');
   await page.click('[data-add="1053"]');
+  if (!await page.locator('#orderItems [data-qty]').isVisible() || !(await page.textContent('#staffCartSummary')).includes('₩83,300')) throw new Error('商品選択画面に数量とウォン合計が表示されません');
   await page.click('#quickCheckout');
   if (await page.locator('#customerName').isVisible() || await page.locator('#customerCompany').getAttribute('required') !== null) throw new Error('スタッフ受付に必須の氏名や店舗名が残っています');
   const card = { name: 'card.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWfcAAAAASUVORK5CYII=', 'base64') };

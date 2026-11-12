@@ -52,7 +52,7 @@ def inline_staff_html(mock_js: str):
     mock_js=storage_shim()+mock_js
     html=html.replace('<script src="online-config.js"></script>', f'<script>{mock_js}</script><script>{(ROOT/"online-config.js").read_text()}</script>')
     html=html.replace('<script src="vendor/qrcode.min.js"></script>', f'<script>{(ROOT/"vendor/qrcode.min.js").read_text()}</script>')
-    html=html.replace('<script src="staff.js?v=20261112-layout"></script>', f'<script>{(ROOT/"staff.js").read_text()}</script>')
+    html=html.replace('<script src="staff.js?v=20261112-domestic"></script>', f'<script>{(ROOT/"staff.js").read_text()}</script>')
     return html
 
 

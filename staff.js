@@ -413,7 +413,7 @@
       const store = escapeHtml(order.order_data?.customerCompany || '未入力');
       const time = escapeHtml(new Date(order.created_at).toLocaleString('ja-JP', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }));
       const number = escapeHtml(order.order_no);
-      return `<article class="confirmedOrderRow historyOrderRow" data-order-id="${escapeHtml(order.id)}" tabindex="0" role="button" aria-label="${number} ${store} を開く"><span class="confirmedTime">${time}</span><span class="confirmedCustomer">${store}</span><span class="confirmedStaff">${formatMoney(orderTotal(order))}</span><strong class="confirmedOrderNo">${number}</strong></article>`;
+      return `<article class="historyOrderCard" data-order-id="${escapeHtml(order.id)}" tabindex="0" role="button" aria-label="${number} ${store} を開く"><div class="historyOrderTop"><span>${number}</span><b>${formatMoney(orderTotal(order))}</b></div><div class="historyOrderStore">${store}</div><div class="historyOrderMeta"><span>${time}</span><span>${totalQty(order)}点 · 詳細を見る</span></div></article>`;
     }).join('') : '<div class="empty">該当する注文はありません。</div>';
     ['open', 'progress', 'completed', 'sent'].forEach(renderList);
     document.querySelectorAll('[data-order-id]').forEach((card) => {
@@ -1261,7 +1261,7 @@
     $('newStaffOrderButton').addEventListener('click', () => withBusy(['newStaffOrderButton'], async () => {
       await ensureToken();
       const frame = $('staffIntakeFrame');
-      if (!frame.getAttribute('src')) frame.src = 'index.html?mode=staff&v=20261112-layout';
+      if (!frame.getAttribute('src')) frame.src = 'index.html?mode=staff&v=20261112-domestic';
       $('staffIntakeDialog').showModal();
     }).catch(error => showToast(`注文画面を開けません：${humanError(error)}`)));
     $('closeStaffIntakeButton').addEventListener('click', () => $('staffIntakeDialog').close());
